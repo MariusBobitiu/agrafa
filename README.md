@@ -106,6 +106,7 @@ The frontend uses `VITE_API_URL` from `frontend/.env` and proxies `/v1` requests
 - The backend uses a single PostgreSQL database configured with `POSTGRES_URI`.
 - Backend migrations live under `backend/src/db/migrations/app`.
 - The agent can load fallback health checks from `agent/health_checks.json`, but backend-provided config is the normal path.
+- The agent can also be published as a container image to GitHub Container Registry via `.github/workflows/publish-agent-container.yml`.
 
 ## Status
 

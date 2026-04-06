@@ -57,3 +57,42 @@ Or:
 ```bash
 make run
 ```
+
+## Docker
+
+Build locally:
+
+```bash
+docker build -t agrafa-agent ./agent
+```
+
+Pull from GitHub Container Registry after the publish workflow runs:
+
+```bash
+docker pull ghcr.io/mariusbobitiu/agrafa-agent:latest
+```
+
+Recommended Linux runtime when you want host-level metrics instead of container-only metrics:
+
+```bash
+docker run --rm \
+  --name agrafa-agent \
+  --pid=host \
+  -e AGRAFA_API_BASE_URL=https://your-backend.example.com/v1 \
+  -e AGRAFA_AGENT_TOKEN=your-agent-token \
+  -e AGRAFA_NODE_ID=123 \
+  -e HOST_PROC=/host/proc \
+  -e HOST_SYS=/host/sys \
+  -e HOST_ETC=/host/etc \
+  -e HOST_ROOT=/host \
+  -e AGRAFA_DISK_PATH=/host \
+  -v /proc:/host/proc:ro \
+  -v /sys:/host/sys:ro \
+  -v /etc:/host/etc:ro \
+  -v /:/host:ro \
+  ghcr.io/mariusbobitiu/agrafa-agent:latest
+```
+
+Add `--network host` if your health checks target services bound to `localhost` on the monitored machine.
+
+The GitHub Actions workflow publishes the image to GHCR on tags that match `agent-v*.*.*`, for example `agent-v0.1.0`. You can also trigger the workflow manually from the Actions tab.
