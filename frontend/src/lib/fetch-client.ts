@@ -12,6 +12,16 @@ export function getApiBaseUrl() {
   return new URL(BASE_URL, window.location.origin).toString().replace(/\/$/, "");
 }
 
+export function getAgentApiBaseUrl() {
+  const baseUrl = getApiBaseUrl();
+
+  if (!baseUrl) {
+    return "/v1";
+  }
+
+  return baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
+}
+
 export class ApiError extends Error {
   readonly status: number;
 
