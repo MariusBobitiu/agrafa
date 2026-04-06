@@ -1,0 +1,13 @@
+version: "2"
+
+sql:
+  - engine: "postgresql"
+    schema: "src/db/sqlc/schema.sql"
+    queries: "src/db/sqlc/queries"
+    gen:
+      go:
+        package: "generated"
+        out: "src/db/sqlc/generated"
+        sql_package: "database/sql"
+        emit_json_tags: true
+        emit_empty_slices: true

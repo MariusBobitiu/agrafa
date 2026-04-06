@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agrafa Alert Resolved</title>
+</head>
+<body style="margin:0; padding:24px; background:#f5f7fb; color:#0f172a; font-family:Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:640px; background:#ffffff; border-radius:16px; overflow:hidden; border:1px solid #dbe3f0;">
+          <tr>
+            <td style="padding:24px; background:#166534; color:#ffffff;">
+              <div style="font-size:12px; letter-spacing:0.08em; text-transform:uppercase; opacity:0.85;">Agrafa Alerts</div>
+              <h1 style="margin:12px 0 0; font-size:28px; line-height:1.2;">Alert resolved</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px; font-size:16px; line-height:1.6;">
+                {{ if .ProjectName }}Project <strong>{{ .ProjectName }}</strong>{{ else }}Project <strong>#{{ .ProjectID }}</strong>{{ end }}
+                has resolved an alert.
+              </p>
+              <div style="margin:0 0 20px; padding:16px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px;">
+                <div style="font-size:13px; color:#166534; text-transform:uppercase; letter-spacing:0.08em;">Title</div>
+                <div style="margin-top:8px; font-size:22px; font-weight:700;">{{ .AlertTitle }}</div>
+                <p style="margin:12px 0 0; font-size:15px; line-height:1.6;">{{ .AlertMessage }}</p>
+              </div>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+                <tr>
+                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0; width:180px; color:#475569;">Rule type</td>
+                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0;">{{ .RuleType }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0; color:#475569;">Status</td>
+                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0;">{{ .Status }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0; color:#475569;">Node ID</td>
+                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0;">{{ if .NodeID }}{{ .NodeID }}{{ else }}n/a{{ end }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0; color:#475569;">Service ID</td>
+                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0;">{{ if .ServiceID }}{{ .ServiceID }}{{ else }}n/a{{ end }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0; color:#475569;">Triggered at</td>
+                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0;">{{ formatTime .TriggeredAt }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0; color:#475569;">Resolved at</td>
+                  <td style="padding:10px 0;">{{ formatTime .ResolvedAt }}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

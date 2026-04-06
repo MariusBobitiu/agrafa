@@ -1,0 +1,8 @@
+AGRAFA SECURITY
+
+{{ if .Name }}Hi {{ .Name }},{{ else }}Hi,{{ end }}
+
+Verify your email to secure your Agrafa account:
+{{ .VerifyURL }}
+
+If you did not create or update this account, you can ignore this email.

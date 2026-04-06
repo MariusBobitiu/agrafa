@@ -1,0 +1,9 @@
+[
+  {
+    "service_id": 1,
+    "name": "nextjs-app",
+    "type": "http",
+    "target": "http://localhost:3000",
+    "timeout_seconds": 10
+  }
+]

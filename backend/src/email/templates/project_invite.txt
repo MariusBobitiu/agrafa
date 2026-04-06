@@ -1,0 +1,9 @@
+AGRAFA INVITATION
+
+{{ if .InviterName }}{{ .InviterName }} invited you{{ else }}You were invited{{ end }} to join {{ if .ProjectName }}{{ .ProjectName }}{{ else }}an Agrafa project{{ end }}.
+Role: {{ .Role }}
+
+Accept invitation:
+{{ .AcceptURL }}
+
+If you don't want to join this project, you can ignore this email.

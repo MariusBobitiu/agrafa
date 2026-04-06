@@ -1,0 +1,52 @@
+-- name: CreateAlertRule :one
+INSERT INTO app.alert_rules (
+    project_id,
+    node_id,
+    service_id,
+    rule_type,
+    metric_name,
+    threshold_value,
+    is_enabled
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+)
+RETURNING *;
+
+-- name: GetAlertRuleByID :one
+SELECT *
+FROM app.alert_rules
+WHERE id = $1
+LIMIT 1;
+
+-- name: ListAlertRules :many
+SELECT *
+FROM app.alert_rules
+WHERE (NOT $1::boolean OR project_id = $2)
+ORDER BY id DESC;
+
+-- name: ListEnabledAlertRules :many
+SELECT *
+FROM app.alert_rules
+WHERE is_enabled = TRUE
+  AND rule_type = $1
+  AND (NOT $2::boolean OR node_id = $3)
+  AND (NOT $4::boolean OR service_id = $5)
+  AND (NOT $6::boolean OR metric_name = $7)
+ORDER BY id DESC;
+
+-- name: UpdateAlertRuleEnabled :one
+UPDATE app.alert_rules
+SET is_enabled = $2,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: DeleteAlertRuleByID :execrows
+DELETE FROM app.alert_rules
+WHERE id = $1;

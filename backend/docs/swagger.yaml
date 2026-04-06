@@ -1,0 +1,3148 @@
+basePath: /v1
+definitions:
+  types.AgentConfigCheckDocument:
+    properties:
+      check_target:
+        example: http://internal-api.local/health
+        type: string
+      check_type:
+        example: http
+        type: string
+      interval_seconds:
+        example: 30
+        type: integer
+      name:
+        example: internal-api
+        type: string
+      service_id:
+        example: 101
+        type: integer
+      timeout_seconds:
+        example: 10
+        type: integer
+    type: object
+  types.AgentConfigNodeDocument:
+    properties:
+      id:
+        example: 12
+        type: integer
+      identifier:
+        example: web-01
+        type: string
+      name:
+        example: web-01
+        type: string
+    type: object
+  types.AgentConfigResponseDocument:
+    properties:
+      health_checks:
+        items:
+          $ref: '#/definitions/types.AgentConfigCheckDocument'
+        type: array
+      node:
+        $ref: '#/definitions/types.AgentConfigNodeDocument'
+    type: object
+  types.AlertDocument:
+    properties:
+      alert_rule_id:
+        example: 1
+        type: integer
+      created_at:
+        format: date-time
+        type: string
+      id:
+        example: 1
+        type: integer
+      message:
+        example: Node 1 is currently offline.
+        type: string
+      node_id:
+        example: 1
+        type: integer
+      project_id:
+        example: 1
+        type: integer
+      resolved_at:
+        format: date-time
+        type: string
+      service_id:
+        example: 1
+        type: integer
+      status:
+        example: active
+        type: string
+      title:
+        example: Node 1 is offline
+        type: string
+      triggered_at:
+        format: date-time
+        type: string
+    type: object
+  types.AlertRuleCreateRequest:
+    properties:
+      node_id:
+        example: 1
+        type: integer
+      project_id:
+        example: 1
+        type: integer
+      rule_type:
+        example: cpu_above_threshold
+        type: string
+      service_id:
+        example: 1
+        type: integer
+      threshold_value:
+        example: 80
+        type: number
+    type: object
+  types.AlertRuleDocument:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      id:
+        example: 1
+        type: integer
+      is_enabled:
+        example: true
+        type: boolean
+      metric_name:
+        example: cpu_usage
+        type: string
+      node_id:
+        example: 1
+        type: integer
+      project_id:
+        example: 1
+        type: integer
+      rule_type:
+        example: node_offline
+        type: string
+      service_id:
+        example: 1
+        type: integer
+      threshold_value:
+        example: 80
+        type: number
+      updated_at:
+        format: date-time
+        type: string
+    type: object
+  types.AlertRuleResponse:
+    properties:
+      alert_rule:
+        $ref: '#/definitions/types.AlertRuleDocument'
+    type: object
+  types.AlertRuleUpdateRequest:
+    properties:
+      is_enabled:
+        example: false
+        type: boolean
+    type: object
+  types.AlertRulesResponse:
+    properties:
+      alert_rules:
+        items:
+          $ref: '#/definitions/types.AlertRuleDocument'
+        type: array
+    type: object
+  types.AlertsResponse:
+    properties:
+      alerts:
+        items:
+          $ref: '#/definitions/types.AlertDocument'
+        type: array
+    type: object
+  types.AuthForgotPasswordRequest:
+    properties:
+      email:
+        example: alice@example.com
+        type: string
+    type: object
+  types.AuthLoginRequest:
+    properties:
+      email:
+        example: alice@example.com
+        type: string
+      password:
+        example: supersecretpassword
+        type: string
+      remember_me:
+        example: true
+        type: boolean
+    type: object
+  types.AuthLogoutResponse:
+    properties:
+      status:
+        example: ok
+        type: string
+    type: object
+  types.AuthMeResponse:
+    properties:
+      user:
+        $ref: '#/definitions/types.UserDocument'
+    type: object
+  types.AuthRegisterRequest:
+    properties:
+      email:
+        example: alice@example.com
+        type: string
+      name:
+        example: Alice Example
+        type: string
+      password:
+        example: supersecretpassword
+        type: string
+    type: object
+  types.AuthResetPasswordRequest:
+    properties:
+      password:
+        example: new-supersecretpassword
+        type: string
+      token:
+        example: raw-reset-token
+        type: string
+    type: object
+  types.AuthSessionResponse:
+    properties:
+      expires_at:
+        format: date-time
+        type: string
+      user:
+        $ref: '#/definitions/types.UserDocument'
+    type: object
+  types.AuthSessionsResponse:
+    properties:
+      sessions:
+        items:
+          $ref: '#/definitions/types.AuthUserSessionDocument'
+        type: array
+    type: object
+  types.AuthUserSessionDocument:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      expires_at:
+        format: date-time
+        type: string
+      id:
+        example: ses_0123456789abcdef
+        type: string
+      ip_address:
+        example: 203.0.113.10
+        type: string
+      is_current:
+        example: true
+        type: boolean
+      updated_at:
+        format: date-time
+        type: string
+      user_agent:
+        example: Mozilla/5.0
+        type: string
+    type: object
+  types.AuthVerifyEmailConfirmRequest:
+    properties:
+      token:
+        example: raw-verification-token
+        type: string
+    type: object
+  types.AuthVerifyPasswordRequest:
+    properties:
+      password:
+        example: current-supersecretpassword
+        type: string
+    type: object
+  types.ErrorResponse:
+    properties:
+      error:
+        example: invalid request
+        type: string
+    type: object
+  types.EventDocument:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      details:
+        type: object
+      event_type:
+        example: node_online
+        type: string
+      id:
+        example: 1
+        type: integer
+      node_id:
+        example: 1
+        type: integer
+      occurred_at:
+        format: date-time
+        type: string
+      project_id:
+        example: 1
+        type: integer
+      service_id:
+        example: 1
+        type: integer
+      severity:
+        example: info
+        type: string
+      title:
+        example: Node hetzner-01 is online
+        type: string
+    type: object
+  types.EventsResponse:
+    properties:
+      events:
+        items:
+          $ref: '#/definitions/types.EventDocument'
+        type: array
+    type: object
+  types.HealthCheckSummaryDocument:
+    properties:
+      is_success:
+        example: true
+        type: boolean
+      message:
+        example: ok
+        type: string
+      observed_at:
+        format: date-time
+        type: string
+      response_time_ms:
+        example: 42
+        type: integer
+      status_code:
+        example: 200
+        type: integer
+    type: object
+  types.HealthRequest:
+    properties:
+      is_success:
+        example: true
+        type: boolean
+      message:
+        example: ok
+        type: string
+      observed_at:
+        format: date-time
+        type: string
+      payload:
+        type: object
+      response_time_ms:
+        example: 42
+        type: integer
+      service_id:
+        example: 1
+        type: integer
+      status_code:
+        example: 200
+        type: integer
+    type: object
+  types.HealthResponse:
+    properties:
+      service:
+        $ref: '#/definitions/types.ServiceResponseDocument'
+      status:
+        example: ok
+        type: string
+    type: object
+  types.HeartbeatRequest:
+    properties:
+      node_id:
+        example: 1
+        type: integer
+      observed_at:
+        format: date-time
+        type: string
+      payload:
+        type: object
+      source:
+        example: agent
+        type: string
+    type: object
+  types.HeartbeatResponse:
+    properties:
+      node:
+        $ref: '#/definitions/types.NodeResponseDocument'
+      status:
+        example: ok
+        type: string
+    type: object
+  types.MetricSampleRequest:
+    properties:
+      metric_name:
+        example: cpu_usage
+        type: string
+      metric_unit:
+        example: percent
+        type: string
+      metric_value:
+        example: 42.5
+        type: number
+      observed_at:
+        format: date-time
+        type: string
+      payload:
+        type: object
+      value:
+        example: 42.5
+        type: number
+    type: object
+  types.MetricValueDocument:
+    properties:
+      observed_at:
+        format: date-time
+        type: string
+      unit:
+        example: percent
+        type: string
+      value:
+        example: 84.2
+        type: number
+    type: object
+  types.MetricsRequest:
+    properties:
+      node_id:
+        example: 1
+        type: integer
+      samples:
+        items:
+          $ref: '#/definitions/types.MetricSampleRequest'
+        type: array
+      service_id:
+        example: 1
+        type: integer
+    type: object
+  types.MetricsResponse:
+    properties:
+      status:
+        example: ok
+        type: string
+    type: object
+  types.NodeAgentTokenResponse:
+    properties:
+      agent_token:
+        example: eHh4YWFhYmJiY2NjZGRkZWVlZmZmZ2dn
+        type: string
+      node_id:
+        example: 1
+        type: integer
+    type: object
+  types.NodeCreateRequest:
+    properties:
+      name:
+        example: hetzner-01
+        type: string
+      project_id:
+        example: 1
+        type: integer
+    type: object
+  types.NodeDetailResponse:
+    properties:
+      node:
+        $ref: '#/definitions/types.NodeDocument'
+    type: object
+  types.NodeDocument:
+    properties:
+      active_alert_count:
+        example: 1
+        type: integer
+      created_at:
+        format: date-time
+        type: string
+      current_state:
+        example: offline
+        type: string
+      id:
+        example: 1
+        type: integer
+      identifier:
+        example: hetzner-01
+        type: string
+      last_seen_at:
+        format: date-time
+        type: string
+      latest_cpu:
+        $ref: '#/definitions/types.MetricValueDocument'
+      latest_disk:
+        $ref: '#/definitions/types.MetricValueDocument'
+      latest_memory:
+        $ref: '#/definitions/types.MetricValueDocument'
+      metadata:
+        type: object
+      name:
+        example: hetzner-01
+        type: string
+      project_id:
+        example: 1
+        type: integer
+      service_count:
+        example: 2
+        type: integer
+      updated_at:
+        format: date-time
+        type: string
+    type: object
+  types.NodeResponse:
+    properties:
+      node:
+        $ref: '#/definitions/types.NodeResponseDocument'
+    type: object
+  types.NodeResponseDocument:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      current_state:
+        example: online
+        type: string
+      id:
+        example: 1
+        type: integer
+      identifier:
+        example: hetzner-01
+        type: string
+      last_heartbeat_at:
+        format: date-time
+        type: string
+      metadata:
+        type: object
+      name:
+        example: hetzner-01
+        type: string
+      project_id:
+        example: 1
+        type: integer
+      updated_at:
+        format: date-time
+        type: string
+    type: object
+  types.NodeSummaryDocument:
+    properties:
+      active_alert_count:
+        example: 0
+        type: integer
+      current_state:
+        example: online
+        type: string
+      id:
+        example: 1
+        type: integer
+      identifier:
+        example: hetzner-01
+        type: string
+      last_seen_at:
+        format: date-time
+        type: string
+      latest_cpu:
+        $ref: '#/definitions/types.MetricValueDocument'
+      latest_disk:
+        $ref: '#/definitions/types.MetricValueDocument'
+      latest_memory:
+        $ref: '#/definitions/types.MetricValueDocument'
+      name:
+        example: hetzner-01
+        type: string
+      project_id:
+        example: 1
+        type: integer
+      service_count:
+        example: 2
+        type: integer
+    type: object
+  types.NodeUpdateRequest:
+    properties:
+      identifier:
+        example: hetzner-02
+        type: string
+      name:
+        example: hetzner-02
+        type: string
+    type: object
+  types.NodesResponse:
+    properties:
+      nodes:
+        items:
+          $ref: '#/definitions/types.NodeDocument'
+        type: array
+    type: object
+  types.NotificationDeliveriesResponse:
+    properties:
+      notification_deliveries:
+        items:
+          $ref: '#/definitions/types.NotificationDeliveryDocument'
+        type: array
+    type: object
+  types.NotificationDeliveryDocument:
+    properties:
+      alert_instance_id:
+        example: 1
+        type: integer
+      channel_type:
+        example: email
+        type: string
+      created_at:
+        format: date-time
+        type: string
+      error_message:
+        example: resend returned status 500
+        type: string
+      event_type:
+        example: alert_triggered
+        type: string
+      id:
+        example: 1
+        type: integer
+      notification_recipient_id:
+        example: 1
+        type: integer
+      project_id:
+        example: 1
+        type: integer
+      sent_at:
+        format: date-time
+        type: string
+      status:
+        example: sent
+        type: string
+      target:
+        example: ops@example.com
+        type: string
+    type: object
+  types.NotificationRecipientCreateRequest:
+    properties:
+      channel_type:
+        example: email
+        type: string
+      project_id:
+        example: 1
+        type: integer
+      target:
+        example: ops@example.com
+        type: string
+    type: object
+  types.NotificationRecipientDocument:
+    properties:
+      channel_type:
+        example: email
+        type: string
+      created_at:
+        format: date-time
+        type: string
+      id:
+        example: 1
+        type: integer
+      is_enabled:
+        example: true
+        type: boolean
+      project_id:
+        example: 1
+        type: integer
+      target:
+        example: ops@example.com
+        type: string
+      updated_at:
+        format: date-time
+        type: string
+    type: object
+  types.NotificationRecipientResponse:
+    properties:
+      notification_recipient:
+        $ref: '#/definitions/types.NotificationRecipientDocument'
+    type: object
+  types.NotificationRecipientUpdateRequest:
+    properties:
+      is_enabled:
+        example: false
+        type: boolean
+    type: object
+  types.NotificationRecipientsResponse:
+    properties:
+      notification_recipients:
+        items:
+          $ref: '#/definitions/types.NotificationRecipientDocument'
+        type: array
+    type: object
+  types.OverviewResponse:
+    properties:
+      active_alerts:
+        example: 1
+        type: integer
+      node_summaries:
+        items:
+          $ref: '#/definitions/types.NodeSummaryDocument'
+        type: array
+      nodes_offline:
+        example: 0
+        type: integer
+      nodes_online:
+        example: 1
+        type: integer
+      recent_alert_events:
+        items:
+          $ref: '#/definitions/types.EventDocument'
+        type: array
+      recent_events:
+        items:
+          $ref: '#/definitions/types.EventDocument'
+        type: array
+      resolved_alerts:
+        example: 3
+        type: integer
+      services_degraded:
+        example: 0
+        type: integer
+      services_healthy:
+        example: 1
+        type: integer
+      services_unhealthy:
+        example: 0
+        type: integer
+      total_nodes:
+        example: 1
+        type: integer
+      total_projects:
+        example: 1
+        type: integer
+      total_services:
+        example: 1
+        type: integer
+    type: object
+  types.ProjectCreateRequest:
+    properties:
+      name:
+        example: My Project
+        type: string
+    type: object
+  types.ProjectDetailDocument:
+    properties:
+      active_alert_count:
+        example: 1
+        type: integer
+      created_at:
+        format: date-time
+        type: string
+      current_user_role:
+        example: owner
+        type: string
+      id:
+        example: 1
+        type: integer
+      name:
+        example: My Project
+        type: string
+      node_count:
+        example: 3
+        type: integer
+      service_count:
+        example: 7
+        type: integer
+      slug:
+        example: my-project
+        type: string
+    type: object
+  types.ProjectDetailResponse:
+    properties:
+      project:
+        $ref: '#/definitions/types.ProjectDetailDocument'
+    type: object
+  types.ProjectDocument:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      id:
+        example: 1
+        type: integer
+      name:
+        example: My Project
+        type: string
+      slug:
+        example: my-project
+        type: string
+    type: object
+  types.ProjectInvitationAcceptRequest:
+    properties:
+      token:
+        example: raw-project-invitation-token
+        type: string
+    type: object
+  types.ProjectInvitationAcceptResponse:
+    properties:
+      already_member:
+        example: false
+        type: boolean
+      status:
+        example: ok
+        type: string
+    type: object
+  types.ProjectInvitationCreateItemRequest:
+    properties:
+      email:
+        example: teammate@example.com
+        type: string
+      role:
+        example: viewer
+        type: string
+    type: object
+  types.ProjectInvitationCreateRequest:
+    properties:
+      email:
+        example: teammate@example.com
+        type: string
+      invitations:
+        items:
+          $ref: '#/definitions/types.ProjectInvitationCreateItemRequest'
+        type: array
+      project_id:
+        example: 1
+        type: integer
+      role:
+        example: viewer
+        type: string
+    type: object
+  types.ProjectInvitationCreateResponse:
+    properties:
+      project_id:
+        example: 1
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/types.ProjectInvitationCreateResultDocument'
+        type: array
+    type: object
+  types.ProjectInvitationCreateResultDocument:
+    properties:
+      email:
+        example: teammate@example.com
+        type: string
+      error_code:
+        example: already_invited
+        type: string
+      error_message:
+        example: An active invitation already exists for this email.
+        type: string
+      invitation:
+        $ref: '#/definitions/types.ProjectInvitationDocument'
+      role:
+        example: viewer
+        type: string
+      status:
+        example: created
+        type: string
+    type: object
+  types.ProjectInvitationDocument:
+    properties:
+      accepted_at:
+        format: date-time
+        type: string
+      created_at:
+        format: date-time
+        type: string
+      email:
+        example: teammate@example.com
+        type: string
+      expires_at:
+        format: date-time
+        type: string
+      id:
+        example: pinv_0123456789abcdef
+        type: string
+      invited_by_user_id:
+        example: usr_0123456789abcdef
+        type: string
+      project_id:
+        example: 1
+        type: integer
+      role:
+        example: viewer
+        type: string
+    type: object
+  types.ProjectInvitationLookupDocument:
+    properties:
+      email:
+        example: teammate@example.com
+        type: string
+      expires_at:
+        format: date-time
+        type: string
+      id:
+        example: pinv_0123456789abcdef
+        type: string
+      project_id:
+        example: 1
+        type: integer
+      project_name:
+        example: Agrafa Team
+        type: string
+      role:
+        example: viewer
+        type: string
+    type: object
+  types.ProjectInvitationLookupResponse:
+    properties:
+      project_invitation:
+        $ref: '#/definitions/types.ProjectInvitationLookupDocument'
+    type: object
+  types.ProjectInvitationsResponse:
+    properties:
+      project_invitations:
+        items:
+          $ref: '#/definitions/types.ProjectInvitationDocument'
+        type: array
+    type: object
+  types.ProjectMemberCreateRequest:
+    properties:
+      project_id:
+        example: 1
+        type: integer
+      role:
+        example: viewer
+        type: string
+      user_id:
+        example: usr_0123456789abcdef
+        type: string
+    type: object
+  types.ProjectMemberDocument:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      id:
+        example: pm_0123456789abcdef
+        type: string
+      project_id:
+        example: 1
+        type: integer
+      role:
+        example: viewer
+        type: string
+      user:
+        $ref: '#/definitions/types.ProjectMemberUserSummaryDocument'
+      user_id:
+        example: usr_0123456789abcdef
+        type: string
+    type: object
+  types.ProjectMemberResponse:
+    properties:
+      project_member:
+        $ref: '#/definitions/types.ProjectMemberDocument'
+    type: object
+  types.ProjectMemberUpdateRequest:
+    properties:
+      role:
+        example: admin
+        type: string
+    type: object
+  types.ProjectMemberUserSummaryDocument:
+    properties:
+      email:
+        example: alice@example.com
+        type: string
+      image:
+        example: https://example.com/avatar.png
+        type: string
+      name:
+        example: Alice Example
+        type: string
+    type: object
+  types.ProjectMembersResponse:
+    properties:
+      project_members:
+        items:
+          $ref: '#/definitions/types.ProjectMemberDocument'
+        type: array
+    type: object
+  types.ProjectResponse:
+    properties:
+      project:
+        $ref: '#/definitions/types.ProjectDocument'
+    type: object
+  types.ProjectSummaryDocument:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      current_user_role:
+        example: owner
+        type: string
+      id:
+        example: 1
+        type: integer
+      name:
+        example: My Project
+        type: string
+      slug:
+        example: my-project
+        type: string
+    type: object
+  types.ProjectUpdateRequest:
+    properties:
+      name:
+        example: My Renamed Project
+        type: string
+    type: object
+  types.ProjectsResponse:
+    properties:
+      projects:
+        items:
+          $ref: '#/definitions/types.ProjectSummaryDocument'
+        type: array
+    type: object
+  types.ServiceCreateRequest:
+    properties:
+      check_target:
+        example: https://api.planzi.app/health
+        type: string
+      check_type:
+        example: http
+        type: string
+      execution_mode:
+        example: managed
+        type: string
+      name:
+        example: planzi-api
+        type: string
+      node_id:
+        example: 1
+        type: integer
+      project_id:
+        example: 1
+        type: integer
+    type: object
+  types.ServiceDetailResponse:
+    properties:
+      service:
+        $ref: '#/definitions/types.ServiceDocument'
+    type: object
+  types.ServiceDocument:
+    properties:
+      active_alert_count:
+        example: 1
+        type: integer
+      check_target:
+        example: https://api.planzi.app/health
+        type: string
+      check_type:
+        example: http
+        type: string
+      consecutive_failures:
+        example: 0
+        type: integer
+      execution_mode:
+        example: agent
+        type: string
+      id:
+        example: 1
+        type: integer
+      last_checked_at:
+        format: date-time
+        type: string
+      latest_health_check:
+        $ref: '#/definitions/types.HealthCheckSummaryDocument'
+      name:
+        example: planzi-api
+        type: string
+      node_id:
+        example: 1
+        type: integer
+      project_id:
+        example: 1
+        type: integer
+      status:
+        example: healthy
+        type: string
+    type: object
+  types.ServiceResponseDocument:
+    properties:
+      check_target:
+        example: https://api.planzi.app/health
+        type: string
+      check_type:
+        example: http
+        type: string
+      consecutive_failures:
+        example: 0
+        type: integer
+      consecutive_successes:
+        example: 0
+        type: integer
+      created_at:
+        format: date-time
+        type: string
+      current_state:
+        example: healthy
+        type: string
+      id:
+        example: 1
+        type: integer
+      last_check_at:
+        format: date-time
+        type: string
+      name:
+        example: planzi-api
+        type: string
+      node_id:
+        example: 1
+        type: integer
+      project_id:
+        example: 1
+        type: integer
+      updated_at:
+        format: date-time
+        type: string
+    type: object
+  types.ServiceUpdateRequest:
+    properties:
+      check_target:
+        example: https://api.planzi.app/status
+        type: string
+      check_type:
+        example: http
+        type: string
+      name:
+        example: planzi-api-v2
+        type: string
+    type: object
+  types.ServicesResponse:
+    properties:
+      services:
+        items:
+          $ref: '#/definitions/types.ServiceDocument'
+        type: array
+    type: object
+  types.UserDocument:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      email:
+        example: alice@example.com
+        type: string
+      email_verified:
+        example: false
+        type: boolean
+      id:
+        example: usr_0123456789abcdef
+        type: string
+      image:
+        example: https://example.com/avatar.png
+        type: string
+      name:
+        example: Alice Example
+        type: string
+      onboarding_completed:
+        example: false
+        type: boolean
+      two_factor_enabled:
+        example: false
+        type: boolean
+      updated_at:
+        format: date-time
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Agrafa backend API for agent ingestion, inventory creation, and read-side
+    observability queries.
+  title: Agrafa API
+  version: "1.0"
+paths:
+  /agent/config:
+    get:
+      description: Returns the authenticated node summary and the node's assigned
+        agent-executed health checks.
+      parameters:
+      - description: Per-node agent token
+        in: header
+        name: X-Agent-Token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AgentConfigResponseDocument'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get agent config
+      tags:
+      - agent
+  /agent/health:
+    post:
+      consumes:
+      - application/json
+      description: Records a health check result for a service and updates service
+        state when needed.
+      parameters:
+      - description: Per-node agent token
+        in: header
+        name: X-Agent-Token
+        required: true
+        type: string
+      - description: Health payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.HealthRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.HealthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Ingest health result
+      tags:
+      - agent
+  /agent/heartbeat:
+    post:
+      consumes:
+      - application/json
+      description: Records a heartbeat for a node and updates node state when needed.
+      parameters:
+      - description: Per-node agent token
+        in: header
+        name: X-Agent-Token
+        required: true
+        type: string
+      - description: Heartbeat payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.HeartbeatRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.HeartbeatResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Ingest heartbeat
+      tags:
+      - agent
+  /agent/metrics:
+    post:
+      consumes:
+      - application/json
+      description: Records one or more metric samples associated with a node and optionally
+        a service.
+      parameters:
+      - description: Per-node agent token
+        in: header
+        name: X-Agent-Token
+        required: true
+        type: string
+      - description: Metrics payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.MetricsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.MetricsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Ingest metrics
+      tags:
+      - agent
+  /alert-rules:
+    get:
+      description: Returns alert rules ordered by newest first. Optionally filters
+        by project_id.
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AlertRulesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List alert rules
+      tags:
+      - alerts
+    post:
+      consumes:
+      - application/json
+      description: Creates an enabled alert rule for a project, node, or service target.
+      parameters:
+      - description: Alert rule payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.AlertRuleCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/types.AlertRuleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Create alert rule
+      tags:
+      - alerts
+  /alert-rules/{id}:
+    delete:
+      description: Deletes an alert rule.
+      parameters:
+      - description: Alert rule ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Delete alert rule
+      tags:
+      - alerts
+    get:
+      description: Returns alert rule details for a rule the current user can read.
+      parameters:
+      - description: Alert rule ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AlertRuleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get alert rule
+      tags:
+      - alerts
+    patch:
+      consumes:
+      - application/json
+      description: Updates the enabled state of an alert rule.
+      parameters:
+      - description: Alert rule ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Alert rule update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.AlertRuleUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AlertRuleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Update alert rule
+      tags:
+      - alerts
+  /alerts:
+    get:
+      description: Returns newest alerts first, with optional project, status, and
+        limit filters.
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      - description: Alert status
+        enum:
+        - active
+        - resolved
+        in: query
+        name: status
+        type: string
+      - default: 50
+        description: Maximum number of alerts
+        in: query
+        minimum: 1
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AlertsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List alerts
+      tags:
+      - alerts
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Accepts an email address and, when an account exists, sends a password
+        reset email without revealing account existence.
+      parameters:
+      - description: Password reset request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.AuthForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthLogoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Forgot password
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Verifies email/password and sets a session cookie.
+      parameters:
+      - description: Login payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.AuthLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthSessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Login
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Deletes the current session and clears the session cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthLogoutResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Logout
+      tags:
+      - auth
+  /auth/logout-all:
+    post:
+      description: Deletes all other sessions for the authenticated user and keeps
+        the current session active.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthLogoutResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Logout all other sessions
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Returns the currently authenticated user when the session cookie
+        is valid.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthMeResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Me
+      tags:
+      - auth
+  /auth/onboarding/complete:
+    post:
+      description: Marks the authenticated user onboarding flow as complete and returns
+        the updated user payload.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthMeResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Complete onboarding
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a user, password credential, and session cookie.
+      parameters:
+      - description: Registration payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.AuthRegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/types.AuthSessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Register
+      tags:
+      - auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Validates a password reset token, updates the password hash, invalidates
+        the token, and revokes all sessions for the user.
+      parameters:
+      - description: Password reset payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.AuthResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthLogoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Reset password
+      tags:
+      - auth
+  /auth/sessions:
+    get:
+      description: Returns all sessions for the authenticated user and marks the current
+        session.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthSessionsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List auth sessions
+      tags:
+      - auth
+  /auth/sessions/{id}:
+    delete:
+      description: Deletes a specific session belonging to the authenticated user.
+        If the current session is deleted, the session cookie is cleared.
+      parameters:
+      - description: Session ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Delete auth session
+      tags:
+      - auth
+  /auth/verify-email/confirm:
+    post:
+      consumes:
+      - application/json
+      description: Validates an email verification token, marks the user as verified,
+        and invalidates the token.
+      parameters:
+      - description: Email verification token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.AuthVerifyEmailConfirmRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthLogoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Confirm email verification
+      tags:
+      - auth
+  /auth/verify-email/send:
+    post:
+      description: Sends an email verification link for the authenticated user unless
+        the email is already verified.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthLogoutResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Send email verification
+      tags:
+      - auth
+  /auth/verify-password:
+    post:
+      consumes:
+      - application/json
+      description: Verifies the current password for the authenticated user without
+        creating a new session or changing state.
+      parameters:
+      - description: Password verification payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.AuthVerifyPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthLogoutResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Verify password
+      tags:
+      - auth
+  /events:
+    get:
+      description: Returns newest events first, with optional project filter and result
+        limit.
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      - default: 50
+        description: Maximum number of events
+        in: query
+        minimum: 1
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.EventsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List events
+      tags:
+      - events
+  /nodes:
+    get:
+      description: Returns visible nodes ordered by id. Hidden managed nodes are excluded.
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.NodesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List nodes
+      tags:
+      - inventory
+    post:
+      consumes:
+      - application/json
+      description: Creates a node under a project with offline status.
+      parameters:
+      - description: Node payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.NodeCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/types.NodeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Create node
+      tags:
+      - inventory
+  /nodes/{id}:
+    delete:
+      description: Deletes a node when it has no remaining services.
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Delete node
+      tags:
+      - inventory
+    get:
+      description: Returns node details for a node the current user can read.
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.NodeDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get node
+      tags:
+      - inventory
+    patch:
+      consumes:
+      - application/json
+      description: Updates the editable node identity fields only.
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Node update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.NodeUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.NodeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Update node
+      tags:
+      - inventory
+  /nodes/{id}/regenerate-agent-token:
+    post:
+      consumes:
+      - application/json
+      description: Generates a new random agent token for the node, stores only its
+        hash, and returns the raw token once.
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.NodeAgentTokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Regenerate node agent token
+      tags:
+      - inventory
+  /notification-deliveries:
+    get:
+      description: Returns notification delivery attempts ordered by newest first,
+        with optional project, status, and limit filters.
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      - description: Delivery status
+        enum:
+        - sent
+        - failed
+        in: query
+        name: status
+        type: string
+      - default: 50
+        description: Maximum number of deliveries
+        in: query
+        minimum: 1
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.NotificationDeliveriesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List notification deliveries
+      tags:
+      - notifications
+  /notification-recipients:
+    get:
+      description: Returns project notification recipients ordered by newest first.
+        Optionally filters by project_id.
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.NotificationRecipientsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List notification recipients
+      tags:
+      - notifications
+    post:
+      consumes:
+      - application/json
+      description: Creates a project-scoped notification recipient. Only email is
+        supported for now.
+      parameters:
+      - description: Notification recipient payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.NotificationRecipientCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/types.NotificationRecipientResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Create notification recipient
+      tags:
+      - notifications
+  /notification-recipients/{id}:
+    delete:
+      description: Deletes a notification recipient.
+      parameters:
+      - description: Notification recipient ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Delete notification recipient
+      tags:
+      - notifications
+    get:
+      description: Returns notification recipient details for a recipient the current
+        user can read.
+      parameters:
+      - description: Notification recipient ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.NotificationRecipientResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get notification recipient
+      tags:
+      - notifications
+    patch:
+      consumes:
+      - application/json
+      description: Updates the enabled state of a notification recipient.
+      parameters:
+      - description: Notification recipient ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Notification recipient update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.NotificationRecipientUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.NotificationRecipientResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Update notification recipient
+      tags:
+      - notifications
+  /overview:
+    get:
+      description: Returns aggregate node and service counts plus recent events, optionally
+        scoped to a project.
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.OverviewResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get overview
+      tags:
+      - overview
+  /project-invitations:
+    get:
+      description: Returns project invitations for the requested project.
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ProjectInvitationsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List project invitations
+      tags:
+      - project-invitations
+    post:
+      consumes:
+      - application/json
+      description: Creates a project invitation, stores a hashed invite token, and
+        sends the invite email.
+      parameters:
+      - description: Project invitation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.ProjectInvitationCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ProjectInvitationCreateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Create project invitation
+      tags:
+      - project-invitations
+  /project-invitations/{id}:
+    delete:
+      description: Deletes a project invitation by id.
+      parameters:
+      - description: Project invitation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Delete project invitation
+      tags:
+      - project-invitations
+  /project-invitations/accept:
+    post:
+      consumes:
+      - application/json
+      description: Accepts a valid invitation token for the authenticated user when
+        the invite email matches the user email.
+      parameters:
+      - description: Project invitation acceptance payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.ProjectInvitationAcceptRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ProjectInvitationAcceptResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Accept project invitation
+      tags:
+      - project-invitations
+  /project-invitations/by-token:
+    get:
+      description: Returns safe invitation details when the invite token is valid
+        and not expired or already accepted.
+      parameters:
+      - description: Raw invitation token
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ProjectInvitationLookupResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get project invitation by token
+      tags:
+      - project-invitations
+  /project-members:
+    get:
+      description: Returns project members for a project, including joined user summary
+        data.
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ProjectMembersResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List project members
+      tags:
+      - project-members
+    post:
+      consumes:
+      - application/json
+      description: Adds a user to a project with the requested role.
+      parameters:
+      - description: Project member payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.ProjectMemberCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/types.ProjectMemberResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Create project member
+      tags:
+      - project-members
+  /project-members/{id}:
+    delete:
+      description: Deletes an existing project membership when owner safety rules
+        allow it.
+      parameters:
+      - description: Project member ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Delete project member
+      tags:
+      - project-members
+    get:
+      description: Returns a project membership with joined user summary data.
+      parameters:
+      - description: Project member ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ProjectMemberResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get project member
+      tags:
+      - project-members
+    patch:
+      consumes:
+      - application/json
+      description: Updates the role of an existing project membership.
+      parameters:
+      - description: Project member ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Project member update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.ProjectMemberUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ProjectMemberResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Update project member
+      tags:
+      - project-members
+  /projects:
+    get:
+      description: Returns only projects the current authenticated user belongs to.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ProjectsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List projects
+      tags:
+      - inventory
+    post:
+      consumes:
+      - application/json
+      description: Creates a project inventory record.
+      parameters:
+      - description: Project payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.ProjectCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/types.ProjectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Create project
+      tags:
+      - inventory
+  /projects/{id}:
+    delete:
+      description: Deletes a project and dependent application resources.
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Delete project
+      tags:
+      - inventory
+    get:
+      description: Returns project details for a project the current user can read.
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ProjectDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get project
+      tags:
+      - inventory
+    patch:
+      consumes:
+      - application/json
+      description: Updates the project name. Ownership and membership are not changed
+        here.
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Project update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.ProjectUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ProjectDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Update project
+      tags:
+      - inventory
+  /services:
+    get:
+      description: Returns newest services first, with execution_mode derived from
+        the attached node and optional project_id, node_id, status, and limit filters.
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      - description: Node ID
+        in: query
+        name: node_id
+        type: integer
+      - description: Service status
+        enum:
+        - healthy
+        - degraded
+        - unhealthy
+        in: query
+        name: status
+        type: string
+      - description: Maximum number of services
+        in: query
+        minimum: 1
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ServicesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List services
+      tags:
+      - inventory
+    post:
+      consumes:
+      - application/json
+      description: Creates a service under a project and resolves the execution node
+        from execution_mode.
+      parameters:
+      - description: Service payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.ServiceCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/types.ServiceDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Create service
+      tags:
+      - inventory
+  /services/{id}:
+    delete:
+      description: Deletes a service and relies on existing schema cleanup for dependent
+        operational records.
+      parameters:
+      - description: Service ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Delete service
+      tags:
+      - inventory
+    get:
+      description: Returns service details for a service the current user can read.
+      parameters:
+      - description: Service ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ServiceDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get service
+      tags:
+      - inventory
+    patch:
+      consumes:
+      - application/json
+      description: Updates the editable service definition fields only. Execution
+        mode and attached node are unchanged.
+      parameters:
+      - description: Service ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Service update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.ServiceUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ServiceDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Update service
+      tags:
+      - inventory
+schemes:
+- http
+- https
+swagger: "2.0"

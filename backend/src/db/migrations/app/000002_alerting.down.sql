@@ -1,0 +1,9 @@
+DROP INDEX IF EXISTS app.idx_alert_instances_triggered_at;
+DROP INDEX IF EXISTS app.idx_alert_instances_project_status_triggered_at;
+DROP INDEX IF EXISTS app.idx_alert_rules_enabled_type;
+DROP INDEX IF EXISTS app.idx_alert_rules_service_id;
+DROP INDEX IF EXISTS app.idx_alert_rules_node_id;
+DROP INDEX IF EXISTS app.idx_alert_rules_project_id;
+DROP INDEX IF EXISTS app.idx_alert_instances_rule_active;
+DROP TABLE IF EXISTS app.alert_instances;
+DROP TABLE IF EXISTS app.alert_rules;
