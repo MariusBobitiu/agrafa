@@ -1,4 +1,4 @@
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { PageHeader } from "@/components/ui/page-header.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -14,6 +14,7 @@ export function NodesPage() {
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const { data, isLoading, error } = useNodes(activeProjectId ?? 0);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const setupOpen = searchParams.get("setup") === "1";
 
   function setSetupOpen(open: boolean) {
@@ -79,7 +80,8 @@ export function NodesPage() {
               {data.nodes.map((node) => (
                 <tr
                   key={node.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/20"
+                  className="border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer"
+                  onClick={() => navigate(`/nodes/${node.id}`)}
                 >
                   <td className="px-4 py-2.5 font-medium">{node.name}</td>
                   <td className="px-4 py-2.5 text-muted-foreground font-mono text-xs">

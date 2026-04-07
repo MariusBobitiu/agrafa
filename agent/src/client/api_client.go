@@ -80,6 +80,10 @@ func (client *APIClient) SendHeartbeat(ctx context.Context, request types.Heartb
 	return client.doJSON(ctx, http.MethodPost, "/agent/heartbeat", request, nil)
 }
 
+func (client *APIClient) SendShutdown(ctx context.Context, request types.ShutdownRequest) error {
+	return client.doJSON(ctx, http.MethodPost, "/agent/shutdown", request, nil)
+}
+
 func (client *APIClient) SendMetrics(ctx context.Context, request types.MetricsRequest) error {
 	return client.doJSON(ctx, http.MethodPost, "/agent/metrics", request, nil)
 }

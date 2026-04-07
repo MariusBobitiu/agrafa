@@ -160,6 +160,7 @@ type NodeDocument struct {
 	LatestMemory     *MetricValueDocument `json:"latest_memory,omitempty"`
 	LatestDisk       *MetricValueDocument `json:"latest_disk,omitempty"`
 	ActiveAlertCount int64                `json:"active_alert_count" example:"1"`
+	ActiveAlerts     []AlertDocument      `json:"active_alerts,omitempty"`
 	ServiceCount     int64                `json:"service_count" example:"2"`
 	CreatedAt        time.Time            `json:"created_at" swaggertype:"string" format:"date-time"`
 	UpdatedAt        time.Time            `json:"updated_at" swaggertype:"string" format:"date-time"`
@@ -294,6 +295,13 @@ type HeartbeatRequest struct {
 	NodeID     *int64         `json:"node_id,omitempty" example:"1"`
 	ObservedAt *time.Time     `json:"observed_at,omitempty" swaggertype:"string" format:"date-time"`
 	Source     string         `json:"source" example:"agent"`
+	Payload    map[string]any `json:"payload" swaggertype:"object"`
+}
+
+type AgentShutdownRequest struct {
+	NodeID     *int64         `json:"node_id,omitempty" example:"1"`
+	ObservedAt *time.Time     `json:"observed_at,omitempty" swaggertype:"string" format:"date-time"`
+	Reason     string         `json:"reason" example:"user_closed"`
 	Payload    map[string]any `json:"payload" swaggertype:"object"`
 }
 

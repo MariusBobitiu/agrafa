@@ -4,6 +4,7 @@ Minimal Go agent for Agrafa. It sends:
 
 - backend-fetched agent config from `/v1/agent/config`
 - node heartbeats to `/v1/agent/heartbeat`
+- best-effort shutdown signals to `/v1/agent/shutdown`
 - node CPU, memory, and disk metrics to `/v1/agent/metrics`
 - backend-configured HTTP health check results to `/v1/agent/health`
 
@@ -38,6 +39,7 @@ Transport behavior stays intentionally small:
 - retries apply only to network errors, timeouts, and `5xx` backend responses
 - `4xx` responses, including `401`, do not retry
 - auth failures are logged clearly and repeated identical auth errors are suppressed
+- on `SIGINT` or `SIGTERM`, the agent makes one best-effort shutdown request with a reason and stops waiting after 5 seconds
 
 `AGRAFA_HTTP_TIMEOUT_SECONDS` remains the default timeout for outbound HTTP health checks run by the agent.
 

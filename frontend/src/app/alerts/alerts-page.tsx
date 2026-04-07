@@ -80,7 +80,7 @@ export function AlertsPage() {
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
-          ) : !rulesData?.alertRules?.length ? (
+          ) : !rulesData?.alert_rules?.length ? (
             <EmptyState
               icon={BellIcon}
               title="No alert rules"
@@ -98,7 +98,7 @@ export function AlertsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rulesData.alertRules.map((rule) => (
+                  {rulesData.alert_rules.map((rule) => (
                     <tr key={rule.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-2.5 font-medium capitalize">{rule.rule_type.replaceAll("_", " ")}</td>
                       <td className="px-4 py-2.5 text-muted-foreground">

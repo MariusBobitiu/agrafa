@@ -407,6 +407,62 @@ func (q *Queries) ListAlertInstances(ctx context.Context, arg ListAlertInstances
 	return items, nil
 }
 
+const listAlertInstancesByNodeAndStatus = `-- name: ListAlertInstancesByNodeAndStatus :many
+SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, title, message, created_at
+FROM app.alert_instances
+WHERE node_id = $1
+  AND (NOT $2::boolean OR status = $3)
+ORDER BY triggered_at DESC, id DESC
+LIMIT $4
+`
+
+type ListAlertInstancesByNodeAndStatusParams struct {
+	NodeID  sql.NullInt64 `json:"node_id"`
+	Column2 bool          `json:"column_2"`
+	Status  string        `json:"status"`
+	Limit   int32         `json:"limit"`
+}
+
+func (q *Queries) ListAlertInstancesByNodeAndStatus(ctx context.Context, arg ListAlertInstancesByNodeAndStatusParams) ([]AppAlertInstance, error) {
+	rows, err := q.db.QueryContext(ctx, listAlertInstancesByNodeAndStatus,
+		arg.NodeID,
+		arg.Column2,
+		arg.Status,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppAlertInstance{}
+	for rows.Next() {
+		var i AppAlertInstance
+		if err := rows.Scan(
+			&i.ID,
+			&i.AlertRuleID,
+			&i.ProjectID,
+			&i.NodeID,
+			&i.ServiceID,
+			&i.Status,
+			&i.TriggeredAt,
+			&i.ResolvedAt,
+			&i.Title,
+			&i.Message,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const resolveAlertInstance = `-- name: ResolveAlertInstance :one
 UPDATE app.alert_instances
 SET status = 'resolved',

@@ -9,6 +9,13 @@ type HeartbeatRequest struct {
 	Payload    map[string]any `json:"payload,omitempty"`
 }
 
+type ShutdownRequest struct {
+	NodeID     int64          `json:"node_id"`
+	ObservedAt time.Time      `json:"observed_at"`
+	Reason     string         `json:"reason,omitempty"`
+	Payload    map[string]any `json:"payload,omitempty"`
+}
+
 type HealthRequest struct {
 	ServiceID      int64          `json:"service_id"`
 	ObservedAt     time.Time      `json:"observed_at"`

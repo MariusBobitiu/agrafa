@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -14,6 +15,10 @@ import (
 
 type heartbeatIngester interface {
 	Ingest(ctx context.Context, input types.HeartbeatInput) (generated.Node, error)
+}
+
+type nodeShutdowner interface {
+	MarkOfflineFromShutdown(ctx context.Context, nodeID int64, occurredAt time.Time, reason string, payload json.RawMessage) (generated.Node, bool, error)
 }
 
 type healthIngester interface {
@@ -30,6 +35,7 @@ type agentConfigGetter interface {
 
 type AgentController struct {
 	heartbeatService       heartbeatIngester
+	nodeStateService       nodeShutdowner
 	healthIngestionService healthIngester
 	metricIngestionService metricIngester
 	agentConfigService     agentConfigGetter
@@ -37,12 +43,14 @@ type AgentController struct {
 
 func NewAgentController(
 	heartbeatService heartbeatIngester,
+	nodeStateService nodeShutdowner,
 	healthIngestionService healthIngester,
 	metricIngestionService metricIngester,
 	agentConfigService agentConfigGetter,
 ) *AgentController {
 	return &AgentController{
 		heartbeatService:       heartbeatService,
+		nodeStateService:       nodeStateService,
 		healthIngestionService: healthIngestionService,
 		metricIngestionService: metricIngestionService,
 		agentConfigService:     agentConfigService,
@@ -127,6 +135,77 @@ func (c *AgentController) IngestHeartbeat(w http.ResponseWriter, r *http.Request
 		Source:              request.Source,
 		Payload:             payload,
 	})
+	if err != nil {
+		if utils.WriteDomainError(w, err) {
+			return
+		}
+
+		utils.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, map[string]any{
+		"status": "ok",
+		"node":   services.MapNodeResponse(node),
+	})
+}
+
+// IngestShutdown records an agent shutdown signal and marks the node offline immediately.
+//
+// @Summary      Ingest shutdown
+// @Description  Records an agent shutdown signal so the authenticated node can be marked offline without waiting for heartbeat expiry.
+// @Tags         agent
+// @Accept       json
+// @Produce      json
+// @Param        X-Agent-Token  header    string                     true  "Per-node agent token"
+// @Param        request        body      types.AgentShutdownRequest true  "Shutdown payload"
+// @Success      200            {object}  types.HeartbeatResponse
+// @Failure      400            {object}  types.ErrorResponse
+// @Failure      401            {object}  types.ErrorResponse
+// @Failure      500            {object}  types.ErrorResponse
+// @Router       /agent/shutdown [post]
+func (c *AgentController) IngestShutdown(w http.ResponseWriter, r *http.Request) {
+	var request types.AgentShutdownRequest
+
+	if err := utils.DecodeJSON(r, &request); err != nil {
+		utils.WriteError(w, http.StatusBadRequest, "invalid shutdown payload")
+		return
+	}
+
+	authenticatedNode, ok := agentmiddleware.AuthenticatedNode(r.Context())
+	if !ok {
+		utils.WriteError(w, http.StatusInternalServerError, "authenticated agent node missing from context")
+		return
+	}
+
+	observedAt := time.Now().UTC()
+	if request.ObservedAt != nil {
+		observedAt = request.ObservedAt.UTC()
+	}
+
+	payload, err := utils.MarshalPayloadMap(request.Payload)
+	if err != nil {
+		utils.WriteError(w, http.StatusBadRequest, "invalid shutdown payload")
+		return
+	}
+
+	var reportedNodeID *int64
+	if request.NodeID != nil && *request.NodeID > 0 {
+		reportedNodeID = request.NodeID
+	}
+
+	if reportedNodeID != nil && *reportedNodeID != authenticatedNode.ID {
+		utils.WriteError(w, http.StatusBadRequest, types.ErrAgentNodeMismatch.Error())
+		return
+	}
+
+	node, _, err := c.nodeStateService.MarkOfflineFromShutdown(
+		r.Context(),
+		authenticatedNode.ID,
+		observedAt,
+		request.Reason,
+		payload,
+	)
 	if err != nil {
 		if utils.WriteDomainError(w, err) {
 			return

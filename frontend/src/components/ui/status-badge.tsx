@@ -12,9 +12,9 @@ type Status =
   | "resolved";
 
 const STATUS_STYLES: Record<Status, string> = {
-  online: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20",
-  healthy: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20",
-  resolved: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20",
+  online: "bg-lime-500/10 text-lime-600 dark:text-lime-400 border-lime-500/20",
+  healthy: "bg-lime-500/10 text-lime-600 dark:text-lime-400 border-lime-500/20",
+  resolved: "bg-lime-500/10 text-lime-600 dark:text-lime-400 border-lime-500/20",
   degraded: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20",
   offline: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
   unhealthy: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",

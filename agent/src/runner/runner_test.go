@@ -15,6 +15,7 @@ type fakeRunnerAPIClient struct {
 	healthRequests    []types.HealthRequest
 	heartbeatRequests []types.HeartbeatRequest
 	metricsRequests   []types.MetricsRequest
+	shutdownRequests  []types.ShutdownRequest
 }
 
 type fakeFetchResult struct {
@@ -24,6 +25,11 @@ type fakeFetchResult struct {
 
 func (c *fakeRunnerAPIClient) SendHeartbeat(_ context.Context, request types.HeartbeatRequest) error {
 	c.heartbeatRequests = append(c.heartbeatRequests, request)
+	return nil
+}
+
+func (c *fakeRunnerAPIClient) SendShutdown(_ context.Context, request types.ShutdownRequest) error {
+	c.shutdownRequests = append(c.shutdownRequests, request)
 	return nil
 }
 
@@ -217,6 +223,33 @@ func TestRunnerHealthLoopHandlesNoChecks(t *testing.T) {
 	}
 	if len(apiClient.healthRequests) != 0 {
 		t.Fatalf("len(healthRequests) = %d, want 0", len(apiClient.healthRequests))
+	}
+}
+
+func TestRunnerNotifyShutdownSendsReasonAndNodeID(t *testing.T) {
+	t.Parallel()
+
+	apiClient := &fakeRunnerAPIClient{}
+	runner := newTestRunner(t, types.Config{NodeID: 42}, apiClient)
+
+	err := runner.NotifyShutdown(context.Background(), "user_closed", map[string]any{"signal": "interrupt"})
+	if err != nil {
+		t.Fatalf("NotifyShutdown() error = %v", err)
+	}
+
+	if len(apiClient.shutdownRequests) != 1 {
+		t.Fatalf("len(shutdownRequests) = %d, want 1", len(apiClient.shutdownRequests))
+	}
+
+	request := apiClient.shutdownRequests[0]
+	if request.NodeID != 42 {
+		t.Fatalf("request.NodeID = %d, want 42", request.NodeID)
+	}
+	if request.Reason != "user_closed" {
+		t.Fatalf("request.Reason = %q, want user_closed", request.Reason)
+	}
+	if request.Payload["signal"] != "interrupt" {
+		t.Fatalf("unexpected payload: %#v", request.Payload)
 	}
 }
 

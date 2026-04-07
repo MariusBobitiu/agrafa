@@ -123,15 +123,19 @@ func (r *fakeAlertEventRecorder) CreateAlertResolved(_ context.Context, _ genera
 }
 
 type fakeAlertNotificationService struct {
-	triggeredErr error
-	resolvedErr  error
+	triggeredErr   error
+	resolvedErr    error
+	triggeredCalls []generated.AlertInstance
+	resolvedCalls  []generated.AlertInstance
 }
 
-func (s *fakeAlertNotificationService) NotifyAlertTriggered(_ context.Context, _ generated.AlertRule, _ generated.AlertInstance) error {
+func (s *fakeAlertNotificationService) NotifyAlertTriggered(_ context.Context, _ generated.AlertRule, alert generated.AlertInstance) error {
+	s.triggeredCalls = append(s.triggeredCalls, alert)
 	return s.triggeredErr
 }
 
-func (s *fakeAlertNotificationService) NotifyAlertResolved(_ context.Context, _ generated.AlertRule, _ generated.AlertInstance) error {
+func (s *fakeAlertNotificationService) NotifyAlertResolved(_ context.Context, _ generated.AlertRule, alert generated.AlertInstance) error {
+	s.resolvedCalls = append(s.resolvedCalls, alert)
 	return s.resolvedErr
 }
 

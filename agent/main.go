@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/MariusBobitiu/agrafa-agent/src/client"
 	"github.com/MariusBobitiu/agrafa-agent/src/collectors"
@@ -51,11 +52,41 @@ func main() {
 		cfg.DiskPath,
 	)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	if err := agentRunner.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		log.Fatalf("run agent: %v", err)
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signalCh)
+
+	runResultCh := make(chan error, 1)
+	go func() {
+		runResultCh <- agentRunner.Start(ctx)
+	}()
+
+	var runErr error
+	var shutdownReason string
+	var shutdownPayload map[string]any
+
+	select {
+	case sig := <-signalCh:
+		shutdownReason, shutdownPayload = shutdownMetadataForSignal(sig)
+		cancel()
+		runErr = <-runResultCh
+	case runErr = <-runResultCh:
+	}
+
+	if shutdownReason != "" {
+		sendBestEffortShutdown(agentRunner, shutdownReason, shutdownPayload)
+	}
+
+	if runErr != nil && !errors.Is(runErr, context.Canceled) {
+		if shutdownReason == "" {
+			sendBestEffortShutdown(agentRunner, "error_occurred", map[string]any{
+				"error": runErr.Error(),
+			})
+		}
+		log.Fatalf("run agent: %v", runErr)
 	}
 
 	log.Printf("agent stopped")
@@ -64,4 +95,27 @@ func main() {
 func agentTokenFingerprint(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:4])
+}
+
+func sendBestEffortShutdown(agentRunner *runner.Runner, reason string, payload map[string]any) {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := agentRunner.NotifyShutdown(shutdownCtx, reason, payload); err != nil {
+		log.Printf("agent shutdown signal failed\n  reason: %s\n  error: %v", reason, err)
+		return
+	}
+
+	log.Printf("agent shutdown signal sent\n  reason: %s", reason)
+}
+
+func shutdownMetadataForSignal(sig os.Signal) (string, map[string]any) {
+	switch sig {
+	case os.Interrupt:
+		return "user_closed", map[string]any{"signal": "SIGINT"}
+	case syscall.SIGTERM:
+		return "terminated", map[string]any{"signal": "SIGTERM"}
+	default:
+		return "signal_received", map[string]any{"signal": sig.String()}
+	}
 }

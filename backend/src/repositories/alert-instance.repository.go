@@ -50,6 +50,20 @@ func (r *AlertInstanceRepository) List(ctx context.Context, projectID *int64, st
 	return r.queries.ListAlertInstances(ctx, params)
 }
 
+func (r *AlertInstanceRepository) ListByNodeID(ctx context.Context, nodeID int64, status *string, limit int32) ([]generated.AlertInstance, error) {
+	params := generated.ListAlertInstancesByNodeAndStatusParams{
+		NodeID: sql.NullInt64{Int64: nodeID, Valid: true},
+		Limit:  limit,
+	}
+
+	if status != nil {
+		params.Column2 = true
+		params.Status = *status
+	}
+
+	return r.queries.ListAlertInstancesByNodeAndStatus(ctx, params)
+}
+
 func (r *AlertInstanceRepository) ListActiveCountsByNode(ctx context.Context, projectID *int64) ([]generated.ListActiveAlertCountsByNodeRow, error) {
 	if projectID != nil {
 		rows, err := r.queries.ListActiveAlertCountsByNodeByProject(ctx, *projectID)

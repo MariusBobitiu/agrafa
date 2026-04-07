@@ -18,6 +18,7 @@ import (
 
 type runnerAPIClient interface {
 	SendHeartbeat(ctx context.Context, request types.HeartbeatRequest) error
+	SendShutdown(ctx context.Context, request types.ShutdownRequest) error
 	SendMetrics(ctx context.Context, request types.MetricsRequest) error
 	SendHealth(ctx context.Context, request types.HealthRequest) error
 	FetchConfig(ctx context.Context) (types.AgentConfigResponse, error)
@@ -93,6 +94,22 @@ func (runner *Runner) Start(ctx context.Context) error {
 	waitGroup.Wait()
 
 	return ctx.Err()
+}
+
+func (runner *Runner) NotifyShutdown(ctx context.Context, reason string, payload map[string]any) error {
+	request := types.ShutdownRequest{
+		NodeID:     runner.currentNodeID(),
+		ObservedAt: time.Now().UTC(),
+		Reason:     reason,
+		Payload:    payload,
+	}
+
+	if err := runner.apiClient.SendShutdown(ctx, request); err != nil {
+		logSendFailure("shutdown", "/agent/shutdown", "", err)
+		return err
+	}
+
+	return nil
 }
 
 func (runner *Runner) runLoop(ctx context.Context, interval time.Duration, immediate bool, run func(context.Context)) {

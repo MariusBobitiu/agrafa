@@ -3,10 +3,12 @@ package controllers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	agentmiddleware "github.com/MariusBobitiu/agrafa-backend/src/middleware"
@@ -19,6 +21,30 @@ type fakeAgentControllerHeartbeatService struct{}
 
 func (s *fakeAgentControllerHeartbeatService) Ingest(context.Context, types.HeartbeatInput) (generated.Node, error) {
 	return generated.Node{}, nil
+}
+
+type fakeAgentControllerNodeStateService struct {
+	node         generated.Node
+	transitioned bool
+	calls        []fakeAgentControllerShutdownCall
+	err          error
+}
+
+type fakeAgentControllerShutdownCall struct {
+	nodeID     int64
+	occurredAt time.Time
+	reason     string
+	payload    json.RawMessage
+}
+
+func (s *fakeAgentControllerNodeStateService) MarkOfflineFromShutdown(_ context.Context, nodeID int64, occurredAt time.Time, reason string, payload json.RawMessage) (generated.Node, bool, error) {
+	s.calls = append(s.calls, fakeAgentControllerShutdownCall{
+		nodeID:     nodeID,
+		occurredAt: occurredAt,
+		reason:     reason,
+		payload:    payload,
+	})
+	return s.node, s.transitioned, s.err
 }
 
 type fakeAgentControllerHealthService struct{}
@@ -72,6 +98,7 @@ func TestAgentControllerGetConfigReturnsAssignedChecks(t *testing.T) {
 
 	controller := NewAgentController(
 		&fakeAgentControllerHeartbeatService{},
+		&fakeAgentControllerNodeStateService{},
 		&fakeAgentControllerHealthService{},
 		&fakeAgentControllerMetricService{},
 		&fakeAgentControllerConfigService{
@@ -123,6 +150,7 @@ func TestAgentControllerGetConfigRejectsInvalidToken(t *testing.T) {
 	authService := services.NewAgentAuthService(&fakeAgentConfigAuthNodeRepo{nodesByHash: map[string]generated.Node{}})
 	controller := NewAgentController(
 		&fakeAgentControllerHeartbeatService{},
+		&fakeAgentControllerNodeStateService{},
 		&fakeAgentControllerHealthService{},
 		&fakeAgentControllerMetricService{},
 		&fakeAgentControllerConfigService{},
@@ -140,5 +168,70 @@ func TestAgentControllerGetConfigRejectsInvalidToken(t *testing.T) {
 	}
 	if body := recorder.Body.String(); !strings.Contains(body, `{"error":"invalid agent token"}`) {
 		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestAgentControllerIngestShutdownMarksNodeOfflineWithReason(t *testing.T) {
+	t.Parallel()
+
+	validToken := "agent-token"
+	authenticatedNode := generated.Node{
+		ID:         12,
+		Name:       "web-01",
+		Identifier: "web-01",
+		ProjectID:  7,
+	}
+
+	authService := services.NewAgentAuthService(&fakeAgentConfigAuthNodeRepo{
+		nodesByHash: map[string]generated.Node{
+			utils.HashAgentToken(validToken): authenticatedNode,
+		},
+	})
+
+	nodeState := &fakeAgentControllerNodeStateService{
+		node: generated.Node{
+			ID:           12,
+			ProjectID:    7,
+			Name:         "web-01",
+			Identifier:   "web-01",
+			CurrentState: types.NodeStateOffline,
+		},
+		transitioned: true,
+	}
+
+	controller := NewAgentController(
+		&fakeAgentControllerHeartbeatService{},
+		nodeState,
+		&fakeAgentControllerHealthService{},
+		&fakeAgentControllerMetricService{},
+		&fakeAgentControllerConfigService{},
+	)
+
+	handler := agentmiddleware.AgentAuth(authService)(http.HandlerFunc(controller.IngestShutdown))
+	request := httptest.NewRequest(http.MethodPost, "/v1/agent/shutdown", strings.NewReader(`{"node_id":12,"reason":"user_closed","payload":{"signal":"SIGINT"}}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(agentmiddleware.AgentTokenHeader, validToken)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", recorder.Code)
+	}
+
+	if len(nodeState.calls) != 1 {
+		t.Fatalf("expected 1 shutdown call, got %d", len(nodeState.calls))
+	}
+
+	if nodeState.calls[0].nodeID != authenticatedNode.ID {
+		t.Fatalf("nodeID = %d, want %d", nodeState.calls[0].nodeID, authenticatedNode.ID)
+	}
+
+	if nodeState.calls[0].reason != "user_closed" {
+		t.Fatalf("reason = %q, want user_closed", nodeState.calls[0].reason)
+	}
+
+	if !strings.Contains(string(nodeState.calls[0].payload), `"signal":"SIGINT"`) {
+		t.Fatalf("unexpected payload: %s", nodeState.calls[0].payload)
 	}
 }

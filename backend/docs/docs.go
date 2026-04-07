@@ -233,6 +233,65 @@ const docTemplate = `{
                 }
             }
         },
+        "/agent/shutdown": {
+            "post": {
+                "description": "Records an agent shutdown signal so the authenticated node can be marked offline without waiting for heartbeat expiry.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agent"
+                ],
+                "summary": "Ingest shutdown",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Per-node agent token",
+                        "name": "X-Agent-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Shutdown payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/types.AgentShutdownRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/types.HeartbeatResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/alert-rules": {
             "get": {
                 "description": "Returns alert rules ordered by newest first. Optionally filters by project_id.",
@@ -3040,6 +3099,26 @@ const docTemplate = `{
                 }
             }
         },
+        "types.AgentShutdownRequest": {
+            "type": "object",
+            "properties": {
+                "node_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "observed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "payload": {
+                    "type": "object"
+                },
+                "reason": {
+                    "type": "string",
+                    "example": "user_closed"
+                }
+            }
+        },
         "types.AlertDocument": {
             "type": "object",
             "properties": {
@@ -3623,6 +3702,12 @@ const docTemplate = `{
                 "active_alert_count": {
                     "type": "integer",
                     "example": 1
+                },
+                "active_alerts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.AlertDocument"
+                    }
                 },
                 "created_at": {
                     "type": "string",

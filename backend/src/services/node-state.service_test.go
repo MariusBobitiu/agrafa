@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -72,13 +73,15 @@ type nodeEventRecord struct {
 	node       generated.Node
 	newState   string
 	occurredAt time.Time
+	extra      map[string]any
 }
 
-func (r *fakeNodeEventRecorder) CreateNodeStateChange(_ context.Context, node generated.Node, newState string, occurredAt time.Time) error {
+func (r *fakeNodeEventRecorder) CreateNodeStateChange(_ context.Context, node generated.Node, newState string, occurredAt time.Time, extraDetails map[string]any) error {
 	r.calls = append(r.calls, nodeEventRecord{
 		node:       node,
 		newState:   newState,
 		occurredAt: occurredAt,
+		extra:      extraDetails,
 	})
 
 	return nil
@@ -391,5 +394,329 @@ func TestMarkOfflineIfStale(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestMarkOfflineFromShutdown(t *testing.T) {
+	t.Parallel()
+
+	occurredAt := time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC)
+
+	repo := &fakeNodeStateRepo{
+		nodes: map[int64]generated.Node{
+			1: {
+				ID:           1,
+				ProjectID:    1,
+				Name:         "node-1",
+				Identifier:   "node-1",
+				CurrentState: types.NodeStateOnline,
+			},
+		},
+	}
+	events := &fakeNodeEventRecorder{}
+	service := &NodeStateService{
+		nodeRepo:     repo,
+		eventService: events,
+	}
+
+	payload := json.RawMessage(`{"signal":"SIGTERM","message":"user closed it"}`)
+	node, transitioned, err := service.MarkOfflineFromShutdown(context.Background(), 1, occurredAt, "signal_terminated", payload)
+	if err != nil {
+		t.Fatalf("MarkOfflineFromShutdown returned error: %v", err)
+	}
+
+	if !transitioned {
+		t.Fatal("expected transition")
+	}
+
+	if node.CurrentState != types.NodeStateOffline {
+		t.Fatalf("expected offline state, got %q", node.CurrentState)
+	}
+
+	if len(repo.updateStateCalls) != 1 {
+		t.Fatalf("expected 1 state update, got %d", len(repo.updateStateCalls))
+	}
+
+	if len(events.calls) != 1 {
+		t.Fatalf("expected 1 node event, got %d", len(events.calls))
+	}
+
+	if events.calls[0].extra["offline_reason"] != "agent_shutdown" {
+		t.Fatalf("unexpected offline_reason: %#v", events.calls[0].extra["offline_reason"])
+	}
+
+	if events.calls[0].extra["shutdown_reason"] != "signal_terminated" {
+		t.Fatalf("unexpected shutdown_reason: %#v", events.calls[0].extra["shutdown_reason"])
+	}
+
+	shutdownPayload, ok := events.calls[0].extra["shutdown_payload"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected shutdown payload map, got %#v", events.calls[0].extra["shutdown_payload"])
+	}
+
+	if shutdownPayload["signal"] != "SIGTERM" {
+		t.Fatalf("unexpected shutdown signal: %#v", shutdownPayload["signal"])
+	}
+}
+
+func TestMarkOfflineFromShutdownIgnoresAlreadyOfflineNode(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeNodeStateRepo{
+		nodes: map[int64]generated.Node{
+			1: {
+				ID:           1,
+				ProjectID:    1,
+				Name:         "node-1",
+				Identifier:   "node-1",
+				CurrentState: types.NodeStateOffline,
+			},
+		},
+	}
+	events := &fakeNodeEventRecorder{}
+	service := &NodeStateService{
+		nodeRepo:     repo,
+		eventService: events,
+	}
+
+	node, transitioned, err := service.MarkOfflineFromShutdown(context.Background(), 1, time.Now().UTC(), "signal_interrupt", nil)
+	if err != nil {
+		t.Fatalf("MarkOfflineFromShutdown returned error: %v", err)
+	}
+
+	if transitioned {
+		t.Fatal("expected no transition")
+	}
+
+	if node.CurrentState != types.NodeStateOffline {
+		t.Fatalf("expected offline state, got %q", node.CurrentState)
+	}
+
+	if len(repo.updateStateCalls) != 0 {
+		t.Fatalf("expected no state updates, got %d", len(repo.updateStateCalls))
+	}
+
+	if len(events.calls) != 0 {
+		t.Fatalf("expected no node events, got %d", len(events.calls))
+	}
+}
+
+func TestMarkOfflineFromShutdownTriggersAlertLifecycleAndNotification(t *testing.T) {
+	t.Parallel()
+
+	occurredAt := time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC)
+	repo := &fakeNodeStateRepo{
+		nodes: map[int64]generated.Node{
+			1: {
+				ID:           1,
+				ProjectID:    1,
+				Name:         "node-1",
+				Identifier:   "node-1",
+				CurrentState: types.NodeStateOnline,
+			},
+		},
+	}
+	nodeEvents := &fakeNodeEventRecorder{}
+	alertEvents := &fakeAlertEventRecorder{}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	emailService := &fakeAlertEmailService{}
+	deliveryRecorder := &fakeNotificationDeliveryRecorder{}
+
+	alertEvaluator := &AlertEvaluatorService{
+		alertRuleRepo: &fakeAlertRuleRepo{
+			rules: []generated.AlertRule{
+				{
+					ID:        10,
+					ProjectID: 1,
+					NodeID:    sql.NullInt64{Int64: 1, Valid: true},
+					RuleType:  types.AlertRuleTypeNodeOffline,
+					IsEnabled: true,
+				},
+			},
+		},
+		alertInstanceRepo: instanceRepo,
+		metricRepo:        &fakeAlertMetricRepo{},
+		eventService:      alertEvents,
+		notificationService: &NotificationService{
+			notificationRecipientRepo: &fakeNotificationDispatchRepo{
+				recipients: []generated.NotificationRecipient{
+					{ID: 1, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "ops@example.com", IsEnabled: true},
+				},
+			},
+			projectRepo: &fakeNotificationProjectLookupRepo{
+				projects: map[int64]generated.Project{
+					1: {ID: 1, Name: "Agrafa"},
+				},
+			},
+			notificationDeliverySvc: deliveryRecorder,
+			emailService:            emailService,
+		},
+	}
+
+	service := &NodeStateService{
+		nodeRepo:       repo,
+		eventService:   nodeEvents,
+		alertEvaluator: alertEvaluator,
+	}
+
+	node, transitioned, err := service.MarkOfflineFromShutdown(
+		context.Background(),
+		1,
+		occurredAt,
+		"user_closed",
+		json.RawMessage(`{"signal":"SIGINT"}`),
+	)
+	if err != nil {
+		t.Fatalf("MarkOfflineFromShutdown returned error: %v", err)
+	}
+
+	if !transitioned {
+		t.Fatal("expected transition")
+	}
+	if node.CurrentState != types.NodeStateOffline {
+		t.Fatalf("expected offline state, got %q", node.CurrentState)
+	}
+	if instanceRepo.createCalls != 1 {
+		t.Fatalf("expected 1 alert instance, got %d", instanceRepo.createCalls)
+	}
+	if len(alertEvents.triggered) != 1 {
+		t.Fatalf("expected 1 alert_triggered event, got %d", len(alertEvents.triggered))
+	}
+	if len(emailService.triggeredRecipients) != 1 || emailService.triggeredRecipients[0] != "ops@example.com" {
+		t.Fatalf("unexpected triggered recipients: %#v", emailService.triggeredRecipients)
+	}
+	if len(deliveryRecorder.records) != 1 || deliveryRecorder.records[0].EventType != types.EventTypeAlertTriggered {
+		t.Fatalf("unexpected delivery records: %#v", deliveryRecorder.records)
+	}
+	if len(nodeEvents.calls) != 1 || nodeEvents.calls[0].newState != types.NodeStateOffline {
+		t.Fatalf("unexpected node events: %#v", nodeEvents.calls)
+	}
+}
+
+func TestMarkOfflineIfStaleTriggersAlertLifecycle(t *testing.T) {
+	t.Parallel()
+
+	cutoff := time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC)
+	repo := &fakeNodeStateRepo{
+		nodes: map[int64]generated.Node{
+			1: {
+				ID:              1,
+				ProjectID:       1,
+				Name:            "node-1",
+				Identifier:      "node-1",
+				CurrentState:    types.NodeStateOnline,
+				LastHeartbeatAt: sql.NullTime{Time: cutoff.Add(-time.Minute), Valid: true},
+			},
+		},
+	}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	alertEvents := &fakeAlertEventRecorder{}
+	service := &NodeStateService{
+		nodeRepo:     repo,
+		eventService: &fakeNodeEventRecorder{},
+		alertEvaluator: &AlertEvaluatorService{
+			alertRuleRepo: &fakeAlertRuleRepo{
+				rules: []generated.AlertRule{
+					{
+						ID:        11,
+						ProjectID: 1,
+						NodeID:    sql.NullInt64{Int64: 1, Valid: true},
+						RuleType:  types.AlertRuleTypeNodeOffline,
+						IsEnabled: true,
+					},
+				},
+			},
+			alertInstanceRepo: instanceRepo,
+			metricRepo:        &fakeAlertMetricRepo{},
+			eventService:      alertEvents,
+		},
+	}
+
+	node, transitioned, err := service.MarkOfflineIfStale(context.Background(), repo.nodes[1], cutoff)
+	if err != nil {
+		t.Fatalf("MarkOfflineIfStale returned error: %v", err)
+	}
+
+	if !transitioned || node.CurrentState != types.NodeStateOffline {
+		t.Fatalf("unexpected stale transition result: transitioned=%t node=%#v", transitioned, node)
+	}
+	if instanceRepo.createCalls != 1 {
+		t.Fatalf("expected 1 alert instance, got %d", instanceRepo.createCalls)
+	}
+	if len(alertEvents.triggered) != 1 {
+		t.Fatalf("expected 1 alert_triggered event, got %d", len(alertEvents.triggered))
+	}
+}
+
+func TestMarkOnlineFromHeartbeatResolvesOfflineAlertLifecycle(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.April, 5, 12, 5, 0, 0, time.UTC)
+	repo := &fakeNodeStateRepo{
+		nodes: map[int64]generated.Node{
+			1: {
+				ID:           1,
+				ProjectID:    1,
+				Name:         "node-1",
+				Identifier:   "node-1",
+				CurrentState: types.NodeStateOffline,
+			},
+		},
+	}
+	instanceRepo := &fakeAlertInstanceRepo{
+		nextID: 1,
+		instances: []generated.AlertInstance{
+			{
+				ID:          1,
+				AlertRuleID: 12,
+				ProjectID:   1,
+				NodeID:      sql.NullInt64{Int64: 1, Valid: true},
+				Status:      types.AlertStatusActive,
+				TriggeredAt: observedAt.Add(-time.Minute),
+				Title:       "Node 1 is offline",
+				Message:     "Node 1 is currently offline.",
+			},
+		},
+	}
+	alertEvents := &fakeAlertEventRecorder{}
+	notifications := &fakeAlertNotificationService{}
+	service := &NodeStateService{
+		nodeRepo:     repo,
+		eventService: &fakeNodeEventRecorder{},
+		alertEvaluator: &AlertEvaluatorService{
+			alertRuleRepo: &fakeAlertRuleRepo{
+				rules: []generated.AlertRule{
+					{
+						ID:        12,
+						ProjectID: 1,
+						NodeID:    sql.NullInt64{Int64: 1, Valid: true},
+						RuleType:  types.AlertRuleTypeNodeOffline,
+						IsEnabled: true,
+					},
+				},
+			},
+			alertInstanceRepo:   instanceRepo,
+			metricRepo:          &fakeAlertMetricRepo{},
+			eventService:        alertEvents,
+			notificationService: notifications,
+		},
+	}
+
+	node, err := service.MarkOnlineFromHeartbeat(context.Background(), 1, observedAt)
+	if err != nil {
+		t.Fatalf("MarkOnlineFromHeartbeat returned error: %v", err)
+	}
+
+	if node.CurrentState != types.NodeStateOnline {
+		t.Fatalf("expected online state, got %q", node.CurrentState)
+	}
+	if instanceRepo.resolveCalls != 1 {
+		t.Fatalf("expected 1 alert resolution, got %d", instanceRepo.resolveCalls)
+	}
+	if len(alertEvents.resolved) != 1 {
+		t.Fatalf("expected 1 alert_resolved event, got %d", len(alertEvents.resolved))
+	}
+	if len(notifications.resolvedCalls) != 1 {
+		t.Fatalf("expected 1 resolve notification call, got %d", len(notifications.resolvedCalls))
 	}
 }

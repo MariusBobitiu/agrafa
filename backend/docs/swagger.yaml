@@ -42,6 +42,20 @@ definitions:
       node:
         $ref: '#/definitions/types.AgentConfigNodeDocument'
     type: object
+  types.AgentShutdownRequest:
+    properties:
+      node_id:
+        example: 1
+        type: integer
+      observed_at:
+        format: date-time
+        type: string
+      payload:
+        type: object
+      reason:
+        example: user_closed
+        type: string
+    type: object
   types.AlertDocument:
     properties:
       alert_rule_id:
@@ -450,6 +464,10 @@ definitions:
       active_alert_count:
         example: 1
         type: integer
+      active_alerts:
+        items:
+          $ref: '#/definitions/types.AlertDocument'
+        type: array
       created_at:
         format: date-time
         type: string
@@ -1296,6 +1314,46 @@ paths:
           schema:
             $ref: '#/definitions/types.ErrorResponse'
       summary: Ingest metrics
+      tags:
+      - agent
+  /agent/shutdown:
+    post:
+      consumes:
+      - application/json
+      description: Records an agent shutdown signal so the authenticated node can
+        be marked offline without waiting for heartbeat expiry.
+      parameters:
+      - description: Per-node agent token
+        in: header
+        name: X-Agent-Token
+        required: true
+        type: string
+      - description: Shutdown payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.AgentShutdownRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.HeartbeatResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Ingest shutdown
       tags:
       - agent
   /alert-rules:

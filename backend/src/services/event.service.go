@@ -55,7 +55,7 @@ func (s *EventService) ListAlertEvents(ctx context.Context, limit int32, project
 	return mapEvents(events), nil
 }
 
-func (s *EventService) CreateNodeStateChange(ctx context.Context, node generated.Node, newState string, occurredAt time.Time) error {
+func (s *EventService) CreateNodeStateChange(ctx context.Context, node generated.Node, newState string, occurredAt time.Time, extraDetails map[string]any) error {
 	eventType := types.EventTypeNodeOffline
 	severity := "warning"
 	title := fmt.Sprintf("Node %s went offline", node.Name)
@@ -66,11 +66,16 @@ func (s *EventService) CreateNodeStateChange(ctx context.Context, node generated
 		title = fmt.Sprintf("Node %s is online", node.Name)
 	}
 
-	details, err := json.Marshal(map[string]any{
+	detailsMap := map[string]any{
 		"node_id":       node.ID,
 		"identifier":    node.Identifier,
 		"current_state": newState,
-	})
+	}
+	for key, value := range extraDetails {
+		detailsMap[key] = value
+	}
+
+	details, err := json.Marshal(detailsMap)
 	if err != nil {
 		return fmt.Errorf("marshal node event details: %w", err)
 	}

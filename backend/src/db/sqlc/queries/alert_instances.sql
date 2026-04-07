@@ -45,6 +45,14 @@ WHERE (NOT $1::boolean OR project_id = $2)
 ORDER BY triggered_at DESC, id DESC
 LIMIT $5;
 
+-- name: ListAlertInstancesByNodeAndStatus :many
+SELECT *
+FROM app.alert_instances
+WHERE node_id = $1
+  AND (NOT $2::boolean OR status = $3)
+ORDER BY triggered_at DESC, id DESC
+LIMIT $4;
+
 -- name: ListActiveAlertCountsByNode :many
 SELECT
     node_id,

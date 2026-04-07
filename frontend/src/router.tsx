@@ -13,6 +13,7 @@ import { VerifyEmailPage } from "@/app/auth/verify-email-page.tsx";
 import { OnboardingPage } from "@/app/onboarding/onboarding-page.tsx";
 import { OverviewPage } from "@/app/overview/overview-page.tsx";
 import { NodesPage } from "@/app/nodes/nodes-page.tsx";
+import { NodeDetailPage } from "@/app/nodes/node-detail-page.tsx";
 import { ServicesPage } from "@/app/services/services-page.tsx";
 import { AlertsPage } from "@/app/alerts/alerts-page.tsx";
 import { SettingsPage } from "@/app/settings/settings-page.tsx";
@@ -66,6 +67,7 @@ export const router = createBrowserRouter([
             children: [
               { path: "/overview", element: <OverviewPage /> },
               { path: "/nodes", element: <NodesPage /> },
+              { path: "/nodes/:id", element: <NodeDetailPage /> },
               { path: "/services", element: <ServicesPage /> },
               { path: "/alerts", element: <AlertsPage /> },
               { path: "/settings", element: <SettingsPage /> },

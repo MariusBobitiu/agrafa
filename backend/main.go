@@ -137,7 +137,7 @@ func main() {
 	overviewService := services.NewOverviewService(overviewRepo, eventService, nodeReadService)
 
 	authController := controllers.NewAuthController(authService, sessionService)
-	agentController := controllers.NewAgentController(heartbeatService, healthIngestionService, metricIngestionService, agentConfigService)
+	agentController := controllers.NewAgentController(heartbeatService, nodeStateService, healthIngestionService, metricIngestionService, agentConfigService)
 	readController := controllers.NewReadController(nodeReadService, serviceReadService, eventService, alertRuleService, alertService, overviewService)
 	projectController := controllers.NewProjectController(projectService)
 	projectMemberController := controllers.NewProjectMemberController(projectMemberService)

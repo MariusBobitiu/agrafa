@@ -59,6 +59,7 @@ func NewRouter(
 			agentRouter.Use(agentmiddleware.AgentAuth(agentAuthService))
 			agentRouter.Get("/config", agentController.GetConfig)
 			agentRouter.Post("/heartbeat", agentController.IngestHeartbeat)
+			agentRouter.Post("/shutdown", agentController.IngestShutdown)
 			agentRouter.Post("/health", agentController.IngestHealth)
 			agentRouter.Post("/metrics", agentController.IngestMetrics)
 		})

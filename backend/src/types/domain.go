@@ -77,6 +77,14 @@ type HeartbeatInput struct {
 	Payload             json.RawMessage
 }
 
+type AgentShutdownInput struct {
+	AuthenticatedNodeID int64
+	ReportedNodeID      *int64
+	ObservedAt          time.Time
+	Reason              string
+	Payload             json.RawMessage
+}
+
 type HealthCheckInput struct {
 	AuthenticatedNodeID int64
 	ServiceID           int64
@@ -340,6 +348,7 @@ type NodeReadData struct {
 	LatestMemory     *MetricValueData `json:"latest_memory,omitempty"`
 	LatestDisk       *MetricValueData `json:"latest_disk,omitempty"`
 	ActiveAlertCount int64            `json:"active_alert_count"`
+	ActiveAlerts     []AlertReadData  `json:"active_alerts,omitempty"`
 	ServiceCount     int64            `json:"service_count"`
 	CreatedAt        time.Time        `json:"created_at"`
 	UpdatedAt        time.Time        `json:"updated_at"`

@@ -10,16 +10,16 @@ export const alertsApi = {
   listAlerts: (projectId: number): Promise<{ alerts: Alert[] }> =>
     api.get(`/alerts?project_id=${projectId}`),
 
-  listRules: (projectId: number): Promise<{ alertRules: AlertRule[] }> =>
+  listRules: (projectId: number): Promise<{ alert_rules: AlertRule[] }> =>
     api.get(`/alert-rules?project_id=${projectId}`),
 
-  getRule: (id: number): Promise<{ alertRule: AlertRule }> =>
+  getRule: (id: number): Promise<{ alert_rule: AlertRule }> =>
     api.get(`/alert-rules/${id}`),
 
-  createRule: (payload: AlertRuleCreateInput): Promise<{ alertRule: AlertRule }> =>
+  createRule: (payload: AlertRuleCreateInput): Promise<{ alert_rule: AlertRule }> =>
     api.post("/alert-rules", payload),
 
-  updateRule: (id: number, payload: AlertRuleUpdateInput): Promise<{ alertRule: AlertRule }> =>
+  updateRule: (id: number, payload: AlertRuleUpdateInput): Promise<{ alert_rule: AlertRule }> =>
     api.patch(`/alert-rules/${id}`, payload),
 
   deleteRule: (id: number): Promise<void> =>

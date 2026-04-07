@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -20,7 +21,7 @@ type nodeStateRepository interface {
 }
 
 type nodeStateEventService interface {
-	CreateNodeStateChange(ctx context.Context, node generated.Node, newState string, occurredAt time.Time) error
+	CreateNodeStateChange(ctx context.Context, node generated.Node, newState string, occurredAt time.Time, extraDetails map[string]any) error
 }
 
 type nodeAlertEvaluator interface {
@@ -62,31 +63,13 @@ func (s *NodeStateService) MarkOnlineFromHeartbeat(ctx context.Context, nodeID i
 
 	_, transitioned := evaluateNodeOnlineTransition(node.CurrentState)
 	if !transitioned {
-		if s.alertEvaluator != nil {
-			if err := s.alertEvaluator.EvaluateNodeRules(ctx, updatedNode, observedAt); err != nil {
-				return generated.Node{}, err
-			}
+		if err := s.evaluateNodeAlerts(ctx, updatedNode, observedAt); err != nil {
+			return generated.Node{}, err
 		}
-
 		return updatedNode, nil
 	}
 
-	updatedNode, err = s.nodeRepo.UpdateState(ctx, nodeID, types.NodeStateOnline)
-	if err != nil {
-		return generated.Node{}, fmt.Errorf("update node state: %w", err)
-	}
-
-	if s.alertEvaluator != nil {
-		if err := s.alertEvaluator.EvaluateNodeRules(ctx, updatedNode, observedAt); err != nil {
-			return generated.Node{}, err
-		}
-	}
-
-	if err := s.eventService.CreateNodeStateChange(ctx, updatedNode, types.NodeStateOnline, observedAt); err != nil {
-		return generated.Node{}, err
-	}
-
-	return updatedNode, nil
+	return s.transitionNodeState(ctx, nodeID, types.NodeStateOnline, observedAt, nil)
 }
 
 func (s *NodeStateService) MarkOfflineIfStale(ctx context.Context, node generated.Node, cutoff time.Time) (generated.Node, bool, error) {
@@ -95,22 +78,83 @@ func (s *NodeStateService) MarkOfflineIfStale(ctx context.Context, node generate
 		return node, false, nil
 	}
 
-	updatedNode, err := s.nodeRepo.UpdateState(ctx, node.ID, nextState)
+	updatedNode, err := s.transitionNodeState(ctx, node.ID, nextState, cutoff, nil)
 	if err != nil {
-		return generated.Node{}, false, fmt.Errorf("update node state: %w", err)
-	}
-
-	if s.alertEvaluator != nil {
-		if err := s.alertEvaluator.EvaluateNodeRules(ctx, updatedNode, cutoff); err != nil {
-			return generated.Node{}, false, err
-		}
-	}
-
-	if err := s.eventService.CreateNodeStateChange(ctx, updatedNode, types.NodeStateOffline, cutoff); err != nil {
 		return generated.Node{}, false, err
 	}
 
 	return updatedNode, true, nil
+}
+
+func (s *NodeStateService) MarkOfflineFromShutdown(
+	ctx context.Context,
+	nodeID int64,
+	occurredAt time.Time,
+	reason string,
+	payload json.RawMessage,
+) (generated.Node, bool, error) {
+	node, err := s.nodeRepo.GetByID(ctx, nodeID)
+	if err != nil {
+		return generated.Node{}, false, fmt.Errorf("get node: %w", err)
+	}
+
+	if node.CurrentState != types.NodeStateOnline {
+		return node, false, nil
+	}
+
+	extraDetails := map[string]any{
+		"offline_reason": "agent_shutdown",
+	}
+	if reason != "" {
+		extraDetails["shutdown_reason"] = reason
+	}
+	if len(payload) > 0 {
+		var payloadValue any
+		if err := json.Unmarshal(payload, &payloadValue); err != nil {
+			return generated.Node{}, false, fmt.Errorf("decode shutdown payload: %w", err)
+		}
+		extraDetails["shutdown_payload"] = payloadValue
+	}
+
+	updatedNode, err := s.transitionNodeState(ctx, nodeID, types.NodeStateOffline, occurredAt, extraDetails)
+	if err != nil {
+		return generated.Node{}, false, err
+	}
+
+	return updatedNode, true, nil
+}
+
+func (s *NodeStateService) transitionNodeState(
+	ctx context.Context,
+	nodeID int64,
+	nextState string,
+	occurredAt time.Time,
+	extraDetails map[string]any,
+) (generated.Node, error) {
+	updatedNode, err := s.nodeRepo.UpdateState(ctx, nodeID, nextState)
+	if err != nil {
+		return generated.Node{}, fmt.Errorf("update node state: %w", err)
+	}
+
+	if err := s.evaluateNodeAlerts(ctx, updatedNode, occurredAt); err != nil {
+		return generated.Node{}, err
+	}
+
+	if s.eventService != nil {
+		if err := s.eventService.CreateNodeStateChange(ctx, updatedNode, nextState, occurredAt, extraDetails); err != nil {
+			return generated.Node{}, err
+		}
+	}
+
+	return updatedNode, nil
+}
+
+func (s *NodeStateService) evaluateNodeAlerts(ctx context.Context, node generated.Node, occurredAt time.Time) error {
+	if s.alertEvaluator == nil {
+		return nil
+	}
+
+	return s.alertEvaluator.EvaluateNodeRules(ctx, node, occurredAt)
 }
 
 func evaluateNodeOnlineTransition(currentState string) (string, bool) {

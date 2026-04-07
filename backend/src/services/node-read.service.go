@@ -26,6 +26,7 @@ type nodeReadMetricRepository interface {
 type nodeReadAlertInstanceRepository interface {
 	CountActiveByNodeID(ctx context.Context, nodeID int64) (int64, error)
 	ListActiveCountsByNode(ctx context.Context, projectID *int64) ([]generated.ListActiveAlertCountsByNodeRow, error)
+	ListByNodeID(ctx context.Context, nodeID int64, status *string, limit int32) ([]generated.AlertInstance, error)
 }
 
 type nodeReadServiceRepository interface {
@@ -132,6 +133,12 @@ func (s *NodeReadService) GetByID(ctx context.Context, nodeID int64) (types.Node
 		return types.NodeReadData{}, fmt.Errorf("count active node alerts: %w", err)
 	}
 
+	activeStatus := types.AlertStatusActive
+	activeAlerts, err := s.alertInstanceRepo.ListByNodeID(ctx, nodeID, &activeStatus, 5)
+	if err != nil {
+		return types.NodeReadData{}, fmt.Errorf("list active node alerts: %w", err)
+	}
+
 	serviceCount, err := s.serviceRepo.CountByNodeID(ctx, nodeID)
 	if err != nil {
 		return types.NodeReadData{}, fmt.Errorf("count node services: %w", err)
@@ -164,6 +171,7 @@ func (s *NodeReadService) GetByID(ctx context.Context, nodeID int64) (types.Node
 		LatestMemory:     latestMemory,
 		LatestDisk:       latestDisk,
 		ActiveAlertCount: activeAlertCount,
+		ActiveAlerts:     mapAlerts(activeAlerts),
 		ServiceCount:     serviceCount,
 		CreatedAt:        node.CreatedAt,
 		UpdatedAt:        node.UpdatedAt,

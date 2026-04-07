@@ -128,6 +128,41 @@ func TestFetchConfigDecodesResponseAndSendsAgentToken(t *testing.T) {
 	}
 }
 
+func TestSendShutdownPostsToShutdownEndpoint(t *testing.T) {
+	t.Parallel()
+
+	client := NewAPIClient("http://example.com", "token", time.Second, 1)
+	client.httpClient.Transport = roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/agent/shutdown" {
+			t.Fatalf("path = %s, want /agent/shutdown", r.URL.Path)
+		}
+		if got := r.Header.Get("X-Agent-Token"); got != "token" {
+			t.Fatalf("X-Agent-Token = %q, want token", got)
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("ok")),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	err := client.SendShutdown(context.Background(), types.ShutdownRequest{
+		NodeID:     1,
+		ObservedAt: time.Now().UTC(),
+		Reason:     "user_closed",
+		Payload: map[string]any{
+			"signal": "SIGINT",
+		},
+	})
+	if err != nil {
+		t.Fatalf("SendShutdown() error = %v", err)
+	}
+}
+
 func TestNewAPIClientUsesConfiguredTimeout(t *testing.T) {
 	t.Parallel()
 

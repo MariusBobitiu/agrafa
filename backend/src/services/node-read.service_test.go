@@ -60,16 +60,32 @@ func (r *fakeNodeReadMetricRepo) ListLatestNodeMetrics(_ context.Context, _ *int
 }
 
 type fakeNodeReadAlertRepo struct {
-	count int64
-	err   error
+	count   int64
+	alerts  []generated.AlertInstance
+	err     error
+	listErr error
 }
 
 func (r *fakeNodeReadAlertRepo) CountActiveByNodeID(_ context.Context, _ int64) (int64, error) {
+	if r.err == nil && r.count == 0 && len(r.alerts) > 0 {
+		var count int64
+		for _, alert := range r.alerts {
+			if alert.Status == types.AlertStatusActive {
+				count++
+			}
+		}
+		return count, nil
+	}
+
 	return r.count, r.err
 }
 
 func (r *fakeNodeReadAlertRepo) ListActiveCountsByNode(_ context.Context, _ *int64) ([]generated.ListActiveAlertCountsByNodeRow, error) {
 	return nil, nil
+}
+
+func (r *fakeNodeReadAlertRepo) ListByNodeID(_ context.Context, _ int64, _ *string, _ int32) ([]generated.AlertInstance, error) {
+	return r.alerts, r.listErr
 }
 
 type fakeNodeReadServiceRepo struct {
@@ -114,8 +130,23 @@ func TestNodeReadServiceGetByIDMapsFrontendShape(t *testing.T) {
 				},
 			},
 		},
-		alertInstanceRepo: &fakeNodeReadAlertRepo{count: 3},
-		serviceRepo:       &fakeNodeReadServiceRepo{count: 4},
+		alertInstanceRepo: &fakeNodeReadAlertRepo{
+			count: 3,
+			alerts: []generated.AlertInstance{
+				{
+					ID:          101,
+					AlertRuleID: 201,
+					ProjectID:   2,
+					NodeID:      sql.NullInt64{Int64: 5, Valid: true},
+					Status:      types.AlertStatusActive,
+					TriggeredAt: observedAt,
+					Title:       "Node 5 is offline",
+					Message:     "Node 5 is currently offline.",
+					CreatedAt:   observedAt,
+				},
+			},
+		},
+		serviceRepo: &fakeNodeReadServiceRepo{count: 4},
 	}
 
 	node, err := service.GetByID(context.Background(), 5)
@@ -133,6 +164,9 @@ func TestNodeReadServiceGetByIDMapsFrontendShape(t *testing.T) {
 	}
 	if node.ActiveAlertCount != 3 || node.ServiceCount != 4 {
 		t.Fatalf("unexpected counts: %#v", node)
+	}
+	if len(node.ActiveAlerts) != 1 || node.ActiveAlerts[0].Title != "Node 5 is offline" {
+		t.Fatalf("node.ActiveAlerts = %#v, want active alert summary", node.ActiveAlerts)
 	}
 }
 
@@ -175,5 +209,49 @@ func TestNodeReadServiceListExcludesHiddenManagedNodes(t *testing.T) {
 	}
 	if nodes[0].ID != 7 {
 		t.Fatalf("nodes[0].ID = %d, want 7", nodes[0].ID)
+	}
+}
+
+func TestNodeReadServiceGetByIDDerivesActiveAlertCountFromActiveAlerts(t *testing.T) {
+	t.Parallel()
+
+	service := &NodeReadService{
+		nodeRepo: &fakeNodeReadNodeRepo{
+			node: generated.Node{
+				ID:           9,
+				ProjectID:    2,
+				Name:         "edge-9",
+				Identifier:   "edge-9",
+				CurrentState: types.NodeStateOffline,
+			},
+		},
+		metricRepo: &fakeNodeReadMetricRepo{},
+		alertInstanceRepo: &fakeNodeReadAlertRepo{
+			alerts: []generated.AlertInstance{
+				{
+					ID:          301,
+					AlertRuleID: 401,
+					ProjectID:   2,
+					NodeID:      sql.NullInt64{Int64: 9, Valid: true},
+					Status:      types.AlertStatusActive,
+					TriggeredAt: time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
+					Title:       "Node 9 is offline",
+					Message:     "Node 9 is currently offline.",
+				},
+			},
+		},
+		serviceRepo: &fakeNodeReadServiceRepo{},
+	}
+
+	node, err := service.GetByID(context.Background(), 9)
+	if err != nil {
+		t.Fatalf("GetByID() error = %v", err)
+	}
+
+	if node.ActiveAlertCount != 1 {
+		t.Fatalf("node.ActiveAlertCount = %d, want 1", node.ActiveAlertCount)
+	}
+	if len(node.ActiveAlerts) != 1 {
+		t.Fatalf("len(node.ActiveAlerts) = %d, want 1", len(node.ActiveAlerts))
 	}
 }
