@@ -1,5 +1,12 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { EmptyState } from "@/components/ui/empty-state.tsx";
+import {
+  BellIcon as LucideBellIcon,
+  ChevronRightIcon,
+  CpuIcon,
+  HardDriveIcon,
+  MemoryStickIcon,
+  ServerIcon,
+} from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { StatusBadge } from "@/components/ui/status-badge.tsx";
@@ -7,14 +14,170 @@ import { Button } from "@/components/ui/button.tsx";
 import { useNodes } from "@/hooks/use-nodes.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
 import { formatRelativeTime } from "@/lib/utils.ts";
-import { AnimateIcon, PlusIcon, UnplugIcon } from "@/components/animate-ui/icons";
+import { cn } from "@/lib/utils.ts";
+import { AnimateIcon, PlusIcon } from "@/components/animate-ui/icons";
 import { CreateNodeDialog } from "./components/create-node-dialog.tsx";
+import type { Node } from "@/types/node.ts";
+import { InlineMetric } from "@/components/inline-metric.tsx";
+// ─── Node row card ────────────────────────────────────────────────────────────
+
+function NodeRowCard({ node }: { node: Node }) {
+  const navigate = useNavigate();
+  const cpu = node.latest_cpu?.value ?? null;
+  const mem = node.latest_memory?.value ?? null;
+  const disk = node.latest_disk?.value ?? null;
+  const hasMetrics = cpu !== null || mem !== null || disk !== null;
+  const isOnline = node.current_state === "online";
+  const isOffline = node.current_state === "offline";
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => navigate(`/nodes/${node.id}`)}
+      onKeyDown={(e) => e.key === "Enter" && navigate(`/nodes/${node.id}`)}
+      className={cn(
+        "group flex items-center gap-6 rounded-xl border px-5 py-3.5 cursor-pointer transition-colors",
+        "hover:bg-muted/30",
+        isOffline ? "border-red-500/25 bg-red-500/2" : "border-border bg-card",
+      )}
+    >
+      {/* ── Left: identity ── */}
+      <div className="flex items-center gap-3 w-56 shrink-0 min-w-0">
+        <div
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-lg shrink-0",
+            isOnline ? "bg-lime-500/10" : isOffline ? "bg-red-500/10" : "bg-muted",
+          )}
+        >
+          <ServerIcon
+            size={13}
+            className={cn(
+              isOnline ? "text-lime-500" : isOffline ? "text-red-500" : "text-muted-foreground",
+            )}
+          />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate leading-snug">{node.name}</p>
+          <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">
+            {node.last_seen_at
+              ? isOnline
+                ? `Active · ${formatRelativeTime(node.last_seen_at)}`
+                : `Last seen ${formatRelativeTime(node.last_seen_at)}`
+              : "Never seen"}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Middle: compact metrics ── */}
+      <div className="flex items-center gap-4 flex-1 min-w-0">
+        {hasMetrics ? (
+          <>
+            {cpu !== null && (
+              <InlineMetric icon={<CpuIcon size={10} />} label="CPU" value={cpu} variant="cpu" />
+            )}
+            {mem !== null && (
+              <InlineMetric
+                icon={<MemoryStickIcon size={10} />}
+                label="Mem"
+                value={mem}
+                variant="mem"
+              />
+            )}
+            {disk !== null && (
+              <InlineMetric
+                icon={<HardDriveIcon size={10} />}
+                label="Disk"
+                value={disk}
+                variant="disk"
+              />
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground/40 italic">
+            {isOnline ? "Waiting for metrics…" : "No metrics"}
+          </p>
+        )}
+      </div>
+
+      {/* ── Right: counts + badge + chevron ── */}
+      <div className="flex items-center gap-4 shrink-0">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <ServerIcon size={11} className="text-muted-foreground/50" />
+            <span>{node.service_count}</span>
+          </span>
+          <span
+            className={cn(
+              "flex items-center gap-1.5",
+              node.active_alert_count > 0 ? "text-red-500 font-medium" : "opacity-30",
+            )}
+          >
+            <LucideBellIcon size={11} />
+            <span>{node.active_alert_count}</span>
+          </span>
+        </div>
+        <StatusBadge status={node.current_state} />
+        <ChevronRightIcon
+          size={13}
+          className="text-muted-foreground/20 group-hover:text-muted-foreground/60 transition-colors ml-1"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Skeleton row ─────────────────────────────────────────────────────────────
+
+function NodeRowSkeleton() {
+  return (
+    <div className="flex items-center gap-4 rounded-xl border border-border bg-card px-5 py-4">
+      <div className="flex items-center gap-3 w-52 shrink-0">
+        <Skeleton className="h-8 w-8 rounded-lg" />
+        <div className="space-y-1.5">
+          <Skeleton className="h-3.5 w-28" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+      </div>
+      <div className="flex-1 space-y-1.5">
+        <Skeleton className="h-2 w-full" />
+        <Skeleton className="h-2 w-full" />
+        <Skeleton className="h-2 w-4/5" />
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <Skeleton className="h-3 w-10" />
+        <Skeleton className="h-5 w-16 rounded-full" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function NodesEmptyState({ onSetup }: { onSetup: () => void }) {
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-card/50 px-8 py-14 text-center">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+        <ServerIcon size={20} className="text-muted-foreground" />
+      </div>
+      <h3 className="text-sm font-semibold text-foreground">No nodes yet</h3>
+      <p className="mt-1.5 text-sm text-muted-foreground max-w-xs mx-auto">
+        Set up your first server so Agrafa can run checks from infrastructure you control.
+      </p>
+      <Button size="sm" className="mt-5 gap-1.5" onClick={onSetup}>
+        <PlusIcon size={13} />
+        Set up a node
+      </Button>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function NodesPage() {
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const { data, isLoading, error } = useNodes(activeProjectId ?? 0);
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const setupOpen = searchParams.get("setup") === "1";
 
   function setSetupOpen(open: boolean) {
@@ -24,12 +187,11 @@ export function NodesPage() {
     } else {
       nextParams.delete("setup");
     }
-
     setSearchParams(nextParams, { replace: true });
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <PageHeader
         title="Nodes"
         description="Servers you control that can run checks for this project"
@@ -48,62 +210,16 @@ export function NodesPage() {
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
+            <NodeRowSkeleton key={i} />
           ))}
         </div>
       ) : !data?.nodes?.length ? (
-        <EmptyState
-          icon={UnplugIcon}
-          title="No nodes yet"
-          description="Set up your first server so Agrafa can run checks from infrastructure you control."
-          action={{ label: "Set up a node", onClick: () => setSetupOpen(true) }}
-        />
+        <NodesEmptyState onSetup={() => setSetupOpen(true)} />
       ) : (
-        <div className="rounded-md border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40">
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Name</th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
-                  Identifier
-                </th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">CPU</th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Memory</th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
-                  Last seen
-                </th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Alerts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.nodes.map((node) => (
-                <tr
-                  key={node.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer"
-                  onClick={() => navigate(`/nodes/${node.id}`)}
-                >
-                  <td className="px-4 py-2.5 font-medium">{node.name}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground font-mono text-xs">
-                    {node.identifier}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <StatusBadge status={node.current_state} />
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">
-                    {node.latest_cpu ? `${node.latest_cpu.value.toFixed(1)}%` : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">
-                    {node.latest_memory ? `${node.latest_memory.value.toFixed(1)}%` : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">
-                    {node.last_seen_at ? formatRelativeTime(node.last_seen_at) : "Never"}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{node.active_alert_count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-2">
+          {data.nodes.map((node) => (
+            <NodeRowCard key={node.id} node={node} />
+          ))}
         </div>
       )}
 

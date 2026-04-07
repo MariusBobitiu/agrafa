@@ -21,6 +21,7 @@ import {
   WifiIcon,
 } from "@/components/animate-ui/icons/index.ts";
 import { Button } from "@/components/ui/button.tsx";
+import { MetricBar } from "@/components/metric-bar";
 import { PageHeader } from "@/components/ui/page-header.tsx";
 import { StatCard } from "@/components/ui/stat-card.tsx";
 import { StatusBadge } from "@/components/ui/status-badge.tsx";
@@ -47,49 +48,6 @@ function statusDotClass(status: NodeStateStatus | "healthy" | "degraded" | "unhe
   });
 }
 
-// A metric bar + label, designed to be read at a glance
-type MetricRowProps = {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  variant: "cpu" | "mem" | "disk";
-};
-
-function MetricRow({ icon, label, value, variant }: MetricRowProps) {
-  const trackColor =
-    value > 90
-      ? "bg-red-500"
-      : value > 70
-        ? "bg-yellow-500"
-        : variant === "cpu"
-          ? "bg-blue-500"
-          : variant === "mem"
-            ? "bg-violet-500"
-            : "bg-sky-500";
-
-  const textColor =
-    value > 90
-      ? "text-red-500"
-      : value > 70
-        ? "text-yellow-500"
-        : "text-foreground";
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-muted-foreground shrink-0">{icon}</span>
-      <span className="text-xs text-muted-foreground w-8 shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-        <div
-          className={cn("h-full rounded-full transition-all", trackColor)}
-          style={{ width: `${Math.min(value, 100)}%` }}
-        />
-      </div>
-      <span className={cn("text-xs tabular-nums font-medium w-10 text-right shrink-0", textColor)}>
-        {value.toFixed(1)}%
-      </span>
-    </div>
-  );
-}
 
 function severityConfig(severity: string) {
   switch (severity) {
@@ -289,7 +247,7 @@ function NodeMachineCard({ node }: { node: NodeSummary }) {
       {hasMetrics ? (
         <div className="space-y-2.5 mb-4">
           {cpu !== null && (
-            <MetricRow
+            <MetricBar
               icon={<CpuIcon size={12} />}
               label="CPU"
               value={cpu}
@@ -297,7 +255,7 @@ function NodeMachineCard({ node }: { node: NodeSummary }) {
             />
           )}
           {mem !== null && (
-            <MetricRow
+            <MetricBar
               icon={<MemoryStickIcon size={12} />}
               label="Mem"
               value={mem}
@@ -305,7 +263,7 @@ function NodeMachineCard({ node }: { node: NodeSummary }) {
             />
           )}
           {disk !== null && (
-            <MetricRow
+            <MetricBar
               icon={<HardDriveIcon size={12} />}
               label="Disk"
               value={disk}

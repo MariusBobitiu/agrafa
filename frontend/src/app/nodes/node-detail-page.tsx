@@ -18,6 +18,8 @@ import { useAlerts } from "@/hooks/use-alerts.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
 import { formatRelativeTime, formatDate } from "@/lib/utils.ts";
 import { cn } from "@/lib/utils.ts";
+import { MetaItem } from "@/components/meta-item.tsx";
+import { SectionHeading } from "@/components/section-heading.tsx";
 import type { Node } from "@/types/node.ts";
 import type { Service } from "@/types/service.ts";
 import type { Alert } from "@/types/alert.ts";
@@ -231,31 +233,6 @@ function PageSkeleton() {
         </div>
         <Skeleton className="h-32 w-full rounded-lg" />
       </div>
-    </div>
-  );
-}
-
-// ─── Section heading ──────────────────────────────────────────────────────────
-
-function SectionHeading({
-  icon,
-  label,
-  aside,
-  action,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  aside?: React.ReactNode;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="mb-3 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">{icon}</span>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</h2>
-        {aside}
-      </div>
-      {action}
     </div>
   );
 }
@@ -500,21 +477,3 @@ export function NodeDetailPage() {
   );
 }
 
-// ─── MetaItem ─────────────────────────────────────────────────────────────────
-
-function MetaItem({
-  label,
-  value,
-  valueClass,
-}: {
-  label: string;
-  value: string;
-  valueClass?: string;
-}) {
-  return (
-    <div className="flex items-baseline gap-1.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className={cn("text-xs font-medium text-foreground", valueClass)}>{value}</span>
-    </div>
-  );
-}

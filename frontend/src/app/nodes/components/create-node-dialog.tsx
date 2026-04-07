@@ -44,6 +44,7 @@ import {
 import { formatRelativeTime } from "@/lib/utils.ts";
 import type { NodeResponse } from "@/types/node.ts";
 import { CopyButton } from "@/components/animate-ui/components/buttons/copy";
+import { CodeBlock } from "@/components/code-block.tsx";
 import { AnimatePresence, motion } from "motion/react";
 
 const schema = z.object({
@@ -137,28 +138,6 @@ function getNodeConnectionErrorMessage(error: unknown) {
 	return "Agrafa couldn't refresh this node right now.";
 }
 
-function CodeBlock({ label, value }: { label?: string; value: string }) {
-	return (
-		<div className="flex-1 space-y-2">
-			{label && (
-				<p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-					{label}
-				</p>
-			)}
-			<div className="relative min-w-0 overflow-hidden rounded-xl border border-border/70 bg-muted/20">
-				<pre className="max-h-48 overflow-auto px-4 py-3 pr-14 text-sm leading-6 text-foreground">
-					{value}
-				</pre>
-				<CopyButton
-					content={value}
-					variant={"secondary"}
-					size={"sm"}
-					className="absolute right-2 top-2"
-				/>
-			</div>
-		</div>
-	);
-}
 
 function SectionTitle({
 	title,
