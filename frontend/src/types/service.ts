@@ -10,6 +10,18 @@ export type HealthCheckSummary = {
   message: string | null;
 };
 
+export type ServiceAlertSeverity = "critical" | "warning" | "info";
+
+export type ServiceAlert = {
+  id: number;
+  rule_id: number;
+  rule_type: string;
+  severity: ServiceAlertSeverity;
+  title: string;
+  status: "active";
+  triggered_at: string;
+};
+
 export type Service = {
   id: number;
   project_id: number;
@@ -22,6 +34,7 @@ export type Service = {
   last_checked_at: string | null;
   consecutive_failures: number;
   active_alert_count: number;
+  active_alerts?: ServiceAlert[];
   latest_health_check: HealthCheckSummary | null;
   created_at: string;
   updated_at: string;

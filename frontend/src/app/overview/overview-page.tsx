@@ -41,9 +41,9 @@ type NodeStateStatus = "online" | "offline" | "unknown";
 
 function statusDotClass(status: NodeStateStatus | "healthy" | "degraded" | "unhealthy") {
   return cn("rounded-full shrink-0", {
-    "bg-lime-500": status === "online" || status === "healthy",
-    "bg-yellow-500": status === "degraded",
-    "bg-red-500": status === "offline" || status === "unhealthy",
+    "bg-primary": status === "online" || status === "healthy",
+    "bg-warning": status === "degraded",
+    "bg-destructive": status === "offline" || status === "unhealthy",
     "bg-muted-foreground/40": status === "unknown",
   });
 }
@@ -54,13 +54,13 @@ function severityConfig(severity: string) {
     case "critical":
     case "error":
       return {
-        icon: <XCircleIcon size={13} className="text-red-500 shrink-0 mt-0.5" />,
-        dotClass: "bg-red-500",
+        icon: <XCircleIcon size={13} className="text-destructive shrink-0 mt-0.5" />,
+        dotClass: "bg-destructive",
       };
     case "warning":
       return {
-        icon: <TriangleAlertIcon size={13} className="text-yellow-500 shrink-0 mt-0.5" />,
-        dotClass: "bg-yellow-500",
+        icon: <TriangleAlertIcon size={13} className="text-warning shrink-0 mt-0.5" />,
+        dotClass: "bg-warning",
       };
     default:
       return {
@@ -88,9 +88,9 @@ function SystemStatusBanner({ data, services }: BannerProps) {
 
   if (!hasIssues) {
     return (
-      <div className="flex items-center gap-4 rounded-xl border border-lime-500/20 bg-lime-500/5 px-5 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-lime-500/10 shrink-0">
-          <CheckCircle2Icon size={18} className="text-lime-500" />
+      <div className="flex items-center gap-4 rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 shrink-0">
+          <CheckCircle2Icon size={18} className="text-primary" />
         </div>
         <div>
           <p className="text-sm font-semibold text-lime-600 dark:text-lime-400">
@@ -108,10 +108,10 @@ function SystemStatusBanner({ data, services }: BannerProps) {
   }
 
   return (
-    <div className="rounded-xl border border-red-500/20 bg-red-500/5 overflow-hidden">
-      <div className="flex items-center gap-4 px-5 py-4 border-b border-red-500/10">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-500/10 shrink-0">
-          <AlertTriangleIcon size={18} className="text-red-500" />
+    <div className="rounded-xl border border-destructive/20 bg-destructive/5 overflow-hidden">
+      <div className="flex items-center gap-4 px-5 py-4 border-b border-destructive/10">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-destructive/10 shrink-0">
+          <AlertTriangleIcon size={18} className="text-destructive" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground">
@@ -128,7 +128,7 @@ function SystemStatusBanner({ data, services }: BannerProps) {
           </p>
         </div>
       </div>
-      <div className="divide-y divide-red-500/10">
+      <div className="divide-y divide-destructive/10">
         {offlineNodes.map((node) => (
           <BannerIssueRow
             key={`node-${node.id}`}
@@ -176,13 +176,13 @@ function BannerIssueRow({ label, detail, severity, href, onClick }: BannerIssueR
       onClick={onClick ?? (href ? () => navigate(href) : undefined)}
       className={cn(
         "w-full flex items-center justify-between px-5 py-2.5 text-left text-sm transition-colors",
-        href ? "cursor-pointer hover:bg-red-500/5" : "cursor-default",
+        href ? "cursor-pointer hover:bg-destructive/5" : "cursor-default",
       )}
     >
       <div className="flex items-center gap-2.5">
         <CircleIcon
           size={7}
-          className={cn("fill-current shrink-0", severity === "critical" ? "text-red-500" : "text-yellow-500")}
+          className={cn("fill-current shrink-0", severity === "critical" ? "text-destructive" : "text-warning")}
         />
         <span className="font-medium text-foreground">{label}</span>
       </div>
@@ -209,7 +209,7 @@ function NodeMachineCard({ node }: { node: NodeSummary }) {
     <div
       className={cn(
         "rounded-xl border bg-card p-5 cursor-pointer transition-colors hover:bg-muted/20",
-        isOffline ? "border-red-500/30 bg-red-500/2" : "border-border",
+        isOffline ? "border-destructive/30 bg-destructive/2" : "border-border",
       )}
       onClick={() => navigate(`/nodes/${node.id}`)}
     >
@@ -219,13 +219,13 @@ function NodeMachineCard({ node }: { node: NodeSummary }) {
           <div
             className={cn(
               "mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg shrink-0",
-              isOnline ? "bg-lime-500/10" : isOffline ? "bg-red-500/10" : "bg-muted",
+              isOnline ? "bg-primary/10" : isOffline ? "bg-destructive/10" : "bg-muted",
             )}
           >
             <ServerIcon
               size={15}
               className={cn(
-                isOnline ? "text-lime-500" : isOffline ? "text-red-500" : "text-muted-foreground",
+                isOnline ? "text-primary" : isOffline ? "text-destructive" : "text-muted-foreground",
               )}
             />
           </div>
@@ -287,7 +287,7 @@ function NodeMachineCard({ node }: { node: NodeSummary }) {
         {node.active_alert_count > 0 && (
           <>
             <span className="text-muted-foreground/30">·</span>
-            <span className="text-xs font-medium text-red-500">
+            <span className="text-xs font-medium text-destructive">
               {node.active_alert_count} alert{node.active_alert_count > 1 ? "s" : ""}
             </span>
           </>
@@ -351,7 +351,7 @@ function OverviewServiceList({ services }: { services: Service[] }) {
           <p className="text-xs text-muted-foreground mt-0.5">
             {services.length} monitored
             {unhealthyCount > 0 && (
-              <span className="text-yellow-500 ml-1">· {unhealthyCount} with issues</span>
+              <span className="text-warning ml-1">· {unhealthyCount} with issues</span>
             )}
           </p>
         </div>
@@ -610,7 +610,7 @@ export function OverviewPage() {
                 <BellIcon size={14} />
                 Alerts
                 {(data?.active_alerts ?? 0) > 0 && (
-                  <span className="ml-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-xs font-medium text-red-500">
+                  <span className="ml-1 rounded-full bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
                     {data?.active_alerts}
                   </span>
                 )}

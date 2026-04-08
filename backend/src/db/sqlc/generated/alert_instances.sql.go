@@ -349,6 +349,60 @@ func (q *Queries) ListActiveAlertCountsByServiceForRead(ctx context.Context, arg
 	return items, nil
 }
 
+const listActiveAlertDetailsByServiceID = `-- name: ListActiveAlertDetailsByServiceID :many
+SELECT
+    ai.id,
+    ai.alert_rule_id AS rule_id,
+    ar.rule_type,
+    ai.title,
+    ai.status,
+    ai.triggered_at
+FROM app.alert_instances AS ai
+JOIN app.alert_rules AS ar ON ar.id = ai.alert_rule_id
+WHERE ai.service_id = $1
+  AND ai.status = 'active'
+ORDER BY ai.triggered_at DESC, ai.id DESC
+`
+
+type ListActiveAlertDetailsByServiceIDRow struct {
+	ID          int64     `json:"id"`
+	RuleID      int64     `json:"rule_id"`
+	RuleType    string    `json:"rule_type"`
+	Title       string    `json:"title"`
+	Status      string    `json:"status"`
+	TriggeredAt time.Time `json:"triggered_at"`
+}
+
+func (q *Queries) ListActiveAlertDetailsByServiceID(ctx context.Context, serviceID sql.NullInt64) ([]ListActiveAlertDetailsByServiceIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveAlertDetailsByServiceID, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveAlertDetailsByServiceIDRow{}
+	for rows.Next() {
+		var i ListActiveAlertDetailsByServiceIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RuleID,
+			&i.RuleType,
+			&i.Title,
+			&i.Status,
+			&i.TriggeredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAlertInstances = `-- name: ListAlertInstances :many
 SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, title, message, created_at
 FROM app.alert_instances

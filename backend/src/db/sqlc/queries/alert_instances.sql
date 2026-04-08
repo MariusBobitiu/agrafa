@@ -53,6 +53,20 @@ WHERE node_id = $1
 ORDER BY triggered_at DESC, id DESC
 LIMIT $4;
 
+-- name: ListActiveAlertDetailsByServiceID :many
+SELECT
+    ai.id,
+    ai.alert_rule_id AS rule_id,
+    ar.rule_type,
+    ai.title,
+    ai.status,
+    ai.triggered_at
+FROM app.alert_instances AS ai
+JOIN app.alert_rules AS ar ON ar.id = ai.alert_rule_id
+WHERE ai.service_id = $1
+  AND ai.status = 'active'
+ORDER BY ai.triggered_at DESC, ai.id DESC;
+
 -- name: ListActiveAlertCountsByNode :many
 SELECT
     node_id,

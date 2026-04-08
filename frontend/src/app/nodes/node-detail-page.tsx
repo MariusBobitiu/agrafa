@@ -34,9 +34,9 @@ type GaugeProps = {
 };
 
 function gaugeAccent(value: number) {
-  if (value >= 90) return { stroke: "#ef4444", text: "text-red-500" };
-  if (value >= 70) return { stroke: "#eab308", text: "text-yellow-500" };
-  return { stroke: "#84cc16", text: "text-lime-500" };
+  if (value >= 90) return { stroke: "#ef4444", text: "text-destructive" };
+  if (value >= 70) return { stroke: "#eab308", text: "text-warning" };
+  return { stroke: "#84cc16", text: "text-primary" };
 }
 
 function MetricGauge({ label, value, icon, loading }: GaugeProps) {
@@ -127,9 +127,9 @@ function MetricGauge({ label, value, icon, loading }: GaugeProps) {
 
 function statusAccentClass(status: Service["status"]) {
   switch (status) {
-    case "healthy": return "bg-lime-500";
-    case "degraded": return "bg-yellow-500";
-    case "unhealthy": return "bg-red-500";
+    case "healthy": return "bg-primary";
+    case "degraded": return "bg-warning";
+    case "unhealthy": return "bg-destructive";
     default: return "bg-muted-foreground/30";
   }
 }
@@ -177,17 +177,17 @@ function NodeAlertList({ alerts }: { alerts: Alert[] }) {
   if (shown.length === 0) {
     return (
       <div className="flex items-center gap-2 py-1">
-        <span className="h-1.5 w-1.5 rounded-full bg-lime-500 shrink-0" />
+        <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
         <p className="text-sm text-muted-foreground">No active alerts on this node.</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-red-500/20 bg-red-500/2 overflow-hidden divide-y divide-red-500/10">
+    <div className="rounded-lg border border-destructive/20 bg-destructive/20 overflow-hidden divide-y divide-destructive/10">
       {shown.map((alert) => (
         <div key={alert.id} className="flex items-start gap-3 px-4 py-3">
-          <AlertTriangleIcon size={14} className="text-red-500 shrink-0 mt-0.5" />
+          <AlertTriangleIcon size={14} className="text-destructive shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-foreground">{alert.title}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{alert.message}</p>
@@ -315,7 +315,7 @@ export function NodeDetailPage() {
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl mt-0.5 bg-muted">
                   <ServerIcon
                     size={20}
-                    className={isOnline ? "text-lime-500" : isOffline ? "text-red-500" : "text-muted-foreground"}
+                    className={isOnline ? "text-primary" : isOffline ? "text-destructive" : "text-muted-foreground"}
                   />
                 </div>
                 <div className="min-w-0">
@@ -348,7 +348,7 @@ export function NodeDetailPage() {
                 <MetaItem
                   label="Alerts"
                   value={String(node.active_alert_count)}
-                  valueClass="text-red-500 font-semibold"
+                  valueClass="text-destructive font-semibold"
                 />
               ) : (
                 <MetaItem label="Alerts" value="None" />
@@ -454,7 +454,7 @@ export function NodeDetailPage() {
             label="Active Alerts"
             aside={
               nodeAlerts.length > 0 ? (
-                <span className="text-xs font-semibold text-red-500">{nodeAlerts.length}</span>
+                <span className="text-xs font-semibold text-destructive">{nodeAlerts.length}</span>
               ) : undefined
             }
           />

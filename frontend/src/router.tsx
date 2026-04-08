@@ -15,6 +15,7 @@ import { OverviewPage } from "@/app/overview/overview-page.tsx";
 import { NodesPage } from "@/app/nodes/nodes-page.tsx";
 import { NodeDetailPage } from "@/app/nodes/node-detail-page.tsx";
 import { ServicesPage } from "@/app/services/services-page.tsx";
+import { ServiceDetailPage } from "@/app/services/service-detail-page.tsx";
 import { AlertsPage } from "@/app/alerts/alerts-page.tsx";
 import { SettingsPage } from "@/app/settings/settings-page.tsx";
 import { InvitePage } from "@/app/invite/invite-page.tsx";
@@ -69,6 +70,7 @@ export const router = createBrowserRouter([
               { path: "/nodes", element: <NodesPage /> },
               { path: "/nodes/:id", element: <NodeDetailPage /> },
               { path: "/services", element: <ServicesPage /> },
+              { path: "/services/:id", element: <ServiceDetailPage /> },
               { path: "/alerts", element: <AlertsPage /> },
               { path: "/settings", element: <SettingsPage /> },
             ],

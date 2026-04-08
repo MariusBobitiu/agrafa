@@ -39,21 +39,21 @@ function NodeRowCard({ node }: { node: Node }) {
       className={cn(
         "group flex items-center gap-6 rounded-xl border px-5 py-3.5 cursor-pointer transition-colors",
         "hover:bg-muted/30",
-        isOffline ? "border-red-500/25 bg-red-500/2" : "border-border bg-card",
+        isOffline ? "border-destructive/25 bg-destructive/2" : "border-border bg-card",
       )}
     >
       {/* ── Left: identity ── */}
       <div className="flex items-center gap-3 w-56 shrink-0 min-w-0">
         <div
           className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-lg shrink-0",
-            isOnline ? "bg-lime-500/10" : isOffline ? "bg-red-500/10" : "bg-muted",
+            "flex size-9 items-center justify-center rounded-lg shrink-0",
+            isOnline ? "bg-primary/10" : isOffline ? "bg-destructive/10" : "bg-muted",
           )}
         >
           <ServerIcon
-            size={13}
+            size={16}
             className={cn(
-              isOnline ? "text-lime-500" : isOffline ? "text-red-500" : "text-muted-foreground",
+              isOnline ? "text-primary" : isOffline ? "text-destructive" : "text-muted-foreground",
             )}
           />
         </div>
@@ -110,7 +110,7 @@ function NodeRowCard({ node }: { node: Node }) {
           <span
             className={cn(
               "flex items-center gap-1.5",
-              node.active_alert_count > 0 ? "text-red-500 font-medium" : "opacity-30",
+              node.active_alert_count > 0 ? "text-destructive font-medium" : "opacity-30",
             )}
           >
             <LucideBellIcon size={11} />

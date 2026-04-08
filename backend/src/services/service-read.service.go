@@ -28,6 +28,7 @@ type serviceReadHealthCheckRepository interface {
 
 type serviceReadAlertInstanceRepository interface {
 	CountActiveByServiceID(ctx context.Context, serviceID int64) (int64, error)
+	ListActiveDetailsByServiceID(ctx context.Context, serviceID int64) ([]generated.ListActiveAlertDetailsByServiceIDRow, error)
 	ListActiveCountsByServiceForRead(ctx context.Context, filters types.ServiceListFilters) ([]generated.ListActiveAlertCountsByServiceRow, error)
 }
 
@@ -102,39 +103,44 @@ func (s *ServiceReadService) List(ctx context.Context, filters types.ServiceList
 	return items, nil
 }
 
-func (s *ServiceReadService) GetByID(ctx context.Context, serviceID int64) (types.ServiceReadData, error) {
+func (s *ServiceReadService) GetByID(ctx context.Context, serviceID int64) (types.ServiceDetailData, error) {
 	if serviceID <= 0 {
-		return types.ServiceReadData{}, types.ErrInvalidServiceID
+		return types.ServiceDetailData{}, types.ErrInvalidServiceID
 	}
 
 	service, err := s.serviceRepo.GetByID(ctx, serviceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return types.ServiceReadData{}, types.ErrServiceNotFound
+			return types.ServiceDetailData{}, types.ErrServiceNotFound
 		}
 
-		return types.ServiceReadData{}, fmt.Errorf("get service: %w", err)
+		return types.ServiceDetailData{}, fmt.Errorf("get service: %w", err)
 	}
 
 	node, err := s.nodeRepo.GetByID(ctx, service.NodeID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return types.ServiceReadData{}, types.ErrNodeNotFound
+			return types.ServiceDetailData{}, types.ErrNodeNotFound
 		}
 
-		return types.ServiceReadData{}, fmt.Errorf("get service node: %w", err)
+		return types.ServiceDetailData{}, fmt.Errorf("get service node: %w", err)
 	}
 
 	activeAlertCount, err := s.alertInstanceRepo.CountActiveByServiceID(ctx, serviceID)
 	if err != nil {
-		return types.ServiceReadData{}, fmt.Errorf("count active service alerts: %w", err)
+		return types.ServiceDetailData{}, fmt.Errorf("count active service alerts: %w", err)
+	}
+
+	activeAlerts, err := s.alertInstanceRepo.ListActiveDetailsByServiceID(ctx, serviceID)
+	if err != nil {
+		return types.ServiceDetailData{}, fmt.Errorf("list active service alerts: %w", err)
 	}
 
 	var latestHealthCheck *types.HealthCheckSummaryData
 	healthCheck, err := s.healthCheckRepo.GetLatestByServiceID(ctx, serviceID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			return types.ServiceReadData{}, fmt.Errorf("get latest health check: %w", err)
+			return types.ServiceDetailData{}, fmt.Errorf("get latest health check: %w", err)
 		}
 	} else {
 		latestHealthCheck = &types.HealthCheckSummaryData{
@@ -146,7 +152,7 @@ func (s *ServiceReadService) GetByID(ctx context.Context, serviceID int64) (type
 		}
 	}
 
-	return types.ServiceReadData{
+	return types.ServiceDetailData{
 		ID:                  service.ID,
 		ProjectID:           service.ProjectID,
 		NodeID:              service.NodeID,
@@ -158,6 +164,7 @@ func (s *ServiceReadService) GetByID(ctx context.Context, serviceID int64) (type
 		LastCheckedAt:       nullTimePtr(service.LastCheckAt),
 		ConsecutiveFailures: service.ConsecutiveFailures,
 		ActiveAlertCount:    activeAlertCount,
+		ActiveAlerts:        mapServiceActiveAlerts(activeAlerts),
 		LatestHealthCheck:   latestHealthCheck,
 	}, nil
 }
@@ -217,6 +224,23 @@ func mapServiceAlertCounts(rows []generated.ListActiveAlertCountsByServiceRow) m
 	}
 
 	return result
+}
+
+func mapServiceActiveAlerts(rows []generated.ListActiveAlertDetailsByServiceIDRow) []types.ServiceActiveAlertData {
+	items := make([]types.ServiceActiveAlertData, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, types.ServiceActiveAlertData{
+			ID:          row.ID,
+			RuleID:      row.RuleID,
+			RuleType:    row.RuleType,
+			Severity:    alertTriggerSeverity(row.RuleType),
+			Title:       row.Title,
+			Status:      row.Status,
+			TriggeredAt: row.TriggeredAt,
+		})
+	}
+
+	return items
 }
 
 func nullInt32Ptr(value sql.NullInt32) *int32 {

@@ -1010,6 +1010,30 @@ definitions:
           $ref: '#/definitions/types.ProjectSummaryDocument'
         type: array
     type: object
+  types.ServiceActiveAlertDocument:
+    properties:
+      id:
+        example: 1
+        type: integer
+      rule_id:
+        example: 12
+        type: integer
+      rule_type:
+        example: service_unhealthy
+        type: string
+      severity:
+        example: critical
+        type: string
+      status:
+        example: active
+        type: string
+      title:
+        example: Service 10 is unhealthy
+        type: string
+      triggered_at:
+        format: date-time
+        type: string
+    type: object
   types.ServiceCreateRequest:
     properties:
       check_target:
@@ -1031,10 +1055,52 @@ definitions:
         example: 1
         type: integer
     type: object
+  types.ServiceDetailDocument:
+    properties:
+      active_alert_count:
+        example: 1
+        type: integer
+      active_alerts:
+        items:
+          $ref: '#/definitions/types.ServiceActiveAlertDocument'
+        type: array
+      check_target:
+        example: https://api.planzi.app/health
+        type: string
+      check_type:
+        example: http
+        type: string
+      consecutive_failures:
+        example: 0
+        type: integer
+      execution_mode:
+        example: agent
+        type: string
+      id:
+        example: 1
+        type: integer
+      last_checked_at:
+        format: date-time
+        type: string
+      latest_health_check:
+        $ref: '#/definitions/types.HealthCheckSummaryDocument'
+      name:
+        example: planzi-api
+        type: string
+      node_id:
+        example: 1
+        type: integer
+      project_id:
+        example: 1
+        type: integer
+      status:
+        example: healthy
+        type: string
+    type: object
   types.ServiceDetailResponse:
     properties:
       service:
-        $ref: '#/definitions/types.ServiceDocument'
+        $ref: '#/definitions/types.ServiceDetailDocument'
     type: object
   types.ServiceDocument:
     properties:

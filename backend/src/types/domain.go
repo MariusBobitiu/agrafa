@@ -369,6 +369,32 @@ type ServiceReadData struct {
 	LatestHealthCheck   *HealthCheckSummaryData `json:"latest_health_check"`
 }
 
+type ServiceActiveAlertData struct {
+	ID          int64     `json:"id"`
+	RuleID      int64     `json:"rule_id"`
+	RuleType    string    `json:"rule_type"`
+	Severity    string    `json:"severity"`
+	Title       string    `json:"title"`
+	Status      string    `json:"status"`
+	TriggeredAt time.Time `json:"triggered_at"`
+}
+
+type ServiceDetailData struct {
+	ID                  int64                    `json:"id"`
+	ProjectID           int64                    `json:"project_id"`
+	NodeID              int64                    `json:"node_id"`
+	ExecutionMode       string                   `json:"execution_mode"`
+	Name                string                   `json:"name"`
+	CheckType           string                   `json:"check_type"`
+	CheckTarget         string                   `json:"check_target"`
+	Status              string                   `json:"status"`
+	LastCheckedAt       *time.Time               `json:"last_checked_at"`
+	ConsecutiveFailures int32                    `json:"consecutive_failures"`
+	ActiveAlertCount    int64                    `json:"active_alert_count"`
+	ActiveAlerts        []ServiceActiveAlertData `json:"active_alerts"`
+	LatestHealthCheck   *HealthCheckSummaryData  `json:"latest_health_check"`
+}
+
 type ServiceListFilters struct {
 	ProjectID *int64
 	NodeID    *int64

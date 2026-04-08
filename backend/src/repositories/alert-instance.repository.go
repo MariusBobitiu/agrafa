@@ -64,6 +64,10 @@ func (r *AlertInstanceRepository) ListByNodeID(ctx context.Context, nodeID int64
 	return r.queries.ListAlertInstancesByNodeAndStatus(ctx, params)
 }
 
+func (r *AlertInstanceRepository) ListActiveDetailsByServiceID(ctx context.Context, serviceID int64) ([]generated.ListActiveAlertDetailsByServiceIDRow, error) {
+	return r.queries.ListActiveAlertDetailsByServiceID(ctx, sql.NullInt64{Int64: serviceID, Valid: true})
+}
+
 func (r *AlertInstanceRepository) ListActiveCountsByNode(ctx context.Context, projectID *int64) ([]generated.ListActiveAlertCountsByNodeRow, error) {
 	if projectID != nil {
 		rows, err := r.queries.ListActiveAlertCountsByNodeByProject(ctx, *projectID)

@@ -4482,6 +4482,39 @@ const docTemplate = `{
                 }
             }
         },
+        "types.ServiceActiveAlertDocument": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "rule_id": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "rule_type": {
+                    "type": "string",
+                    "example": "service_unhealthy"
+                },
+                "severity": {
+                    "type": "string",
+                    "example": "critical"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Service 10 is unhealthy"
+                },
+                "triggered_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "types.ServiceCreateRequest": {
             "type": "object",
             "properties": {
@@ -4511,11 +4544,69 @@ const docTemplate = `{
                 }
             }
         },
+        "types.ServiceDetailDocument": {
+            "type": "object",
+            "properties": {
+                "active_alert_count": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "active_alerts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.ServiceActiveAlertDocument"
+                    }
+                },
+                "check_target": {
+                    "type": "string",
+                    "example": "https://api.planzi.app/health"
+                },
+                "check_type": {
+                    "type": "string",
+                    "example": "http"
+                },
+                "consecutive_failures": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "execution_mode": {
+                    "type": "string",
+                    "example": "agent"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "last_checked_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "latest_health_check": {
+                    "$ref": "#/definitions/types.HealthCheckSummaryDocument"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "planzi-api"
+                },
+                "node_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "project_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "status": {
+                    "type": "string",
+                    "example": "healthy"
+                }
+            }
+        },
         "types.ServiceDetailResponse": {
             "type": "object",
             "properties": {
                 "service": {
-                    "$ref": "#/definitions/types.ServiceDocument"
+                    "$ref": "#/definitions/types.ServiceDetailDocument"
                 }
             }
         },

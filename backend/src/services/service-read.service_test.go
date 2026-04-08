@@ -63,14 +63,19 @@ func (r *fakeServiceReadHealthCheckRepository) ListLatestForRead(_ context.Conte
 }
 
 type fakeServiceReadAlertInstanceRepository struct {
-	rows        []generated.ListActiveAlertCountsByServiceRow
-	count       int64
-	lastFilters types.ServiceListFilters
-	returnedErr error
+	rows          []generated.ListActiveAlertCountsByServiceRow
+	count         int64
+	activeDetails []generated.ListActiveAlertDetailsByServiceIDRow
+	lastFilters   types.ServiceListFilters
+	returnedErr   error
 }
 
 func (r *fakeServiceReadAlertInstanceRepository) CountActiveByServiceID(_ context.Context, _ int64) (int64, error) {
 	return r.count, r.returnedErr
+}
+
+func (r *fakeServiceReadAlertInstanceRepository) ListActiveDetailsByServiceID(_ context.Context, _ int64) ([]generated.ListActiveAlertDetailsByServiceIDRow, error) {
+	return r.activeDetails, r.returnedErr
 }
 
 func (r *fakeServiceReadAlertInstanceRepository) ListActiveCountsByServiceForRead(_ context.Context, filters types.ServiceListFilters) ([]generated.ListActiveAlertCountsByServiceRow, error) {
@@ -273,6 +278,16 @@ func TestServiceReadServiceGetByIDReturnsDetails(t *testing.T) {
 		},
 		alertInstanceRepo: &fakeServiceReadAlertInstanceRepository{
 			count: 2,
+			activeDetails: []generated.ListActiveAlertDetailsByServiceIDRow{
+				{
+					ID:          101,
+					RuleID:      201,
+					RuleType:    types.AlertRuleTypeServiceUnhealthy,
+					Title:       "Service 5 is unhealthy",
+					Status:      types.AlertStatusActive,
+					TriggeredAt: observedAt,
+				},
+			},
 		},
 	}
 
@@ -289,8 +304,76 @@ func TestServiceReadServiceGetByIDReturnsDetails(t *testing.T) {
 	if item.ActiveAlertCount != 2 {
 		t.Fatalf("ActiveAlertCount = %d, want 2", item.ActiveAlertCount)
 	}
+	if len(item.ActiveAlerts) != 1 {
+		t.Fatalf("len(ActiveAlerts) = %d, want 1", len(item.ActiveAlerts))
+	}
+	if item.ActiveAlerts[0].RuleType != types.AlertRuleTypeServiceUnhealthy || item.ActiveAlerts[0].Severity != "critical" {
+		t.Fatalf("unexpected active alert: %#v", item.ActiveAlerts[0])
+	}
 	if item.LatestHealthCheck == nil || item.LatestHealthCheck.StatusCode == nil || *item.LatestHealthCheck.StatusCode != 503 {
 		t.Fatalf("unexpected latest health check: %#v", item.LatestHealthCheck)
+	}
+}
+
+func TestServiceReadServiceGetByIDReturnsEmptyActiveAlertsWhenNoneExist(t *testing.T) {
+	t.Parallel()
+
+	service := &ServiceReadService{
+		serviceRepo: &fakeServiceReadRepository{
+			serviceByID: generated.Service{
+				ID:        10,
+				ProjectID: 1,
+				NodeID:    26,
+				Name:      "api",
+			},
+		},
+		nodeRepo: &fakeServiceReadNodeRepository{
+			node: generated.Node{ID: 26, NodeType: types.NodeTypeAgent},
+		},
+		healthCheckRepo:   &fakeServiceReadHealthCheckRepository{returnedErr: sql.ErrNoRows},
+		alertInstanceRepo: &fakeServiceReadAlertInstanceRepository{},
+	}
+
+	item, err := service.GetByID(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("GetByID() error = %v", err)
+	}
+	if item.ActiveAlerts == nil {
+		t.Fatal("expected active_alerts to be an empty slice, got nil")
+	}
+	if len(item.ActiveAlerts) != 0 {
+		t.Fatalf("len(ActiveAlerts) = %d, want 0", len(item.ActiveAlerts))
+	}
+}
+
+func TestServiceReadServiceGetByIDExcludesResolvedAlertsFromActiveAlerts(t *testing.T) {
+	t.Parallel()
+
+	service := &ServiceReadService{
+		serviceRepo: &fakeServiceReadRepository{
+			serviceByID: generated.Service{
+				ID:        10,
+				ProjectID: 1,
+				NodeID:    26,
+				Name:      "api",
+			},
+		},
+		nodeRepo: &fakeServiceReadNodeRepository{
+			node: generated.Node{ID: 26, NodeType: types.NodeTypeAgent},
+		},
+		healthCheckRepo: &fakeServiceReadHealthCheckRepository{returnedErr: sql.ErrNoRows},
+		alertInstanceRepo: &fakeServiceReadAlertInstanceRepository{
+			count:         0,
+			activeDetails: []generated.ListActiveAlertDetailsByServiceIDRow{},
+		},
+	}
+
+	item, err := service.GetByID(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("GetByID() error = %v", err)
+	}
+	if len(item.ActiveAlerts) != 0 {
+		t.Fatalf("len(ActiveAlerts) = %d, want 0", len(item.ActiveAlerts))
 	}
 }
 

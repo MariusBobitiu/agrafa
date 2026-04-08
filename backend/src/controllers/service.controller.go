@@ -18,7 +18,7 @@ type serviceWriter interface {
 }
 
 type serviceReader interface {
-	GetByID(ctx context.Context, serviceID int64) (types.ServiceReadData, error)
+	GetByID(ctx context.Context, serviceID int64) (types.ServiceDetailData, error)
 }
 
 type ServiceController struct {

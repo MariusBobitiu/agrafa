@@ -181,6 +181,32 @@ type ServiceDocument struct {
 	LatestHealthCheck   *HealthCheckSummaryDocument `json:"latest_health_check"`
 }
 
+type ServiceActiveAlertDocument struct {
+	ID          int64     `json:"id" example:"1"`
+	RuleID      int64     `json:"rule_id" example:"12"`
+	RuleType    string    `json:"rule_type" example:"service_unhealthy"`
+	Severity    string    `json:"severity" example:"critical"`
+	Title       string    `json:"title" example:"Service 10 is unhealthy"`
+	Status      string    `json:"status" example:"active"`
+	TriggeredAt time.Time `json:"triggered_at" swaggertype:"string" format:"date-time"`
+}
+
+type ServiceDetailDocument struct {
+	ID                  int64                        `json:"id" example:"1"`
+	ProjectID           int64                        `json:"project_id" example:"1"`
+	NodeID              int64                        `json:"node_id" example:"1"`
+	ExecutionMode       string                       `json:"execution_mode" example:"agent"`
+	Name                string                       `json:"name" example:"planzi-api"`
+	CheckType           string                       `json:"check_type" example:"http"`
+	CheckTarget         string                       `json:"check_target" example:"https://api.planzi.app/health"`
+	Status              string                       `json:"status" example:"healthy"`
+	LastCheckedAt       *time.Time                   `json:"last_checked_at" swaggertype:"string" format:"date-time"`
+	ConsecutiveFailures int32                        `json:"consecutive_failures" example:"0"`
+	ActiveAlertCount    int64                        `json:"active_alert_count" example:"1"`
+	ActiveAlerts        []ServiceActiveAlertDocument `json:"active_alerts"`
+	LatestHealthCheck   *HealthCheckSummaryDocument  `json:"latest_health_check"`
+}
+
 type NodeResponseDocument struct {
 	ID              int64          `json:"id" example:"1"`
 	ProjectID       int64          `json:"project_id" example:"1"`
@@ -510,7 +536,7 @@ type ServiceResponse struct {
 }
 
 type ServiceDetailResponse struct {
-	Service ServiceDocument `json:"service"`
+	Service ServiceDetailDocument `json:"service"`
 }
 
 type AlertRuleResponse struct {

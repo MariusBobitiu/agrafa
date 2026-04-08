@@ -16,6 +16,7 @@ export function useService(id: number) {
     queryKey: ["services", "detail", id],
     queryFn: () => servicesApi.get(id),
     enabled: id > 0,
+    refetchInterval: 10_000,
   });
 }
 
