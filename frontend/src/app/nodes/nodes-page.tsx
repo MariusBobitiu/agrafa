@@ -197,7 +197,7 @@ export function NodesPage() {
         description="Servers you control that can run checks for this project"
         actions={
           <AnimateIcon asChild animateOnHover>
-            <Button size="sm" onClick={() => setSetupOpen(true)} disabled={!activeProjectId}>
+            <Button size="sm" variant={"secondary"} onClick={() => setSetupOpen(true)} disabled={!activeProjectId}>
               <PlusIcon size={14} className="mr-1.5" />
               Add node
             </Button>

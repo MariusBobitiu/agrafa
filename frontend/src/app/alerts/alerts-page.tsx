@@ -278,7 +278,7 @@ export function AlertsPage() {
         description="Active alerts and alert rules"
         actions={
           <AnimateIcon asChild animateOnHover>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Button variant={"secondary"} size="sm" onClick={() => setCreateOpen(true)}>
               <PlusIcon size={14} className="mr-1.5" />
               Add rule
             </Button>

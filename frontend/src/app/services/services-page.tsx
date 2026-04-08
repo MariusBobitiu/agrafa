@@ -203,7 +203,7 @@ export function ServicesPage() {
         description="HTTP and TCP service health checks"
         actions={
           <AnimateIcon asChild animateOnHover>
-            <Button size="sm" onClick={() => setCreateOpen(true)} disabled={!activeProjectId}>
+            <Button size="sm" variant={"secondary"} onClick={() => setCreateOpen(true)} disabled={!activeProjectId}>
               <PlusIcon size={14} className="mr-1.5" />
               Add service
             </Button>
