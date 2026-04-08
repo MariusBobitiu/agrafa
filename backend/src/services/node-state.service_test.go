@@ -530,6 +530,7 @@ func TestMarkOfflineFromShutdownTriggersAlertLifecycleAndNotification(t *testing
 					ProjectID: 1,
 					NodeID:    sql.NullInt64{Int64: 1, Valid: true},
 					RuleType:  types.AlertRuleTypeNodeOffline,
+					Severity:  types.AlertSeverityCritical,
 					IsEnabled: true,
 				},
 			},
@@ -540,7 +541,7 @@ func TestMarkOfflineFromShutdownTriggersAlertLifecycleAndNotification(t *testing
 		notificationService: &NotificationService{
 			notificationRecipientRepo: &fakeNotificationDispatchRepo{
 				recipients: []generated.NotificationRecipient{
-					{ID: 1, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "ops@example.com", IsEnabled: true},
+					{ID: 1, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "ops@example.com", MinSeverity: types.AlertSeverityInfo, IsEnabled: true},
 				},
 			},
 			projectRepo: &fakeNotificationProjectLookupRepo{

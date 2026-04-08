@@ -106,6 +106,9 @@ definitions:
       service_id:
         example: 1
         type: integer
+      severity:
+        example: critical
+        type: string
       threshold_value:
         example: 80
         type: number
@@ -136,6 +139,9 @@ definitions:
       service_id:
         example: 1
         type: integer
+      severity:
+        example: critical
+        type: string
       threshold_value:
         example: 80
         type: number
@@ -630,6 +636,15 @@ definitions:
         example: ops@example.com
         type: string
     type: object
+  types.NotificationRecipientCreateItemRequest:
+    properties:
+      min_severity:
+        example: warning
+        type: string
+      target:
+        example: ops@example.com
+        type: string
+    type: object
   types.NotificationRecipientCreateRequest:
     properties:
       channel_type:
@@ -638,9 +653,10 @@ definitions:
       project_id:
         example: 1
         type: integer
-      target:
-        example: ops@example.com
-        type: string
+      recipients:
+        items:
+          $ref: '#/definitions/types.NotificationRecipientCreateItemRequest'
+        type: array
     type: object
   types.NotificationRecipientDocument:
     properties:
@@ -656,6 +672,9 @@ definitions:
       is_enabled:
         example: true
         type: boolean
+      min_severity:
+        example: warning
+        type: string
       project_id:
         example: 1
         type: integer
@@ -2340,7 +2359,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/types.NotificationRecipientResponse'
+            $ref: '#/definitions/types.NotificationRecipientsResponse'
         "400":
           description: Bad Request
           schema:

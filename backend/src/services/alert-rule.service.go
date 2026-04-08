@@ -67,6 +67,15 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 		return types.AlertRuleReadData{}, types.ErrUnsupportedAlertRuleType
 	}
 
+	severity := normalizeAlertSeverity(input.Severity)
+	if severity == "" {
+		return types.AlertRuleReadData{}, types.ErrMissingAlertSeverity
+	}
+
+	if !isSupportedAlertSeverity(severity) {
+		return types.AlertRuleReadData{}, types.ErrInvalidAlertSeverity
+	}
+
 	if _, err := s.projectRepo.GetByID(ctx, input.ProjectID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return types.AlertRuleReadData{}, types.ErrProjectNotFound
@@ -153,6 +162,7 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 		NodeID:         nodeID,
 		ServiceID:      serviceID,
 		RuleType:       ruleType,
+		Severity:       severity,
 		MetricName:     metricName,
 		ThresholdValue: thresholdValue,
 		IsEnabled:      true,

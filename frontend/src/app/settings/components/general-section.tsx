@@ -49,7 +49,7 @@ export function GeneralSection({ projectId }: { projectId: number }) {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       <div className="space-y-4 rounded-lg border border-border p-4">
         <div className="flex items-start justify-between gap-4">
           <div>

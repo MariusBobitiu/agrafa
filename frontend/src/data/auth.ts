@@ -48,4 +48,7 @@ export const authApi = {
 
   deleteSession: (id: string): Promise<void> =>
     api.del(`/auth/sessions/${id}`),
+
+  changePassword: (input: { current_password: string; new_password: string }): Promise<AuthStatusResponse> =>
+    api.patch("/auth/password", input),
 };

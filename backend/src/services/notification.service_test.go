@@ -73,58 +73,86 @@ func (s *fakeAlertEmailService) SendAlertResolvedEmail(_ context.Context, to str
 	return nil
 }
 
-func TestNotificationServiceSendsOnlyToEnabledRecipients(t *testing.T) {
+func TestNotificationServiceFiltersRecipientsByMinSeverity(t *testing.T) {
 	t.Parallel()
 
-	emailService := &fakeAlertEmailService{}
-	deliveryRecorder := &fakeNotificationDeliveryRecorder{}
-	service := &NotificationService{
-		notificationRecipientRepo: &fakeNotificationDispatchRepo{
-			recipients: []generated.NotificationRecipient{
-				{ID: 1, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "enabled@example.com", IsEnabled: true},
-				{ID: 2, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "disabled@example.com", IsEnabled: false},
-			},
+	testCases := []struct {
+		name           string
+		alertSeverity  string
+		wantRecipients []string
+	}{
+		{
+			name:           "critical_alert_notifies_all_thresholds",
+			alertSeverity:  types.AlertSeverityCritical,
+			wantRecipients: []string{"info@example.com", "warning@example.com", "critical@example.com"},
 		},
-		projectRepo: &fakeNotificationProjectLookupRepo{
-			projects: map[int64]generated.Project{
-				1: {ID: 1, Name: "Agrafa"},
-			},
+		{
+			name:           "warning_alert_excludes_critical_only",
+			alertSeverity:  types.AlertSeverityWarning,
+			wantRecipients: []string{"info@example.com", "warning@example.com"},
 		},
-		notificationDeliverySvc: deliveryRecorder,
-		emailService:            emailService,
+		{
+			name:           "info_alert_notifies_info_only",
+			alertSeverity:  types.AlertSeverityInfo,
+			wantRecipients: []string{"info@example.com"},
+		},
 	}
 
-	err := service.NotifyAlertTriggered(context.Background(), generated.AlertRule{
-		ID:        1,
-		ProjectID: 1,
-		RuleType:  types.AlertRuleTypeNodeOffline,
-	}, generated.AlertInstance{
-		ID:          10,
-		ProjectID:   1,
-		NodeID:      sql.NullInt64{Int64: 5, Valid: true},
-		Status:      types.AlertStatusActive,
-		TriggeredAt: time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
-		Title:       "Node 5 is offline",
-		Message:     "Node 5 is currently offline.",
-	})
-	if err != nil {
-		t.Fatalf("NotifyAlertTriggered returned error: %v", err)
-	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	if len(emailService.triggeredRecipients) != 1 {
-		t.Fatalf("expected 1 triggered email attempt, got %d", len(emailService.triggeredRecipients))
-	}
+			emailService := &fakeAlertEmailService{}
+			deliveryRecorder := &fakeNotificationDeliveryRecorder{}
+			service := &NotificationService{
+				notificationRecipientRepo: &fakeNotificationDispatchRepo{
+					recipients: []generated.NotificationRecipient{
+						{ID: 1, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "info@example.com", MinSeverity: types.AlertSeverityInfo, IsEnabled: true},
+						{ID: 2, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "warning@example.com", MinSeverity: types.AlertSeverityWarning, IsEnabled: true},
+						{ID: 3, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "critical@example.com", MinSeverity: types.AlertSeverityCritical, IsEnabled: true},
+						{ID: 4, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "disabled@example.com", MinSeverity: types.AlertSeverityInfo, IsEnabled: false},
+					},
+				},
+				projectRepo: &fakeNotificationProjectLookupRepo{
+					projects: map[int64]generated.Project{
+						1: {ID: 1, Name: "Agrafa"},
+					},
+				},
+				notificationDeliverySvc: deliveryRecorder,
+				emailService:            emailService,
+			}
 
-	if emailService.triggeredRecipients[0] != "enabled@example.com" {
-		t.Fatalf("unexpected recipient %q", emailService.triggeredRecipients[0])
-	}
+			err := service.NotifyAlertTriggered(context.Background(), generated.AlertRule{
+				ID:        1,
+				ProjectID: 1,
+				RuleType:  types.AlertRuleTypeNodeOffline,
+				Severity:  tc.alertSeverity,
+			}, generated.AlertInstance{
+				ID:          10,
+				ProjectID:   1,
+				NodeID:      sql.NullInt64{Int64: 5, Valid: true},
+				Status:      types.AlertStatusActive,
+				TriggeredAt: time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
+				Title:       "Node 5 is offline",
+				Message:     "Node 5 is currently offline.",
+			})
+			if err != nil {
+				t.Fatalf("NotifyAlertTriggered returned error: %v", err)
+			}
 
-	if len(deliveryRecorder.records) != 1 {
-		t.Fatalf("expected 1 delivery record, got %d", len(deliveryRecorder.records))
-	}
-
-	if deliveryRecorder.records[0].Status != types.NotificationDeliveryStatusSent {
-		t.Fatalf("expected sent delivery status, got %q", deliveryRecorder.records[0].Status)
+			if len(emailService.triggeredRecipients) != len(tc.wantRecipients) {
+				t.Fatalf("len(triggeredRecipients) = %d, want %d", len(emailService.triggeredRecipients), len(tc.wantRecipients))
+			}
+			for index, recipient := range tc.wantRecipients {
+				if emailService.triggeredRecipients[index] != recipient {
+					t.Fatalf("triggeredRecipients[%d] = %q, want %q", index, emailService.triggeredRecipients[index], recipient)
+				}
+			}
+			if len(deliveryRecorder.records) != len(tc.wantRecipients) {
+				t.Fatalf("len(records) = %d, want %d", len(deliveryRecorder.records), len(tc.wantRecipients))
+			}
+		})
 	}
 }
 
@@ -140,8 +168,8 @@ func TestNotificationServiceRecordsFailedDeliveryAfterEmailFailure(t *testing.T)
 	service := &NotificationService{
 		notificationRecipientRepo: &fakeNotificationDispatchRepo{
 			recipients: []generated.NotificationRecipient{
-				{ID: 1, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "fail@example.com", IsEnabled: true},
-				{ID: 2, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "ok@example.com", IsEnabled: true},
+				{ID: 1, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "fail@example.com", MinSeverity: types.AlertSeverityInfo, IsEnabled: true},
+				{ID: 2, ProjectID: 1, ChannelType: types.NotificationChannelTypeEmail, Target: "ok@example.com", MinSeverity: types.AlertSeverityWarning, IsEnabled: true},
 			},
 		},
 		projectRepo: &fakeNotificationProjectLookupRepo{
@@ -157,6 +185,7 @@ func TestNotificationServiceRecordsFailedDeliveryAfterEmailFailure(t *testing.T)
 		ID:        1,
 		ProjectID: 1,
 		RuleType:  types.AlertRuleTypeServiceUnhealthy,
+		Severity:  types.AlertSeverityCritical,
 	}, generated.AlertInstance{
 		ID:          10,
 		ProjectID:   1,

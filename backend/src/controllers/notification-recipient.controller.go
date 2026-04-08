@@ -11,7 +11,7 @@ import (
 )
 
 type notificationRecipientService interface {
-	Create(ctx context.Context, input types.CreateNotificationRecipientInput) (types.NotificationRecipientReadData, error)
+	Create(ctx context.Context, input types.CreateNotificationRecipientsInput) ([]types.NotificationRecipientReadData, error)
 	List(ctx context.Context, projectID *int64) ([]types.NotificationRecipientReadData, error)
 	GetByID(ctx context.Context, notificationRecipientID int64) (types.NotificationRecipientReadData, error)
 	SetEnabled(ctx context.Context, input types.UpdateNotificationRecipientInput) (types.NotificationRecipientReadData, error)
@@ -34,7 +34,7 @@ func NewNotificationRecipientController(notificationRecipientService notificatio
 // @Accept       json
 // @Produce      json
 // @Param        request  body      types.NotificationRecipientCreateRequest  true  "Notification recipient payload"
-// @Success      201      {object}  types.NotificationRecipientResponse
+// @Success      201      {object}  types.NotificationRecipientsResponse
 // @Failure      400      {object}  types.ErrorResponse
 // @Failure      404      {object}  types.ErrorResponse
 // @Failure      409      {object}  types.ErrorResponse
@@ -47,10 +47,18 @@ func (c *NotificationRecipientController) Create(w http.ResponseWriter, r *http.
 		return
 	}
 
-	recipient, err := c.notificationRecipientService.Create(r.Context(), types.CreateNotificationRecipientInput{
+	recipientsInput := make([]types.CreateNotificationRecipientItemInput, 0, len(request.Recipients))
+	for _, recipient := range request.Recipients {
+		recipientsInput = append(recipientsInput, types.CreateNotificationRecipientItemInput{
+			Target:      recipient.Target,
+			MinSeverity: recipient.MinSeverity,
+		})
+	}
+
+	recipients, err := c.notificationRecipientService.Create(r.Context(), types.CreateNotificationRecipientsInput{
 		ProjectID:   request.ProjectID,
 		ChannelType: request.ChannelType,
-		Target:      request.Target,
+		Recipients:  recipientsInput,
 	})
 	if err != nil {
 		if utils.WriteDomainError(w, err) {
@@ -61,7 +69,7 @@ func (c *NotificationRecipientController) Create(w http.ResponseWriter, r *http.
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, map[string]any{"notification_recipient": recipient})
+	utils.WriteJSON(w, http.StatusCreated, map[string]any{"notification_recipients": recipients})
 }
 
 // List lists notification recipients.

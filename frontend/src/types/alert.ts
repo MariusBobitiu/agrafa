@@ -1,5 +1,7 @@
 export type AlertStatus = "active" | "resolved";
 
+export type Severity = "info" | "warning" | "critical";
+
 export type RuleType =
   | "node_offline"
   | "service_unhealthy"
@@ -14,6 +16,7 @@ export type AlertRule = {
   service_id: number | null;
   rule_type: RuleType;
   threshold_value: number | null;
+  severity: Severity;
   is_enabled: boolean;
   created_at: string;
   updated_at: string;
@@ -38,6 +41,7 @@ export type AlertRuleCreateInput = {
   service_id?: number | null;
   rule_type: RuleType;
   threshold_value?: number | null;
+  severity: Severity;
 };
 
 export type AlertRuleUpdateInput = Partial<Pick<AlertRuleCreateInput, "threshold_value">> & {

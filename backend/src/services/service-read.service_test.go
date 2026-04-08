@@ -283,6 +283,7 @@ func TestServiceReadServiceGetByIDReturnsDetails(t *testing.T) {
 					ID:          101,
 					RuleID:      201,
 					RuleType:    types.AlertRuleTypeServiceUnhealthy,
+					Severity:    types.AlertSeverityWarning,
 					Title:       "Service 5 is unhealthy",
 					Status:      types.AlertStatusActive,
 					TriggeredAt: observedAt,
@@ -307,7 +308,7 @@ func TestServiceReadServiceGetByIDReturnsDetails(t *testing.T) {
 	if len(item.ActiveAlerts) != 1 {
 		t.Fatalf("len(ActiveAlerts) = %d, want 1", len(item.ActiveAlerts))
 	}
-	if item.ActiveAlerts[0].RuleType != types.AlertRuleTypeServiceUnhealthy || item.ActiveAlerts[0].Severity != "critical" {
+	if item.ActiveAlerts[0].RuleType != types.AlertRuleTypeServiceUnhealthy || item.ActiveAlerts[0].Severity != types.AlertSeverityWarning {
 		t.Fatalf("unexpected active alert: %#v", item.ActiveAlerts[0])
 	}
 	if item.LatestHealthCheck == nil || item.LatestHealthCheck.StatusCode == nil || *item.LatestHealthCheck.StatusCode != 503 {

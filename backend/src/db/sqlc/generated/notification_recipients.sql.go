@@ -14,20 +14,27 @@ INSERT INTO app.notification_recipients (
     project_id,
     channel_type,
     target,
+    min_severity,
     is_enabled
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    $5
 )
-RETURNING id, project_id, channel_type, target, is_enabled, created_at, updated_at
+ON CONFLICT (project_id, channel_type, target) DO UPDATE
+SET min_severity = EXCLUDED.min_severity,
+    is_enabled = TRUE,
+    updated_at = NOW()
+RETURNING id, project_id, channel_type, target, min_severity, is_enabled, created_at, updated_at
 `
 
 type CreateNotificationRecipientParams struct {
 	ProjectID   int64  `json:"project_id"`
 	ChannelType string `json:"channel_type"`
 	Target      string `json:"target"`
+	MinSeverity string `json:"min_severity"`
 	IsEnabled   bool   `json:"is_enabled"`
 }
 
@@ -36,6 +43,7 @@ func (q *Queries) CreateNotificationRecipient(ctx context.Context, arg CreateNot
 		arg.ProjectID,
 		arg.ChannelType,
 		arg.Target,
+		arg.MinSeverity,
 		arg.IsEnabled,
 	)
 	var i AppNotificationRecipient
@@ -44,6 +52,7 @@ func (q *Queries) CreateNotificationRecipient(ctx context.Context, arg CreateNot
 		&i.ProjectID,
 		&i.ChannelType,
 		&i.Target,
+		&i.MinSeverity,
 		&i.IsEnabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -65,7 +74,7 @@ func (q *Queries) DeleteNotificationRecipientByID(ctx context.Context, id int64)
 }
 
 const getNotificationRecipientByID = `-- name: GetNotificationRecipientByID :one
-SELECT id, project_id, channel_type, target, is_enabled, created_at, updated_at
+SELECT id, project_id, channel_type, target, min_severity, is_enabled, created_at, updated_at
 FROM app.notification_recipients
 WHERE id = $1
 LIMIT 1
@@ -79,6 +88,7 @@ func (q *Queries) GetNotificationRecipientByID(ctx context.Context, id int64) (A
 		&i.ProjectID,
 		&i.ChannelType,
 		&i.Target,
+		&i.MinSeverity,
 		&i.IsEnabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -87,7 +97,7 @@ func (q *Queries) GetNotificationRecipientByID(ctx context.Context, id int64) (A
 }
 
 const listNotificationRecipients = `-- name: ListNotificationRecipients :many
-SELECT id, project_id, channel_type, target, is_enabled, created_at, updated_at
+SELECT id, project_id, channel_type, target, min_severity, is_enabled, created_at, updated_at
 FROM app.notification_recipients
 WHERE (NOT $1::boolean OR project_id = $2)
 ORDER BY id DESC
@@ -112,6 +122,7 @@ func (q *Queries) ListNotificationRecipients(ctx context.Context, arg ListNotifi
 			&i.ProjectID,
 			&i.ChannelType,
 			&i.Target,
+			&i.MinSeverity,
 			&i.IsEnabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -130,7 +141,7 @@ func (q *Queries) ListNotificationRecipients(ctx context.Context, arg ListNotifi
 }
 
 const listNotificationRecipientsByProjectAndChannel = `-- name: ListNotificationRecipientsByProjectAndChannel :many
-SELECT id, project_id, channel_type, target, is_enabled, created_at, updated_at
+SELECT id, project_id, channel_type, target, min_severity, is_enabled, created_at, updated_at
 FROM app.notification_recipients
 WHERE project_id = $1
   AND channel_type = $2
@@ -156,6 +167,7 @@ func (q *Queries) ListNotificationRecipientsByProjectAndChannel(ctx context.Cont
 			&i.ProjectID,
 			&i.ChannelType,
 			&i.Target,
+			&i.MinSeverity,
 			&i.IsEnabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -178,7 +190,7 @@ UPDATE app.notification_recipients
 SET is_enabled = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, project_id, channel_type, target, is_enabled, created_at, updated_at
+RETURNING id, project_id, channel_type, target, min_severity, is_enabled, created_at, updated_at
 `
 
 type UpdateNotificationRecipientEnabledParams struct {
@@ -194,6 +206,7 @@ func (q *Queries) UpdateNotificationRecipientEnabled(ctx context.Context, arg Up
 		&i.ProjectID,
 		&i.ChannelType,
 		&i.Target,
+		&i.MinSeverity,
 		&i.IsEnabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,

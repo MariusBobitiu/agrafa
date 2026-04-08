@@ -1,20 +1,18 @@
 import { api } from "@/lib/fetch-client.ts";
-import type { NotificationDelivery, NotificationRecipient } from "@/types/notification.ts";
+import type {
+  BulkSetRecipientsPayload,
+  NotificationDelivery,
+  NotificationRecipient,
+} from "@/types/notification.ts";
 
 export const notificationsApi = {
-  listRecipients: (projectId: number): Promise<{ recipients: NotificationRecipient[] }> =>
+  listRecipients: (projectId: number): Promise<{ notification_recipients: NotificationRecipient[] }> =>
     api.get(`/notification-recipients?project_id=${projectId}`),
 
-  createRecipient: (
-    payload: Pick<NotificationRecipient, "project_id" | "channel" | "target">,
-  ): Promise<{ recipient: NotificationRecipient }> =>
+  setRecipients: (
+    payload: BulkSetRecipientsPayload,
+  ): Promise<{ notification_recipients: NotificationRecipient[] }> =>
     api.post("/notification-recipients", payload),
-
-  updateRecipient: (
-    id: number,
-    payload: Partial<Pick<NotificationRecipient, "is_enabled">>,
-  ): Promise<{ recipient: NotificationRecipient }> =>
-    api.patch(`/notification-recipients/${id}`, payload),
 
   deleteRecipient: (id: number): Promise<void> =>
     api.del(`/notification-recipients/${id}`),

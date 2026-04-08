@@ -91,6 +91,7 @@ func TestMapAlertRuleNormalizesNullableFields(t *testing.T) {
 		NodeID:         sql.NullInt64{},
 		ServiceID:      sql.NullInt64{Int64: 9, Valid: true},
 		RuleType:       "service_unhealthy",
+		Severity:       "critical",
 		MetricName:     sql.NullString{},
 		ThresholdValue: sql.NullFloat64{},
 		IsEnabled:      true,
@@ -110,6 +111,27 @@ func TestMapAlertRuleNormalizesNullableFields(t *testing.T) {
 	}
 	if mapped.ThresholdValue != nil {
 		t.Fatalf("expected threshold_value to be nil, got %#v", mapped.ThresholdValue)
+	}
+	if mapped.Severity != "critical" {
+		t.Fatalf("expected severity to be critical, got %q", mapped.Severity)
+	}
+}
+
+func TestMapNotificationRecipientIncludesMinSeverity(t *testing.T) {
+	recipient := generated.NotificationRecipient{
+		ID:          3,
+		ProjectID:   1,
+		ChannelType: "email",
+		Target:      "ops@example.com",
+		MinSeverity: "warning",
+		IsEnabled:   true,
+		CreatedAt:   time.Date(2026, 4, 5, 12, 40, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 5, 12, 41, 0, 0, time.UTC),
+	}
+
+	mapped := mapNotificationRecipient(recipient)
+	if mapped.MinSeverity != "warning" {
+		t.Fatalf("expected min_severity to be warning, got %q", mapped.MinSeverity)
 	}
 }
 

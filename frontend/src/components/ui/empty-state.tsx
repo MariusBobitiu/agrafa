@@ -12,10 +12,10 @@ type EmptyStateProps = {
 
 export function EmptyState({ icon: Icon, title, description, action, children }: EmptyStateProps) {
   return (
-		<div className="flex flex-col items-center justify-center py-16 text-center">
+		<div className="flex flex-col items-center justify-center py-32 text-center border border-muted rounded-xl">
 			{Icon && (
 				<AnimateIcon asChild animateOnHover>
-					<div className="mb-4 rounded-full bg-muted p-4">
+					<div className="mb-4 rounded-full bg-muted/50 p-4">
 						<Icon size={24} className="text-muted-foreground" />
 					</div>
 				</AnimateIcon>

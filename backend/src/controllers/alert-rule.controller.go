@@ -52,6 +52,7 @@ func (c *AlertRuleController) Create(w http.ResponseWriter, r *http.Request) {
 		NodeID:         request.NodeID,
 		ServiceID:      request.ServiceID,
 		RuleType:       request.RuleType,
+		Severity:       request.Severity,
 		ThresholdValue: request.ThresholdValue,
 	})
 	if err != nil {

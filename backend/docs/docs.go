@@ -1658,7 +1658,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/types.NotificationRecipientResponse"
+                            "$ref": "#/definitions/types.NotificationRecipientsResponse"
                         }
                     },
                     "400": {
@@ -3187,6 +3187,10 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 1
                 },
+                "severity": {
+                    "type": "string",
+                    "example": "critical"
+                },
                 "threshold_value": {
                     "type": "number",
                     "example": 80
@@ -3227,6 +3231,10 @@ const docTemplate = `{
                 "service_id": {
                     "type": "integer",
                     "example": 1
+                },
+                "severity": {
+                    "type": "string",
+                    "example": "critical"
                 },
                 "threshold_value": {
                     "type": "number",
@@ -3937,6 +3945,19 @@ const docTemplate = `{
                 }
             }
         },
+        "types.NotificationRecipientCreateItemRequest": {
+            "type": "object",
+            "properties": {
+                "min_severity": {
+                    "type": "string",
+                    "example": "warning"
+                },
+                "target": {
+                    "type": "string",
+                    "example": "ops@example.com"
+                }
+            }
+        },
         "types.NotificationRecipientCreateRequest": {
             "type": "object",
             "properties": {
@@ -3948,9 +3969,11 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 1
                 },
-                "target": {
-                    "type": "string",
-                    "example": "ops@example.com"
+                "recipients": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.NotificationRecipientCreateItemRequest"
+                    }
                 }
             }
         },
@@ -3972,6 +3995,10 @@ const docTemplate = `{
                 "is_enabled": {
                     "type": "boolean",
                     "example": true
+                },
+                "min_severity": {
+                    "type": "string",
+                    "example": "warning"
                 },
                 "project_id": {
                     "type": "integer",

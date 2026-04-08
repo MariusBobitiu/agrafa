@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils.ts";
 import { useCreateAlertRule } from "@/hooks/use-alerts.ts";
 import { useNodes } from "@/hooks/use-nodes.ts";
 import { useServices } from "@/hooks/use-services.ts";
-import type { RuleType } from "@/types/alert.ts";
+import type { RuleType, Severity } from "@/types/alert.ts";
 
 // ─── Rule definitions ─────────────────────────────────────────────────────────
 
@@ -44,7 +44,22 @@ type RuleConfig = {
 	conditionType: "failures" | "threshold";
 	thresholdUnit?: string;
 	thresholdPlaceholder?: string;
+	defaultSeverity: Severity;
 };
+
+function defaultSeverityForRule(ruleType: RuleType): Severity {
+	switch (ruleType) {
+		case "node_offline":
+		case "service_unhealthy":
+			return "critical";
+		case "cpu_above_threshold":
+		case "memory_above_threshold":
+		case "disk_above_threshold":
+			return "warning";
+		default:
+			return "warning";
+	}
+}
 
 const RULE_TYPES: RuleConfig[] = [
 	{
@@ -54,6 +69,7 @@ const RULE_TYPES: RuleConfig[] = [
 		targetNode: true,
 		targetService: false,
 		conditionType: "failures",
+		defaultSeverity: "critical",
 	},
 	{
 		value: "service_unhealthy",
@@ -62,6 +78,7 @@ const RULE_TYPES: RuleConfig[] = [
 		targetNode: false,
 		targetService: true,
 		conditionType: "failures",
+		defaultSeverity: "critical",
 	},
 	{
 		value: "cpu_above_threshold",
@@ -72,6 +89,7 @@ const RULE_TYPES: RuleConfig[] = [
 		conditionType: "threshold",
 		thresholdUnit: "%",
 		thresholdPlaceholder: "85",
+		defaultSeverity: "warning",
 	},
 	{
 		value: "memory_above_threshold",
@@ -82,6 +100,7 @@ const RULE_TYPES: RuleConfig[] = [
 		conditionType: "threshold",
 		thresholdUnit: "%",
 		thresholdPlaceholder: "90",
+		defaultSeverity: "warning",
 	},
 	{
 		value: "disk_above_threshold",
@@ -92,6 +111,7 @@ const RULE_TYPES: RuleConfig[] = [
 		conditionType: "threshold",
 		thresholdUnit: "%",
 		thresholdPlaceholder: "80",
+		defaultSeverity: "warning",
 	},
 ];
 
@@ -104,7 +124,7 @@ const schema = z
 		serviceId: z.string().optional(),
 		thresholdValue: z.string().optional(),
 		consecutiveFailures: z.string().optional(),
-		severity: z.enum(["critical", "warning"]),
+		severity: z.enum(["info", "warning", "critical"]),
 		isEnabled: z.boolean(),
 	})
 	.superRefine((values, ctx) => {
@@ -211,6 +231,7 @@ export function CreateAlertRuleDialog({
 				threshold_value: values.thresholdValue
 					? Number(values.thresholdValue)
 					: null,
+				severity: values.severity,
 			});
 			toast.success("Alert rule created");
 			handleOpenChange(false);
@@ -457,6 +478,9 @@ export function CreateAlertRuleDialog({
 													</SelectItem>
 													<SelectItem value="warning" className={quietItem}>
 														Warning
+													</SelectItem>
+													<SelectItem value="info" className={quietItem}>
+														Info
 													</SelectItem>
 												</SelectContent>
 											</Select>

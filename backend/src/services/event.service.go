@@ -158,7 +158,7 @@ func (s *EventService) CreateAlertTriggered(ctx context.Context, rule generated.
 		NodeID:     alert.NodeID,
 		ServiceID:  alert.ServiceID,
 		EventType:  types.EventTypeAlertTriggered,
-		Severity:   alertTriggerSeverity(rule.RuleType),
+		Severity:   rule.Severity,
 		Title:      "Alert triggered: " + alert.Title,
 		Details:    details,
 		OccurredAt: occurredAt,
@@ -187,7 +187,7 @@ func (s *EventService) CreateAlertResolved(ctx context.Context, rule generated.A
 		NodeID:     alert.NodeID,
 		ServiceID:  alert.ServiceID,
 		EventType:  types.EventTypeAlertResolved,
-		Severity:   "info",
+		Severity:   rule.Severity,
 		Title:      "Alert resolved: " + alert.Title,
 		Details:    details,
 		OccurredAt: occurredAt,
@@ -197,13 +197,4 @@ func (s *EventService) CreateAlertResolved(ctx context.Context, rule generated.A
 	}
 
 	return nil
-}
-
-func alertTriggerSeverity(ruleType string) string {
-	switch ruleType {
-	case types.AlertRuleTypeNodeOffline, types.AlertRuleTypeServiceUnhealthy:
-		return "critical"
-	default:
-		return "warning"
-	}
 }

@@ -12,25 +12,37 @@ import (
 )
 
 type fakeNotificationRecipientRepo struct {
-	recipients      []generated.NotificationRecipient
-	nextID          int64
-	lastCreateInput generated.CreateNotificationRecipientParams
+	recipients   []generated.NotificationRecipient
+	nextID       int64
+	createCalls  int
+	createInputs []generated.CreateNotificationRecipientParams
 }
 
 func (r *fakeNotificationRecipientRepo) Create(_ context.Context, params generated.CreateNotificationRecipientParams) (generated.NotificationRecipient, error) {
-	r.nextID++
-	r.lastCreateInput = params
+	r.createCalls++
+	r.createInputs = append(r.createInputs, params)
 
+	for index := range r.recipients {
+		recipient := &r.recipients[index]
+		if recipient.ProjectID == params.ProjectID && recipient.ChannelType == params.ChannelType && recipient.Target == params.Target {
+			recipient.MinSeverity = params.MinSeverity
+			recipient.IsEnabled = params.IsEnabled
+			recipient.UpdatedAt = time.Date(2026, time.April, 5, 12, 5, 0, 0, time.UTC)
+			return *recipient, nil
+		}
+	}
+
+	r.nextID++
 	recipient := generated.NotificationRecipient{
 		ID:          r.nextID,
 		ProjectID:   params.ProjectID,
 		ChannelType: params.ChannelType,
 		Target:      params.Target,
+		MinSeverity: params.MinSeverity,
 		IsEnabled:   params.IsEnabled,
 		CreatedAt:   time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
 		UpdatedAt:   time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
 	}
-
 	r.recipients = append(r.recipients, recipient)
 	return recipient, nil
 }
@@ -84,7 +96,7 @@ func (r *fakeNotificationProjectRepo) GetByID(_ context.Context, id int64) (gene
 	return project, nil
 }
 
-func TestCreateNotificationRecipientAcceptsValidEmail(t *testing.T) {
+func TestCreateNotificationRecipientsAcceptsValidEmailsAndPersistsMinSeverity(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeNotificationRecipientRepo{}
@@ -97,25 +109,39 @@ func TestCreateNotificationRecipientAcceptsValidEmail(t *testing.T) {
 		},
 	}
 
-	recipient, err := service.Create(context.Background(), types.CreateNotificationRecipientInput{
+	recipients, err := service.Create(context.Background(), types.CreateNotificationRecipientsInput{
 		ProjectID:   1,
 		ChannelType: types.NotificationChannelTypeEmail,
-		Target:      "Ops@Example.com",
+		Recipients: []types.CreateNotificationRecipientItemInput{
+			{Target: "Ops@Example.com", MinSeverity: types.AlertSeverityCritical},
+			{Target: "team@example.com", MinSeverity: types.AlertSeverityWarning},
+		},
 	})
 	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
 
-	if recipient.Target != "ops@example.com" {
-		t.Fatalf("expected lower-cased target, got %q", recipient.Target)
+	if len(recipients) != 2 {
+		t.Fatalf("len(recipients) = %d, want 2", len(recipients))
 	}
-
-	if repo.lastCreateInput.Target != "ops@example.com" {
-		t.Fatalf("expected stored target to be normalized, got %q", repo.lastCreateInput.Target)
+	if recipients[0].Target != "ops@example.com" {
+		t.Fatalf("expected lower-cased target, got %q", recipients[0].Target)
+	}
+	if recipients[0].MinSeverity != types.AlertSeverityCritical {
+		t.Fatalf("expected min_severity %q, got %q", types.AlertSeverityCritical, recipients[0].MinSeverity)
+	}
+	if len(repo.createInputs) != 2 {
+		t.Fatalf("len(createInputs) = %d, want 2", len(repo.createInputs))
+	}
+	if repo.createInputs[0].Target != "ops@example.com" {
+		t.Fatalf("expected stored target to be normalized, got %q", repo.createInputs[0].Target)
+	}
+	if repo.createInputs[1].MinSeverity != types.AlertSeverityWarning {
+		t.Fatalf("expected second stored min_severity %q, got %q", types.AlertSeverityWarning, repo.createInputs[1].MinSeverity)
 	}
 }
 
-func TestCreateNotificationRecipientRejectsInvalidEmail(t *testing.T) {
+func TestCreateNotificationRecipientsRejectsInvalidEmail(t *testing.T) {
 	t.Parallel()
 
 	service := &NotificationRecipientService{
@@ -127,10 +153,12 @@ func TestCreateNotificationRecipientRejectsInvalidEmail(t *testing.T) {
 		},
 	}
 
-	_, err := service.Create(context.Background(), types.CreateNotificationRecipientInput{
+	_, err := service.Create(context.Background(), types.CreateNotificationRecipientsInput{
 		ProjectID:   1,
 		ChannelType: types.NotificationChannelTypeEmail,
-		Target:      "not-an-email",
+		Recipients: []types.CreateNotificationRecipientItemInput{
+			{Target: "not-an-email", MinSeverity: types.AlertSeverityInfo},
+		},
 	})
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
@@ -138,6 +166,102 @@ func TestCreateNotificationRecipientRejectsInvalidEmail(t *testing.T) {
 
 	if err != types.ErrInvalidNotificationTarget {
 		t.Fatalf("expected ErrInvalidNotificationTarget, got %v", err)
+	}
+}
+
+func TestCreateNotificationRecipientsRejectsInvalidMinSeverity(t *testing.T) {
+	t.Parallel()
+
+	service := &NotificationRecipientService{
+		notificationRecipientRepo: &fakeNotificationRecipientRepo{},
+		projectRepo: &fakeNotificationProjectRepo{
+			projects: map[int64]generated.Project{
+				1: {ID: 1, Name: "Agrafa"},
+			},
+		},
+	}
+
+	_, err := service.Create(context.Background(), types.CreateNotificationRecipientsInput{
+		ProjectID:   1,
+		ChannelType: types.NotificationChannelTypeEmail,
+		Recipients: []types.CreateNotificationRecipientItemInput{
+			{Target: "ops@example.com", MinSeverity: "urgent"},
+		},
+	})
+	if !errors.Is(err, types.ErrInvalidNotificationMinSeverity) {
+		t.Fatalf("Create() error = %v, want ErrInvalidNotificationMinSeverity", err)
+	}
+}
+
+func TestCreateNotificationRecipientsRejectsEmptyRecipients(t *testing.T) {
+	t.Parallel()
+
+	service := &NotificationRecipientService{
+		notificationRecipientRepo: &fakeNotificationRecipientRepo{},
+		projectRepo: &fakeNotificationProjectRepo{
+			projects: map[int64]generated.Project{
+				1: {ID: 1, Name: "Agrafa"},
+			},
+		},
+	}
+
+	_, err := service.Create(context.Background(), types.CreateNotificationRecipientsInput{
+		ProjectID:   1,
+		ChannelType: types.NotificationChannelTypeEmail,
+	})
+	if !errors.Is(err, types.ErrEmptyNotificationRecipients) {
+		t.Fatalf("Create() error = %v, want ErrEmptyNotificationRecipients", err)
+	}
+}
+
+func TestCreateNotificationRecipientsDeduplicatesTargetsAndUpsertsExistingRecipient(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeNotificationRecipientRepo{
+		recipients: []generated.NotificationRecipient{
+			{
+				ID:          7,
+				ProjectID:   1,
+				ChannelType: types.NotificationChannelTypeEmail,
+				Target:      "ops@example.com",
+				MinSeverity: types.AlertSeverityInfo,
+				IsEnabled:   false,
+			},
+		},
+		nextID: 7,
+	}
+	service := &NotificationRecipientService{
+		notificationRecipientRepo: repo,
+		projectRepo: &fakeNotificationProjectRepo{
+			projects: map[int64]generated.Project{
+				1: {ID: 1, Name: "Agrafa"},
+			},
+		},
+	}
+
+	recipients, err := service.Create(context.Background(), types.CreateNotificationRecipientsInput{
+		ProjectID:   1,
+		ChannelType: types.NotificationChannelTypeEmail,
+		Recipients: []types.CreateNotificationRecipientItemInput{
+			{Target: "ops@example.com", MinSeverity: types.AlertSeverityWarning},
+			{Target: "OPS@example.com", MinSeverity: types.AlertSeverityCritical},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if repo.createCalls != 1 {
+		t.Fatalf("createCalls = %d, want 1", repo.createCalls)
+	}
+	if len(recipients) != 1 {
+		t.Fatalf("len(recipients) = %d, want 1", len(recipients))
+	}
+	if recipients[0].MinSeverity != types.AlertSeverityCritical {
+		t.Fatalf("min_severity = %q, want %q", recipients[0].MinSeverity, types.AlertSeverityCritical)
+	}
+	if !repo.recipients[0].IsEnabled {
+		t.Fatal("expected existing recipient to be re-enabled on upsert")
 	}
 }
 
@@ -185,6 +309,7 @@ func TestGetNotificationRecipientByIDReturnsMappedRecipient(t *testing.T) {
 					ProjectID:   1,
 					ChannelType: types.NotificationChannelTypeEmail,
 					Target:      "ops@example.com",
+					MinSeverity: types.AlertSeverityWarning,
 					IsEnabled:   true,
 				},
 			},
@@ -198,5 +323,8 @@ func TestGetNotificationRecipientByIDReturnsMappedRecipient(t *testing.T) {
 	}
 	if recipient.ID != 7 || recipient.Target != "ops@example.com" {
 		t.Fatalf("unexpected recipient: %#v", recipient)
+	}
+	if recipient.MinSeverity != types.AlertSeverityWarning {
+		t.Fatalf("recipient.MinSeverity = %q, want %q", recipient.MinSeverity, types.AlertSeverityWarning)
 	}
 }

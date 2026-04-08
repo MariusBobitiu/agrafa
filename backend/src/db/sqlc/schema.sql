@@ -142,6 +142,9 @@ CREATE TABLE app.alert_rules (
             'disk_above_threshold'
         )
     ),
+    severity TEXT NOT NULL CHECK (
+        severity IN ('info', 'warning', 'critical')
+    ),
     metric_name TEXT,
     threshold_value DOUBLE PRECISION,
     is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -212,6 +215,9 @@ CREATE TABLE app.notification_recipients (
     project_id BIGINT NOT NULL REFERENCES app.projects(id) ON DELETE CASCADE,
     channel_type TEXT NOT NULL CHECK (channel_type IN ('email')),
     target TEXT NOT NULL,
+    min_severity TEXT NOT NULL CHECK (
+        min_severity IN ('info', 'warning', 'critical')
+    ),
     is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -258,6 +258,7 @@ type AlertRuleDocument struct {
 	NodeID         *int64    `json:"node_id" example:"1"`
 	ServiceID      *int64    `json:"service_id" example:"1"`
 	RuleType       string    `json:"rule_type" example:"node_offline"`
+	Severity       string    `json:"severity" example:"critical"`
 	MetricName     *string   `json:"metric_name" example:"cpu_usage"`
 	ThresholdValue *float64  `json:"threshold_value" example:"80"`
 	IsEnabled      bool      `json:"is_enabled" example:"true"`
@@ -284,6 +285,7 @@ type NotificationRecipientDocument struct {
 	ProjectID   int64     `json:"project_id" example:"1"`
 	ChannelType string    `json:"channel_type" example:"email"`
 	Target      string    `json:"target" example:"ops@example.com"`
+	MinSeverity string    `json:"min_severity" example:"warning"`
 	IsEnabled   bool      `json:"is_enabled" example:"true"`
 	CreatedAt   time.Time `json:"created_at" swaggertype:"string" format:"date-time"`
 	UpdatedAt   time.Time `json:"updated_at" swaggertype:"string" format:"date-time"`
@@ -448,6 +450,7 @@ type AlertRuleCreateRequest struct {
 	NodeID         *int64   `json:"node_id,omitempty" example:"1"`
 	ServiceID      *int64   `json:"service_id,omitempty" example:"1"`
 	RuleType       string   `json:"rule_type" example:"cpu_above_threshold"`
+	Severity       string   `json:"severity" example:"critical"`
 	ThresholdValue *float64 `json:"threshold_value,omitempty" example:"80"`
 }
 
@@ -455,10 +458,15 @@ type AlertRuleUpdateRequest struct {
 	IsEnabled *bool `json:"is_enabled" example:"false"`
 }
 
-type NotificationRecipientCreateRequest struct {
-	ProjectID   int64  `json:"project_id" example:"1"`
-	ChannelType string `json:"channel_type" example:"email"`
+type NotificationRecipientCreateItemRequest struct {
 	Target      string `json:"target" example:"ops@example.com"`
+	MinSeverity string `json:"min_severity" example:"warning"`
+}
+
+type NotificationRecipientCreateRequest struct {
+	ProjectID   int64                                    `json:"project_id" example:"1"`
+	ChannelType string                                   `json:"channel_type" example:"email"`
+	Recipients  []NotificationRecipientCreateItemRequest `json:"recipients"`
 }
 
 type NotificationRecipientUpdateRequest struct {

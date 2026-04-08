@@ -30,6 +30,7 @@ type AppAlertRule struct {
 	NodeID         sql.NullInt64   `json:"node_id"`
 	ServiceID      sql.NullInt64   `json:"service_id"`
 	RuleType       string          `json:"rule_type"`
+	Severity       string          `json:"severity"`
 	MetricName     sql.NullString  `json:"metric_name"`
 	ThresholdValue sql.NullFloat64 `json:"threshold_value"`
 	IsEnabled      bool            `json:"is_enabled"`
@@ -117,6 +118,7 @@ type AppNotificationRecipient struct {
 	ProjectID   int64     `json:"project_id"`
 	ChannelType string    `json:"channel_type"`
 	Target      string    `json:"target"`
+	MinSeverity string    `json:"min_severity"`
 	IsEnabled   bool      `json:"is_enabled"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

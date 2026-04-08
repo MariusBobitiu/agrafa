@@ -354,6 +354,7 @@ SELECT
     ai.id,
     ai.alert_rule_id AS rule_id,
     ar.rule_type,
+    ar.severity,
     ai.title,
     ai.status,
     ai.triggered_at
@@ -368,6 +369,7 @@ type ListActiveAlertDetailsByServiceIDRow struct {
 	ID          int64     `json:"id"`
 	RuleID      int64     `json:"rule_id"`
 	RuleType    string    `json:"rule_type"`
+	Severity    string    `json:"severity"`
 	Title       string    `json:"title"`
 	Status      string    `json:"status"`
 	TriggeredAt time.Time `json:"triggered_at"`
@@ -386,6 +388,7 @@ func (q *Queries) ListActiveAlertDetailsByServiceID(ctx context.Context, service
 			&i.ID,
 			&i.RuleID,
 			&i.RuleType,
+			&i.Severity,
 			&i.Title,
 			&i.Status,
 			&i.TriggeredAt,

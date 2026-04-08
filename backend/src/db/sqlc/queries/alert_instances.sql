@@ -58,6 +58,7 @@ SELECT
     ai.id,
     ai.alert_rule_id AS rule_id,
     ar.rule_type,
+    ar.severity,
     ai.title,
     ai.status,
     ai.triggered_at

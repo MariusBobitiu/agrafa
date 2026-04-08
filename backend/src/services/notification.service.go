@@ -71,9 +71,14 @@ func (s *NotificationService) notifyAlert(ctx context.Context, eventType string,
 	}
 
 	data := s.buildAlertTemplateData(ctx, rule, alert)
+	alertSeverity := rule.Severity
 
 	for _, recipient := range recipients {
 		if !recipient.IsEnabled {
+			continue
+		}
+
+		if !shouldNotifyForSeverity(recipient.MinSeverity, alertSeverity) {
 			continue
 		}
 

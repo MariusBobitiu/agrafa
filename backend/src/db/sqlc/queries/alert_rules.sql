@@ -4,6 +4,7 @@ INSERT INTO app.alert_rules (
     node_id,
     service_id,
     rule_type,
+    severity,
     metric_name,
     threshold_value,
     is_enabled
@@ -14,7 +15,8 @@ INSERT INTO app.alert_rules (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8
 )
 RETURNING *;
 

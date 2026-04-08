@@ -16,6 +16,7 @@ INSERT INTO app.alert_rules (
     node_id,
     service_id,
     rule_type,
+    severity,
     metric_name,
     threshold_value,
     is_enabled
@@ -26,9 +27,10 @@ INSERT INTO app.alert_rules (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8
 )
-RETURNING id, project_id, node_id, service_id, rule_type, metric_name, threshold_value, is_enabled, created_at, updated_at
+RETURNING id, project_id, node_id, service_id, rule_type, severity, metric_name, threshold_value, is_enabled, created_at, updated_at
 `
 
 type CreateAlertRuleParams struct {
@@ -36,6 +38,7 @@ type CreateAlertRuleParams struct {
 	NodeID         sql.NullInt64   `json:"node_id"`
 	ServiceID      sql.NullInt64   `json:"service_id"`
 	RuleType       string          `json:"rule_type"`
+	Severity       string          `json:"severity"`
 	MetricName     sql.NullString  `json:"metric_name"`
 	ThresholdValue sql.NullFloat64 `json:"threshold_value"`
 	IsEnabled      bool            `json:"is_enabled"`
@@ -47,6 +50,7 @@ func (q *Queries) CreateAlertRule(ctx context.Context, arg CreateAlertRuleParams
 		arg.NodeID,
 		arg.ServiceID,
 		arg.RuleType,
+		arg.Severity,
 		arg.MetricName,
 		arg.ThresholdValue,
 		arg.IsEnabled,
@@ -58,6 +62,7 @@ func (q *Queries) CreateAlertRule(ctx context.Context, arg CreateAlertRuleParams
 		&i.NodeID,
 		&i.ServiceID,
 		&i.RuleType,
+		&i.Severity,
 		&i.MetricName,
 		&i.ThresholdValue,
 		&i.IsEnabled,
@@ -81,7 +86,7 @@ func (q *Queries) DeleteAlertRuleByID(ctx context.Context, id int64) (int64, err
 }
 
 const getAlertRuleByID = `-- name: GetAlertRuleByID :one
-SELECT id, project_id, node_id, service_id, rule_type, metric_name, threshold_value, is_enabled, created_at, updated_at
+SELECT id, project_id, node_id, service_id, rule_type, severity, metric_name, threshold_value, is_enabled, created_at, updated_at
 FROM app.alert_rules
 WHERE id = $1
 LIMIT 1
@@ -96,6 +101,7 @@ func (q *Queries) GetAlertRuleByID(ctx context.Context, id int64) (AppAlertRule,
 		&i.NodeID,
 		&i.ServiceID,
 		&i.RuleType,
+		&i.Severity,
 		&i.MetricName,
 		&i.ThresholdValue,
 		&i.IsEnabled,
@@ -106,7 +112,7 @@ func (q *Queries) GetAlertRuleByID(ctx context.Context, id int64) (AppAlertRule,
 }
 
 const listAlertRules = `-- name: ListAlertRules :many
-SELECT id, project_id, node_id, service_id, rule_type, metric_name, threshold_value, is_enabled, created_at, updated_at
+SELECT id, project_id, node_id, service_id, rule_type, severity, metric_name, threshold_value, is_enabled, created_at, updated_at
 FROM app.alert_rules
 WHERE (NOT $1::boolean OR project_id = $2)
 ORDER BY id DESC
@@ -132,6 +138,7 @@ func (q *Queries) ListAlertRules(ctx context.Context, arg ListAlertRulesParams) 
 			&i.NodeID,
 			&i.ServiceID,
 			&i.RuleType,
+			&i.Severity,
 			&i.MetricName,
 			&i.ThresholdValue,
 			&i.IsEnabled,
@@ -152,7 +159,7 @@ func (q *Queries) ListAlertRules(ctx context.Context, arg ListAlertRulesParams) 
 }
 
 const listEnabledAlertRules = `-- name: ListEnabledAlertRules :many
-SELECT id, project_id, node_id, service_id, rule_type, metric_name, threshold_value, is_enabled, created_at, updated_at
+SELECT id, project_id, node_id, service_id, rule_type, severity, metric_name, threshold_value, is_enabled, created_at, updated_at
 FROM app.alert_rules
 WHERE is_enabled = TRUE
   AND rule_type = $1
@@ -195,6 +202,7 @@ func (q *Queries) ListEnabledAlertRules(ctx context.Context, arg ListEnabledAler
 			&i.NodeID,
 			&i.ServiceID,
 			&i.RuleType,
+			&i.Severity,
 			&i.MetricName,
 			&i.ThresholdValue,
 			&i.IsEnabled,
@@ -219,7 +227,7 @@ UPDATE app.alert_rules
 SET is_enabled = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, project_id, node_id, service_id, rule_type, metric_name, threshold_value, is_enabled, created_at, updated_at
+RETURNING id, project_id, node_id, service_id, rule_type, severity, metric_name, threshold_value, is_enabled, created_at, updated_at
 `
 
 type UpdateAlertRuleEnabledParams struct {
@@ -236,6 +244,7 @@ func (q *Queries) UpdateAlertRuleEnabled(ctx context.Context, arg UpdateAlertRul
 		&i.NodeID,
 		&i.ServiceID,
 		&i.RuleType,
+		&i.Severity,
 		&i.MetricName,
 		&i.ThresholdValue,
 		&i.IsEnabled,

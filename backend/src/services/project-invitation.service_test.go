@@ -442,6 +442,9 @@ func TestProjectInvitationServiceAcceptRequiresMatchingEmail(t *testing.T) {
 			ExpiresAt: time.Date(2026, time.April, 7, 9, 0, 0, 0, time.UTC),
 		},
 	}, &fakeProjectInvitationProjectRepo{}, &fakeProjectInvitationMemberRepo{}, &fakeProjectInvitationUserRepo{})
+	service.now = func() time.Time {
+		return time.Date(2026, time.April, 6, 9, 0, 0, 0, time.UTC)
+	}
 
 	_, err := service.Accept(context.Background(), "invite-token", generated.User{
 		ID:    "usr_1",
@@ -558,6 +561,9 @@ func TestProjectInvitationServiceAcceptSkipsVerificationWhenAlreadyVerified(t *t
 	}
 
 	service := newTestProjectInvitationService(repo, &fakeProjectInvitationProjectRepo{}, memberRepo, userRepo)
+	service.now = func() time.Time {
+		return time.Date(2026, time.April, 6, 9, 0, 0, 0, time.UTC)
+	}
 	_, err := service.Accept(context.Background(), "invite-token", generated.User{
 		ID:            "usr_1",
 		Email:         "teammate@example.com",

@@ -3,13 +3,19 @@ INSERT INTO app.notification_recipients (
     project_id,
     channel_type,
     target,
+    min_severity,
     is_enabled
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    $5
 )
+ON CONFLICT (project_id, channel_type, target) DO UPDATE
+SET min_severity = EXCLUDED.min_severity,
+    is_enabled = TRUE,
+    updated_at = NOW()
 RETURNING *;
 
 -- name: GetNotificationRecipientByID :one

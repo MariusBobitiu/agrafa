@@ -233,7 +233,7 @@ func mapServiceActiveAlerts(rows []generated.ListActiveAlertDetailsByServiceIDRo
 			ID:          row.ID,
 			RuleID:      row.RuleID,
 			RuleType:    row.RuleType,
-			Severity:    alertTriggerSeverity(row.RuleType),
+			Severity:    row.Severity,
 			Title:       row.Title,
 			Status:      row.Status,
 			TriggeredAt: row.TriggeredAt,

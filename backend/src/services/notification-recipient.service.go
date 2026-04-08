@@ -41,40 +41,70 @@ func NewNotificationRecipientService(
 	}
 }
 
-func (s *NotificationRecipientService) Create(ctx context.Context, input types.CreateNotificationRecipientInput) (types.NotificationRecipientReadData, error) {
+func (s *NotificationRecipientService) Create(ctx context.Context, input types.CreateNotificationRecipientsInput) ([]types.NotificationRecipientReadData, error) {
 	if input.ProjectID <= 0 {
-		return types.NotificationRecipientReadData{}, types.ErrInvalidProjectID
+		return nil, types.ErrInvalidProjectID
 	}
 
 	channelType := utils.NormalizeRequiredString(input.ChannelType)
 	if channelType != types.NotificationChannelTypeEmail {
-		return types.NotificationRecipientReadData{}, types.ErrInvalidNotificationChannelType
+		return nil, types.ErrInvalidNotificationChannelType
 	}
 
-	target, err := normalizeNotificationEmailTarget(input.Target)
-	if err != nil {
-		return types.NotificationRecipientReadData{}, err
+	if len(input.Recipients) == 0 {
+		return nil, types.ErrEmptyNotificationRecipients
 	}
 
 	if _, err := s.projectRepo.GetByID(ctx, input.ProjectID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return types.NotificationRecipientReadData{}, types.ErrProjectNotFound
+			return nil, types.ErrProjectNotFound
 		}
 
-		return types.NotificationRecipientReadData{}, fmt.Errorf("get project: %w", err)
+		return nil, fmt.Errorf("get project: %w", err)
 	}
 
-	recipient, err := s.notificationRecipientRepo.Create(ctx, generated.CreateNotificationRecipientParams{
-		ProjectID:   input.ProjectID,
-		ChannelType: channelType,
-		Target:      target,
-		IsEnabled:   true,
-	})
-	if err != nil {
-		return types.NotificationRecipientReadData{}, fmt.Errorf("create notification recipient: %w", err)
+	dedupedRecipients := make([]generated.CreateNotificationRecipientParams, 0, len(input.Recipients))
+	indexByTarget := make(map[string]int, len(input.Recipients))
+
+	for _, rawRecipient := range input.Recipients {
+		target, err := normalizeNotificationEmailTarget(rawRecipient.Target)
+		if err != nil {
+			return nil, err
+		}
+
+		minSeverity := normalizeAlertSeverity(rawRecipient.MinSeverity)
+		if minSeverity == "" || !isSupportedAlertSeverity(minSeverity) {
+			return nil, types.ErrInvalidNotificationMinSeverity
+		}
+
+		params := generated.CreateNotificationRecipientParams{
+			ProjectID:   input.ProjectID,
+			ChannelType: channelType,
+			Target:      target,
+			MinSeverity: minSeverity,
+			IsEnabled:   true,
+		}
+
+		if existingIndex, ok := indexByTarget[target]; ok {
+			dedupedRecipients[existingIndex] = params
+			continue
+		}
+
+		indexByTarget[target] = len(dedupedRecipients)
+		dedupedRecipients = append(dedupedRecipients, params)
 	}
 
-	return mapNotificationRecipient(recipient), nil
+	recipients := make([]generated.NotificationRecipient, 0, len(dedupedRecipients))
+	for _, recipientInput := range dedupedRecipients {
+		recipient, err := s.notificationRecipientRepo.Create(ctx, recipientInput)
+		if err != nil {
+			return nil, fmt.Errorf("create notification recipient: %w", err)
+		}
+
+		recipients = append(recipients, recipient)
+	}
+
+	return mapNotificationRecipients(recipients), nil
 }
 
 func (s *NotificationRecipientService) List(ctx context.Context, projectID *int64) ([]types.NotificationRecipientReadData, error) {

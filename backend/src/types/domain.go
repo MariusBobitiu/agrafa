@@ -50,6 +50,12 @@ const (
 )
 
 const (
+	AlertSeverityInfo     = "info"
+	AlertSeverityWarning  = "warning"
+	AlertSeverityCritical = "critical"
+)
+
+const (
 	MetricNameCPUUsage    = "cpu_usage"
 	MetricNameMemoryUsage = "memory_usage"
 	MetricNameDiskUsage   = "disk_usage"
@@ -116,6 +122,7 @@ type CreateAlertRuleInput struct {
 	NodeID         *int64
 	ServiceID      *int64
 	RuleType       string
+	Severity       string
 	ThresholdValue *float64
 }
 
@@ -148,10 +155,15 @@ type CreateServiceInput struct {
 	CheckTarget   string
 }
 
-type CreateNotificationRecipientInput struct {
+type CreateNotificationRecipientItemInput struct {
+	Target      string
+	MinSeverity string
+}
+
+type CreateNotificationRecipientsInput struct {
 	ProjectID   int64
 	ChannelType string
-	Target      string
+	Recipients  []CreateNotificationRecipientItemInput
 }
 
 type UpdateNotificationRecipientInput struct {
@@ -462,6 +474,7 @@ type AlertRuleReadData struct {
 	NodeID         *int64    `json:"node_id"`
 	ServiceID      *int64    `json:"service_id"`
 	RuleType       string    `json:"rule_type"`
+	Severity       string    `json:"severity"`
 	MetricName     *string   `json:"metric_name"`
 	ThresholdValue *float64  `json:"threshold_value"`
 	IsEnabled      bool      `json:"is_enabled"`
@@ -474,6 +487,7 @@ type NotificationRecipientReadData struct {
 	ProjectID   int64     `json:"project_id"`
 	ChannelType string    `json:"channel_type"`
 	Target      string    `json:"target"`
+	MinSeverity string    `json:"min_severity"`
 	IsEnabled   bool      `json:"is_enabled"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

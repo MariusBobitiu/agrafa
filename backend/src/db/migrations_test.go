@@ -30,3 +30,26 @@ func TestNodeExecutionModeMigrationBackfillsExistingNodes(t *testing.T) {
 		t.Fatalf("expected managed-node migration to backfill is_visible to TRUE:\n%s", sql)
 	}
 }
+
+func TestAlertSeverityMigrationBackfillsExistingRows(t *testing.T) {
+	t.Parallel()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+
+	migrationPath := filepath.Join(filepath.Dir(currentFile), "migrations", "app", "000011_alert_rule_recipient_severity.up.sql")
+	contents, err := os.ReadFile(migrationPath)
+	if err != nil {
+		t.Fatalf("read migration file: %v", err)
+	}
+
+	sql := string(contents)
+	if !strings.Contains(sql, "WHEN rule_type IN ('node_offline', 'service_unhealthy') THEN 'critical'") {
+		t.Fatalf("expected alert rule severity backfill in migration:\n%s", sql)
+	}
+	if !strings.Contains(sql, "SET min_severity = 'info'") {
+		t.Fatalf("expected notification recipient min_severity backfill in migration:\n%s", sql)
+	}
+}
