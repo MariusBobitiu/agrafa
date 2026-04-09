@@ -18,6 +18,7 @@ import { ServicesPage } from "@/app/services/services-page.tsx";
 import { ServiceDetailPage } from "@/app/services/service-detail-page.tsx";
 import { AlertsPage } from "@/app/alerts/alerts-page.tsx";
 import { SettingsPage } from "@/app/settings/settings-page.tsx";
+import { ProfilePage } from "@/app/profile/profile-page.tsx";
 import { InvitePage } from "@/app/invite/invite-page.tsx";
 
 // Root layout — wraps everything in AuthProvider (which needs useNavigate from the router)
@@ -72,6 +73,7 @@ export const router = createBrowserRouter([
               { path: "/services", element: <ServicesPage /> },
               { path: "/services/:id", element: <ServiceDetailPage /> },
               { path: "/alerts", element: <AlertsPage /> },
+              { path: "/profile", element: <ProfilePage /> },
               { path: "/settings", element: <SettingsPage /> },
             ],
           },

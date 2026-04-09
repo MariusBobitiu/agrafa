@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { useProjectDetail, useUpdateProject } from "@/hooks/use-projects.ts";
+import { useCanWrite } from "@/hooks/use-project-role.ts";
 
 const schema = z.object({ name: z.string().min(1, "Name is required") });
 type FormValues = z.infer<typeof schema>;
@@ -22,6 +23,7 @@ type FormValues = z.infer<typeof schema>;
 export function ProjectSection({ projectId }: { projectId: number }) {
   const { data } = useProjectDetail(projectId);
   const update = useUpdateProject();
+  const canWrite = useCanWrite(projectId);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -57,15 +59,17 @@ export function ProjectSection({ projectId }: { projectId: number }) {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} disabled={!canWrite} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" size="sm" disabled={update.isPending}>
-                {update.isPending ? "Saving…" : "Save"}
-              </Button>
+              {canWrite && (
+                <Button type="submit" size="sm" disabled={update.isPending}>
+                  {update.isPending ? "Saving…" : "Save"}
+                </Button>
+              )}
             </form>
           </Form>
         </div>

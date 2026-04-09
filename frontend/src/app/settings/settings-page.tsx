@@ -3,10 +3,11 @@ import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { PageHeader } from "@/components/ui/page-header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { useUIStore } from "@/stores/ui-store.ts";
-import { AccountSection } from "./components/account-section.tsx";
+import { useCanDeleteProject } from "@/hooks/use-project-role.ts";
 import { NotificationRecipientsSection } from "./components/notification-recipients-section.tsx";
 import { AlertRulesSection } from "./components/alert-rules-section.tsx";
 import { ProjectSection } from "./components/project-section.tsx";
+import { MembersSection } from "./components/members-section.tsx";
 import { DangerZoneSection } from "./components/danger-zone-section.tsx";
 
 // ─── Tab nav styles ───────────────────────────────────────────────────────────
@@ -24,25 +25,23 @@ const tabTriggerClass =
 
 export function SettingsPage() {
   const activeProjectId = useUIStore((s) => s.activeProjectId);
+  const canDeleteProject = useCanDeleteProject(activeProjectId ?? 0);
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <PageHeader title="Settings" />
 
-      <Tabs defaultValue="account">
+      <Tabs defaultValue="notifications">
         <TabsList className={tabListClass}>
-          <TabsTrigger value="account" className={tabTriggerClass}>Account</TabsTrigger>
           <TabsTrigger value="notifications" className={tabTriggerClass}>Notifications</TabsTrigger>
           <TabsTrigger value="alert-rules" className={tabTriggerClass}>Alert Rules</TabsTrigger>
           <TabsTrigger value="project" className={tabTriggerClass}>Project</TabsTrigger>
+          <TabsTrigger value="members" className={tabTriggerClass}>Members</TabsTrigger>
           <TabsTrigger value="integrations" className={tabTriggerClass}>Integrations</TabsTrigger>
-          <TabsTrigger value="danger-zone" className={tabTriggerClass}>Danger Zone</TabsTrigger>
+          {canDeleteProject && (
+            <TabsTrigger value="danger-zone" className={tabTriggerClass}>Danger Zone</TabsTrigger>
+          )}
         </TabsList>
-
-        {/* ── Account ── */}
-        <TabsContent value="account" className="mt-6">
-          <AccountSection />
-        </TabsContent>
 
         {/* ── Notifications ── */}
         <TabsContent value="notifications" className="mt-6">
@@ -59,6 +58,11 @@ export function SettingsPage() {
           {activeProjectId && <ProjectSection projectId={activeProjectId} />}
         </TabsContent>
 
+        {/* ── Members ── */}
+        <TabsContent value="members" className="mt-6">
+          {activeProjectId && <MembersSection projectId={activeProjectId} />}
+        </TabsContent>
+
         {/* ── Integrations ── */}
         <TabsContent value="integrations" className="mt-6">
           <EmptyState
@@ -69,9 +73,11 @@ export function SettingsPage() {
         </TabsContent>
 
         {/* ── Danger Zone ── */}
-        <TabsContent value="danger-zone" className="mt-6">
-          {activeProjectId && <DangerZoneSection projectId={activeProjectId} />}
-        </TabsContent>
+        {canDeleteProject && (
+          <TabsContent value="danger-zone" className="mt-6">
+            {activeProjectId && <DangerZoneSection projectId={activeProjectId} />}
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

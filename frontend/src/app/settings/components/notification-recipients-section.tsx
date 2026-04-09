@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { notificationsApi } from "@/data/notifications.ts";
+import { useCanWrite } from "@/hooks/use-project-role.ts";
 import type { Severity } from "@/types/alert.ts";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
@@ -39,6 +40,7 @@ type FormValues = z.infer<typeof schema>;
 
 export function NotificationRecipientsSection({ projectId }: { projectId: number }) {
   const qc = useQueryClient();
+  const canWrite = useCanWrite(projectId);
 
   const { data, isSuccess } = useQuery({
     queryKey: ["notifications", projectId],
@@ -101,7 +103,7 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
                   Each recipient only receives alerts at or above their minimum severity.
                 </p>
               </div>
-              {fields.length > 0 && (
+              {fields.length > 0 && canWrite && (
                 <Button type="submit" size="sm" disabled={save.isPending}>
                   <SaveIcon size={14} />
                   Save
@@ -166,15 +168,17 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
                         </FormItem>
                       )}
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="mt-1 text-muted-foreground/40 hover:text-destructive shrink-0"
-                      onClick={() => remove(index)}
-                    >
-                      <TrashIcon size={13} />
-                    </Button>
+                    {canWrite && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="mt-1 text-muted-foreground/40 hover:text-destructive shrink-0"
+                        onClick={() => remove(index)}
+                      >
+                        <TrashIcon size={13} />
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -183,17 +187,19 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
             <Separator />
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-muted/20">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => append({ target: "", min_severity: "warning" })}
-              >
-                <PlusIcon size={14} />
-                Add recipient
-              </Button>
-            </div>
+            {canWrite && (
+              <div className="px-6 py-4 bg-muted/20">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => append({ target: "", min_severity: "warning" })}
+                >
+                  <PlusIcon size={14} />
+                  Add recipient
+                </Button>
+              </div>
+            )}
 
           </div>
         </form>

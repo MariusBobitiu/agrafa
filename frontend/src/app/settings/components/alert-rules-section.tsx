@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
 import { useAlertRules, useUpdateAlertRule, useDeleteAlertRule } from "@/hooks/use-alerts.ts";
+import { useCanWrite } from "@/hooks/use-project-role.ts";
 import { CreateAlertRuleDialog } from "../../alerts/components/create-alert-rule-dialog.tsx";
 import { BellIcon } from "@/components/animate-ui/icons";
 import type { AlertRule, RuleType, Severity } from "@/types/alert.ts";
@@ -47,10 +48,12 @@ function AlertRuleRow({
   rule,
   onToggle,
   onDelete,
+  canWrite,
 }: {
   rule: AlertRule;
   onToggle: (id: number, enabled: boolean) => void;
   onDelete: (id: number) => void;
+  canWrite: boolean;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -79,16 +82,19 @@ function AlertRuleRow({
         <div className="flex items-center gap-3 shrink-0">
           <Switch
             checked={rule.is_enabled}
-            onCheckedChange={(checked) => onToggle(rule.id, checked)}
+            onCheckedChange={(checked) => canWrite && onToggle(rule.id, checked)}
+            disabled={!canWrite}
           />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground/50 hover:text-destructive"
-            onClick={() => setDeleteOpen(true)}
-          >
-            <TrashIcon size={14} />
-          </Button>
+          {canWrite && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground/50 hover:text-destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <TrashIcon size={14} />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -110,6 +116,7 @@ function AlertRuleRow({
 
 export function AlertRulesSection({ projectId }: { projectId: number }) {
   const [createOpen, setCreateOpen] = useState(false);
+  const canWrite = useCanWrite(projectId);
 
   const { data, isLoading } = useAlertRules(projectId);
   const toggle = useUpdateAlertRule(projectId);
@@ -136,10 +143,12 @@ export function AlertRulesSection({ projectId }: { projectId: number }) {
             Define when Agrafa should trigger a notification.
           </p>
         </div>
-        <Button size="sm" variant={"secondary"} onClick={() => setCreateOpen(true)}>
-          <PlusIcon size={14} />
-          Add rule
-        </Button>
+        {canWrite && (
+          <Button size="sm" variant={"secondary"} onClick={() => setCreateOpen(true)}>
+            <PlusIcon size={14} />
+            Add rule
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -153,7 +162,7 @@ export function AlertRulesSection({ projectId }: { projectId: number }) {
           icon={BellIcon}
           title="No alert rules"
           description="Add a rule to get notified when something goes wrong."
-          action={{ label: "Add rule", onClick: () => setCreateOpen(true) }}
+          action={canWrite ? { label: "Add rule", onClick: () => setCreateOpen(true) } : undefined}
         />
       ) : (
         <div className="space-y-2">
@@ -163,6 +172,7 @@ export function AlertRulesSection({ projectId }: { projectId: number }) {
               rule={rule}
               onToggle={handleToggle}
               onDelete={handleDelete}
+              canWrite={canWrite}
             />
           ))}
         </div>
