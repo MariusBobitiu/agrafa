@@ -41,7 +41,9 @@ func WriteDomainError(w http.ResponseWriter, err error) bool {
 		errors.Is(err, types.ErrInvalidAlertStatus),
 		errors.Is(err, types.ErrInvalidNotificationChannelType),
 		errors.Is(err, types.ErrInvalidNotificationTarget),
-		errors.Is(err, types.ErrInvalidNotificationDeliveryStatus):
+		errors.Is(err, types.ErrInvalidNotificationDeliveryStatus),
+		errors.Is(err, types.ErrInvalidInstanceSettingKey),
+		errors.Is(err, types.ErrInvalidInstanceSettingValue):
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return true
 	case errors.Is(err, types.ErrUnauthenticated),
@@ -66,7 +68,8 @@ func WriteDomainError(w http.ResponseWriter, err error) bool {
 	case errors.Is(err, types.ErrProjectMemberAlreadyExists):
 		WriteError(w, http.StatusConflict, err.Error())
 		return true
-	case errors.Is(err, types.ErrNodeHasServices):
+	case errors.Is(err, types.ErrNodeHasServices),
+		errors.Is(err, types.ErrEmailNotConfigured):
 		WriteError(w, http.StatusConflict, err.Error())
 		return true
 	}

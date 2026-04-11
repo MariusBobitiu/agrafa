@@ -1191,6 +1191,82 @@
                 }
             }
         },
+        "/instance-settings": {
+            "get": {
+                "description": "Returns email-related DB-capable instance settings with UI metadata, masked sensitive values, and env override indicators.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "List instance settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/types.InstanceSettingsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Validates and upserts email-related DB-capable instance settings. Sensitive values are encrypted before storage.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Update instance settings",
+                "parameters": [
+                    {
+                        "description": "Instance settings update payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/types.InstanceSettingsUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/types.InstanceSettingsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/nodes": {
             "get": {
                 "description": "Returns visible nodes ordered by id. Hidden managed nodes are excluded.",
@@ -1656,6 +1732,64 @@
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/types.NotificationRecipientsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-recipients/test-email": {
+            "post": {
+                "description": "Verifies that the provided email exists as a project notification recipient before sending a test email.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Send notification recipient test email",
+                "parameters": [
+                    {
+                        "description": "Notification recipient test email payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/types.NotificationRecipientTestEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/types.AuthLogoutResponse"
                         }
                     },
                     "400": {
@@ -3594,6 +3728,88 @@
                 }
             }
         },
+        "types.InstanceSettingDocument": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Enables outbound email delivery when provider config is complete."
+                },
+                "group": {
+                    "type": "string",
+                    "example": "email"
+                },
+                "is_configured": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "is_editable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "is_encrypted": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "is_env_overridden": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "is_sensitive": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "key": {
+                    "type": "string",
+                    "example": "email.enabled"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Email Enabled"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "bool"
+                },
+                "value": {
+                    "type": "object"
+                }
+            }
+        },
+        "types.InstanceSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "settings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.InstanceSettingDocument"
+                    }
+                }
+            }
+        },
+        "types.InstanceSettingsUpdateItemRequest": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "email.enabled"
+                },
+                "value": {
+                    "type": "object"
+                }
+            }
+        },
+        "types.InstanceSettingsUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "settings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.InstanceSettingsUpdateItemRequest"
+                    }
+                }
+            }
+        },
         "types.MetricSampleRequest": {
             "type": "object",
             "properties": {
@@ -4016,6 +4232,19 @@
             "properties": {
                 "notification_recipient": {
                     "$ref": "#/definitions/types.NotificationRecipientDocument"
+                }
+            }
+        },
+        "types.NotificationRecipientTestEmailRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "ops@example.com"
+                },
+                "project_id": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },

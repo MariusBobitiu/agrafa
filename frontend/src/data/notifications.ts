@@ -19,4 +19,7 @@ export const notificationsApi = {
 
   listDeliveries: (projectId: number): Promise<{ deliveries: NotificationDelivery[] }> =>
     api.get(`/notification-deliveries?project_id=${projectId}`),
+
+  sendTestEmail: (projectId: number, email: string): Promise<void> =>
+    api.post("/notification-recipients/test-email", { project_id: projectId, email }),
 };

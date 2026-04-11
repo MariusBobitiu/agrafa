@@ -282,3 +282,211 @@ func TestInstanceSettingServiceRejectsUnknownKeys(t *testing.T) {
 		t.Fatalf("Upsert() error = %v", err)
 	}
 }
+
+func TestInstanceSettingServiceListForUIMasksSensitiveValuesAndExposesOverrideMetadata(t *testing.T) {
+	t.Parallel()
+
+	encryptor, err := config.NewEncryptor("test-app-secret")
+	if err != nil {
+		t.Fatalf("NewEncryptor() error = %v", err)
+	}
+
+	encryptedAPIKey, err := encryptor.Encrypt("re_db_secret")
+	if err != nil {
+		t.Fatalf("Encrypt() error = %v", err)
+	}
+
+	repo := &fakeInstanceSettingRepository{
+		items: map[string]generated.InstanceSetting{
+			string(config.SettingKeyEmailEnabled): {
+				Key:   string(config.SettingKeyEmailEnabled),
+				Value: sql.NullString{String: "false", Valid: true},
+			},
+			string(config.SettingKeyEmailResendAPIKey): {
+				Key:         string(config.SettingKeyEmailResendAPIKey),
+				Value:       sql.NullString{String: encryptedAPIKey, Valid: true},
+				IsSensitive: true,
+				IsEncrypted: true,
+			},
+			string(config.SettingKeyEmailResendDomain): {
+				Key:   string(config.SettingKeyEmailResendDomain),
+				Value: sql.NullString{String: "email.db.example.com", Valid: true},
+			},
+		},
+	}
+
+	service := &InstanceSettingService{
+		repo:      repo,
+		encryptor: encryptor,
+		envLookup: func(name string) (string, bool) {
+			switch name {
+			case "EMAIL_ENABLED":
+				return "true", true
+			case "EMAIL_RESEND_API_KEY":
+				return "re_env_secret", true
+			default:
+				return "", false
+			}
+		},
+	}
+
+	settings, err := service.ListForUI(context.Background())
+	if err != nil {
+		t.Fatalf("ListForUI() error = %v", err)
+	}
+
+	emailEnabled := findInstanceSettingByKey(t, settings, string(config.SettingKeyEmailEnabled))
+	if emailEnabled.Value != true {
+		t.Fatalf("email.enabled value = %#v, want true", emailEnabled.Value)
+	}
+	if !emailEnabled.IsEnvOverridden {
+		t.Fatal("email.enabled should be marked as env overridden")
+	}
+	if !emailEnabled.IsEditable {
+		t.Fatal("email.enabled should remain editable")
+	}
+
+	apiKey := findInstanceSettingByKey(t, settings, string(config.SettingKeyEmailResendAPIKey))
+	if apiKey.Value != "********" {
+		t.Fatalf("email.resend_api_key value = %#v, want masked", apiKey.Value)
+	}
+	if apiKey.IsConfigured == nil || !*apiKey.IsConfigured {
+		t.Fatalf("email.resend_api_key configured = %#v, want true", apiKey.IsConfigured)
+	}
+	if !apiKey.IsEnvOverridden {
+		t.Fatal("email.resend_api_key should be marked as env overridden")
+	}
+
+	domain := findInstanceSettingByKey(t, settings, string(config.SettingKeyEmailResendDomain))
+	if domain.Value != "email.db.example.com" {
+		t.Fatalf("email.resend_domain value = %#v", domain.Value)
+	}
+
+	provider := findInstanceSettingByKey(t, settings, string(config.SettingKeyEmailProvider))
+	if provider.Value != "resend" {
+		t.Fatalf("email.provider value = %#v, want default resend", provider.Value)
+	}
+}
+
+func TestInstanceSettingServiceUpdateBatchForUIUpdatesNonSensitiveValues(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeInstanceSettingRepository{items: map[string]generated.InstanceSetting{}}
+	service := &InstanceSettingService{repo: repo}
+
+	settings, err := service.UpdateBatchForUI(context.Background(), []types.InstanceSettingsUpdateItemRequest{
+		{Key: string(config.SettingKeyEmailEnabled), Value: true},
+		{Key: string(config.SettingKeyEmailResendDomain), Value: "email.example.com"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateBatchForUI() error = %v", err)
+	}
+
+	storedEnabled := repo.items[string(config.SettingKeyEmailEnabled)]
+	if !storedEnabled.Value.Valid || storedEnabled.Value.String != "true" {
+		t.Fatalf("stored email.enabled = %#v", storedEnabled.Value)
+	}
+
+	storedDomain := repo.items[string(config.SettingKeyEmailResendDomain)]
+	if !storedDomain.Value.Valid || storedDomain.Value.String != "email.example.com" {
+		t.Fatalf("stored email.resend_domain = %#v", storedDomain.Value)
+	}
+
+	emailEnabled := findInstanceSettingByKey(t, settings, string(config.SettingKeyEmailEnabled))
+	if emailEnabled.Value != true {
+		t.Fatalf("email.enabled response value = %#v, want true", emailEnabled.Value)
+	}
+
+	domain := findInstanceSettingByKey(t, settings, string(config.SettingKeyEmailResendDomain))
+	if domain.Value != "email.example.com" {
+		t.Fatalf("email.resend_domain response value = %#v", domain.Value)
+	}
+}
+
+func TestInstanceSettingServiceUpdateBatchForUIEncryptsSensitiveValues(t *testing.T) {
+	t.Parallel()
+
+	encryptor, err := config.NewEncryptor("test-app-secret")
+	if err != nil {
+		t.Fatalf("NewEncryptor() error = %v", err)
+	}
+
+	repo := &fakeInstanceSettingRepository{items: map[string]generated.InstanceSetting{}}
+	service := &InstanceSettingService{
+		repo:      repo,
+		encryptor: encryptor,
+	}
+
+	settings, err := service.UpdateBatchForUI(context.Background(), []types.InstanceSettingsUpdateItemRequest{
+		{Key: string(config.SettingKeyEmailResendAPIKey), Value: "re_secret"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateBatchForUI() error = %v", err)
+	}
+
+	stored := repo.items[string(config.SettingKeyEmailResendAPIKey)]
+	if !stored.Value.Valid {
+		t.Fatal("stored sensitive value is not valid")
+	}
+	if stored.Value.String == "re_secret" {
+		t.Fatal("sensitive value was stored in plaintext")
+	}
+
+	decrypted, err := encryptor.Decrypt(stored.Value.String)
+	if err != nil {
+		t.Fatalf("Decrypt() error = %v", err)
+	}
+	if decrypted != "re_secret" {
+		t.Fatalf("decrypted sensitive value = %q", decrypted)
+	}
+
+	apiKey := findInstanceSettingByKey(t, settings, string(config.SettingKeyEmailResendAPIKey))
+	if apiKey.Value != "********" {
+		t.Fatalf("email.resend_api_key response value = %#v, want masked", apiKey.Value)
+	}
+}
+
+func TestInstanceSettingServiceUpdateBatchForUIRejectsEnvOnlyKeys(t *testing.T) {
+	t.Parallel()
+
+	service := &InstanceSettingService{repo: &fakeInstanceSettingRepository{items: map[string]generated.InstanceSetting{}}}
+
+	_, err := service.UpdateBatchForUI(context.Background(), []types.InstanceSettingsUpdateItemRequest{
+		{Key: string(config.SettingKeyAppBaseURL), Value: "https://example.com"},
+	})
+	if err == nil {
+		t.Fatal("UpdateBatchForUI() error = nil")
+	}
+	if !errors.Is(err, types.ErrInvalidInstanceSettingKey) {
+		t.Fatalf("UpdateBatchForUI() error = %v", err)
+	}
+}
+
+func TestInstanceSettingServiceUpdateBatchForUIRejectsInvalidValues(t *testing.T) {
+	t.Parallel()
+
+	service := &InstanceSettingService{repo: &fakeInstanceSettingRepository{items: map[string]generated.InstanceSetting{}}}
+
+	_, err := service.UpdateBatchForUI(context.Background(), []types.InstanceSettingsUpdateItemRequest{
+		{Key: string(config.SettingKeyEmailProvider), Value: "ses"},
+	})
+	if err == nil {
+		t.Fatal("UpdateBatchForUI() error = nil")
+	}
+	if !errors.Is(err, types.ErrInvalidInstanceSettingValue) {
+		t.Fatalf("UpdateBatchForUI() error = %v", err)
+	}
+}
+
+func findInstanceSettingByKey(t *testing.T, settings []types.InstanceSettingReadData, key string) types.InstanceSettingReadData {
+	t.Helper()
+
+	for _, setting := range settings {
+		if setting.Key == key {
+			return setting
+		}
+	}
+
+	t.Fatalf("instance setting %q not found", key)
+	return types.InstanceSettingReadData{}
+}

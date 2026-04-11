@@ -1,0 +1,9 @@
+AGRAFA TEST NOTIFICATION EMAIL
+
+This is a delivery test from Agrafa.
+{{if .ProjectName}}Project: {{.ProjectName}}
+{{end}}{{if .ProjectID}}Project ID: {{.ProjectID}}
+{{end}}Recipient: {{.Recipient}}
+Sent at: {{formatTime .SentAt}}
+
+If you received this message, your notification email setup is working.

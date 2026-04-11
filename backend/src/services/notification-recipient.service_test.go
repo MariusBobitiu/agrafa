@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
+	emailpkg "github.com/MariusBobitiu/agrafa-backend/src/email"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
 )
 
@@ -49,6 +50,17 @@ func (r *fakeNotificationRecipientRepo) Create(_ context.Context, params generat
 
 func (r *fakeNotificationRecipientRepo) List(_ context.Context, _ *int64) ([]generated.NotificationRecipient, error) {
 	return r.recipients, nil
+}
+
+func (r *fakeNotificationRecipientRepo) ListByProjectAndChannel(_ context.Context, projectID int64, channelType string) ([]generated.NotificationRecipient, error) {
+	items := make([]generated.NotificationRecipient, 0, len(r.recipients))
+	for _, recipient := range r.recipients {
+		if recipient.ProjectID == projectID && recipient.ChannelType == channelType {
+			items = append(items, recipient)
+		}
+	}
+
+	return items, nil
 }
 
 func (r *fakeNotificationRecipientRepo) GetByID(_ context.Context, id int64) (generated.NotificationRecipient, error) {
@@ -94,6 +106,17 @@ func (r *fakeNotificationProjectRepo) GetByID(_ context.Context, id int64) (gene
 	}
 
 	return project, nil
+}
+
+type fakeNotificationRecipientEmailService struct {
+	recipients []string
+	lastData   emailpkg.NotificationRecipientTestTemplateData
+}
+
+func (s *fakeNotificationRecipientEmailService) SendNotificationRecipientTestEmail(_ context.Context, to string, data emailpkg.NotificationRecipientTestTemplateData) error {
+	s.recipients = append(s.recipients, to)
+	s.lastData = data
+	return nil
 }
 
 func TestCreateNotificationRecipientsAcceptsValidEmailsAndPersistsMinSeverity(t *testing.T) {
@@ -326,5 +349,81 @@ func TestGetNotificationRecipientByIDReturnsMappedRecipient(t *testing.T) {
 	}
 	if recipient.MinSeverity != types.AlertSeverityWarning {
 		t.Fatalf("recipient.MinSeverity = %q, want %q", recipient.MinSeverity, types.AlertSeverityWarning)
+	}
+}
+
+func TestSendNotificationRecipientTestEmailSendsToExistingRecipient(t *testing.T) {
+	t.Parallel()
+
+	emailService := &fakeNotificationRecipientEmailService{}
+	service := &NotificationRecipientService{
+		notificationRecipientRepo: &fakeNotificationRecipientRepo{
+			recipients: []generated.NotificationRecipient{
+				{
+					ID:          7,
+					ProjectID:   1,
+					ChannelType: types.NotificationChannelTypeEmail,
+					Target:      "ops@example.com",
+					IsEnabled:   false,
+				},
+			},
+		},
+		projectRepo: &fakeNotificationProjectRepo{
+			projects: map[int64]generated.Project{
+				1: {ID: 1, Name: "Agrafa"},
+			},
+		},
+		emailService: emailService,
+	}
+
+	err := service.SendTestEmail(context.Background(), 1, "Ops@example.com")
+	if err != nil {
+		t.Fatalf("SendTestEmail() error = %v", err)
+	}
+	if len(emailService.recipients) != 1 || emailService.recipients[0] != "ops@example.com" {
+		t.Fatalf("recipients = %#v", emailService.recipients)
+	}
+	if emailService.lastData.ProjectName != "Agrafa" {
+		t.Fatalf("lastData.ProjectName = %q", emailService.lastData.ProjectName)
+	}
+	if emailService.lastData.Recipient != "ops@example.com" {
+		t.Fatalf("lastData.Recipient = %q", emailService.lastData.Recipient)
+	}
+}
+
+func TestSendNotificationRecipientTestEmailRejectsUnknownRecipient(t *testing.T) {
+	t.Parallel()
+
+	service := &NotificationRecipientService{
+		notificationRecipientRepo: &fakeNotificationRecipientRepo{},
+		projectRepo: &fakeNotificationProjectRepo{
+			projects: map[int64]generated.Project{
+				1: {ID: 1, Name: "Agrafa"},
+			},
+		},
+		emailService: &fakeNotificationRecipientEmailService{},
+	}
+
+	err := service.SendTestEmail(context.Background(), 1, "ops@example.com")
+	if !errors.Is(err, types.ErrNotificationRecipientNotFound) {
+		t.Fatalf("SendTestEmail() error = %v, want ErrNotificationRecipientNotFound", err)
+	}
+}
+
+func TestSendNotificationRecipientTestEmailRequiresConfiguredEmail(t *testing.T) {
+	t.Parallel()
+
+	service := &NotificationRecipientService{
+		notificationRecipientRepo: &fakeNotificationRecipientRepo{},
+		projectRepo: &fakeNotificationProjectRepo{
+			projects: map[int64]generated.Project{
+				1: {ID: 1, Name: "Agrafa"},
+			},
+		},
+	}
+
+	err := service.SendTestEmail(context.Background(), 1, "ops@example.com")
+	if !errors.Is(err, types.ErrEmailNotConfigured) {
+		t.Fatalf("SendTestEmail() error = %v, want ErrEmailNotConfigured", err)
 	}
 }

@@ -40,6 +40,7 @@ const (
 type SettingDefinition struct {
 	Key          SettingKey
 	Group        string
+	Label        string
 	Description  string
 	Type         SettingType
 	DefaultValue *string
@@ -71,6 +72,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyPostgresURI: {
 		Key:         SettingKeyPostgresURI,
 		Group:       "postgres",
+		Label:       "Postgres URI",
 		Description: "Primary PostgreSQL connection string for the backend.",
 		Type:        SettingTypeString,
 		IsRequired:  true,
@@ -80,6 +82,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyAppEnv: {
 		Key:          SettingKeyAppEnv,
 		Group:        "app",
+		Label:        "Environment",
 		Description:  "Application environment name.",
 		Type:         SettingTypeString,
 		DefaultValue: stringSetting("development"),
@@ -89,6 +92,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyPort: {
 		Key:          SettingKeyPort,
 		Group:        "app",
+		Label:        "Port",
 		Description:  "HTTP listen port.",
 		Type:         SettingTypeString,
 		DefaultValue: stringSetting("8080"),
@@ -98,6 +102,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyAppBaseURL: {
 		Key:          SettingKeyAppBaseURL,
 		Group:        "app",
+		Label:        "Base URL",
 		Description:  "Public frontend base URL used in generated links.",
 		Type:         SettingTypeString,
 		DefaultValue: stringSetting("http://localhost:3000"),
@@ -107,6 +112,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyAppSecret: {
 		Key:         SettingKeyAppSecret,
 		Group:       "app",
+		Label:       "App Secret",
 		Description: "Application secret used for cryptographic derivation.",
 		Type:        SettingTypeString,
 		IsRequired:  true,
@@ -117,6 +123,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyNodeHeartbeatTTLSeconds: {
 		Key:          SettingKeyNodeHeartbeatTTLSeconds,
 		Group:        "node",
+		Label:        "Heartbeat TTL",
 		Description:  "TTL in seconds before a node is treated as offline.",
 		Type:         SettingTypeInt,
 		DefaultValue: stringSetting("60"),
@@ -127,6 +134,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyNodeExpiryCheckIntervalSeconds: {
 		Key:          SettingKeyNodeExpiryCheckIntervalSeconds,
 		Group:        "node",
+		Label:        "Expiry Check Interval",
 		Description:  "Interval in seconds between node expiry checks.",
 		Type:         SettingTypeInt,
 		DefaultValue: stringSetting("15"),
@@ -137,6 +145,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyManagedCheckIntervalSeconds: {
 		Key:          SettingKeyManagedCheckIntervalSeconds,
 		Group:        "managed_service",
+		Label:        "Check Interval",
 		Description:  "Interval in seconds between managed service checks.",
 		Type:         SettingTypeInt,
 		DefaultValue: stringSetting("15"),
@@ -147,6 +156,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyManagedCheckTimeoutSeconds: {
 		Key:          SettingKeyManagedCheckTimeoutSeconds,
 		Group:        "managed_service",
+		Label:        "Check Timeout",
 		Description:  "Timeout in seconds for managed service checks.",
 		Type:         SettingTypeInt,
 		DefaultValue: stringSetting("10"),
@@ -157,6 +167,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeySessionTTLDays: {
 		Key:          SettingKeySessionTTLDays,
 		Group:        "session",
+		Label:        "Session TTL",
 		Description:  "Session lifetime in days.",
 		Type:         SettingTypeInt,
 		DefaultValue: stringSetting("7"),
@@ -167,6 +178,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeySessionRememberTTLDays: {
 		Key:          SettingKeySessionRememberTTLDays,
 		Group:        "session",
+		Label:        "Remember Session TTL",
 		Description:  "Remember-me session lifetime in days.",
 		Type:         SettingTypeInt,
 		DefaultValue: stringSetting("30"),
@@ -177,6 +189,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyEmailEnabled: {
 		Key:          SettingKeyEmailEnabled,
 		Group:        "email",
+		Label:        "Email Enabled",
 		Description:  "Enables outbound email delivery when provider config is complete.",
 		Type:         SettingTypeBool,
 		DefaultValue: stringSetting("false"),
@@ -185,6 +198,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyEmailProvider: {
 		Key:          SettingKeyEmailProvider,
 		Group:        "email",
+		Label:        "Email Provider",
 		Description:  "Outbound email provider.",
 		Type:         SettingTypeEnum,
 		DefaultValue: stringSetting("resend"),
@@ -194,6 +208,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyEmailResendAPIKey: {
 		Key:         SettingKeyEmailResendAPIKey,
 		Group:       "email",
+		Label:       "Resend API Key",
 		Description: "Resend API key used for sending emails.",
 		Type:        SettingTypeString,
 		IsSensitive: true,
@@ -203,6 +218,7 @@ var registry = map[SettingKey]SettingDefinition{
 	SettingKeyEmailResendDomain: {
 		Key:         SettingKeyEmailResendDomain,
 		Group:       "email",
+		Label:       "Resend Domain",
 		Description: "Resend sending domain.",
 		Type:        SettingTypeString,
 		EnvVars:     []string{"EMAIL_RESEND_DOMAIN"},

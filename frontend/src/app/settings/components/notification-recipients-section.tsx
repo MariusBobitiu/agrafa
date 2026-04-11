@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { MailIcon, PlusIcon, SaveIcon, TrashIcon } from "lucide-react";
+import { MailIcon, PlusIcon, SaveIcon, SendIcon, TrashIcon } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { notificationsApi } from "@/data/notifications.ts";
 import { useCanWrite } from "@/hooks/use-project-role.ts";
 import type { Severity } from "@/types/alert.ts";
@@ -55,6 +56,12 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
       toast.success("Recipients saved");
     },
     onError: () => toast.error("Couldn't save recipients. Try again."),
+  });
+
+  const sendTest = useMutation({
+    mutationFn: (email: string) => notificationsApi.sendTestEmail(projectId, email),
+    onSuccess: () => toast.success("Test email sent"),
+    onError: () => toast.error("Couldn't send test email. Try again."),
   });
 
   const form = useForm<FormValues>({
@@ -169,15 +176,35 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
                       )}
                     />
                     {canWrite && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="mt-1 text-muted-foreground/40 hover:text-destructive shrink-0"
-                        onClick={() => remove(index)}
-                      >
-                        <TrashIcon size={13} />
-                      </Button>
+                      <div className="mt-1 flex items-center gap-1 shrink-0">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-muted-foreground/40 hover:text-foreground"
+                              disabled={sendTest.isPending}
+                              onClick={() => {
+                                const email = form.getValues(`recipients.${index}.target`);
+                                if (email) sendTest.mutate(email);
+                              }}
+                            >
+                              <SendIcon size={13} />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Send test email</TooltipContent>
+                        </Tooltip>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground/40 hover:text-destructive hover:bg-destructive/20"
+                          onClick={() => remove(index)}
+                        >
+                          <TrashIcon size={13} />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 ))}

@@ -238,6 +238,20 @@ type AuthSessionResult struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+type InstanceSettingReadData struct {
+	Key             string `json:"key"`
+	Group           string `json:"group"`
+	Label           string `json:"label"`
+	Description     string `json:"description"`
+	Type            string `json:"type"`
+	Value           any    `json:"value,omitempty"`
+	IsSensitive     bool   `json:"is_sensitive"`
+	IsEncrypted     bool   `json:"is_encrypted"`
+	IsEnvOverridden bool   `json:"is_env_overridden"`
+	IsEditable      bool   `json:"is_editable"`
+	IsConfigured    *bool  `json:"is_configured,omitempty"`
+}
+
 type AuthUserSessionData struct {
 	ID        string    `json:"id"`
 	ExpiresAt time.Time `json:"expires_at"`

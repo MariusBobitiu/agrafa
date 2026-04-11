@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
+	emailpkg "github.com/MariusBobitiu/agrafa-backend/src/email"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
 	"github.com/MariusBobitiu/agrafa-backend/src/utils"
 )
@@ -38,12 +39,17 @@ type authSecurityEmailSender interface {
 	SendPasswordResetEmail(ctx context.Context, to string, name string, resetURL string) error
 }
 
+type authSecurityEmailProvider interface {
+	Security(ctx context.Context) (*emailpkg.Service, error)
+}
+
 type AuthService struct {
 	authRepo                 authStore
 	passwordService          *PasswordService
 	sessionService           *SessionService
 	verificationTokenService *VerificationTokenService
 	securityEmailService     authSecurityEmailSender
+	securityEmailProvider    authSecurityEmailProvider
 	appBaseURL               string
 	now                      func() time.Time
 }
@@ -60,6 +66,14 @@ func NewAuthService(authRepo authStore, passwordService *PasswordService, sessio
 
 func (s *AuthService) WithSecurityEmail(emailService authSecurityEmailSender, appBaseURL string) *AuthService {
 	s.securityEmailService = emailService
+	s.securityEmailProvider = nil
+	s.appBaseURL = strings.TrimRight(strings.TrimSpace(appBaseURL), "/")
+	return s
+}
+
+func (s *AuthService) WithSecurityEmailProvider(emailProvider authSecurityEmailProvider, appBaseURL string) *AuthService {
+	s.securityEmailProvider = emailProvider
+	s.securityEmailService = nil
 	s.appBaseURL = strings.TrimRight(strings.TrimSpace(appBaseURL), "/")
 	return s
 }
@@ -314,7 +328,12 @@ func (s *AuthService) SendVerifyEmail(ctx context.Context, user generated.User) 
 	if user.EmailVerified {
 		return nil
 	}
-	if s.securityEmailService == nil {
+
+	emailService, err := s.resolveSecurityEmailService(ctx)
+	if err != nil {
+		return err
+	}
+	if emailService == nil {
 		return nil
 	}
 
@@ -324,7 +343,7 @@ func (s *AuthService) SendVerifyEmail(ctx context.Context, user generated.User) 
 	}
 
 	verifyURL := s.buildTokenURL("/verify-email", rawToken)
-	if err := s.securityEmailService.SendVerifyEmail(ctx, user.Email, user.Name, verifyURL); err != nil {
+	if err := emailService.SendVerifyEmail(ctx, user.Email, user.Name, verifyURL); err != nil {
 		return fmt.Errorf("send verify email: %w", err)
 	}
 	return nil
@@ -364,7 +383,12 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 
 		return fmt.Errorf("get user by email: %w", err)
 	}
-	if s.securityEmailService == nil {
+
+	emailService, err := s.resolveSecurityEmailService(ctx)
+	if err != nil {
+		return err
+	}
+	if emailService == nil {
 		return nil
 	}
 
@@ -374,7 +398,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 	}
 
 	resetURL := s.buildTokenURL("/reset-password", rawToken)
-	if err := s.securityEmailService.SendPasswordResetEmail(ctx, user.Email, user.Name, resetURL); err != nil {
+	if err := emailService.SendPasswordResetEmail(ctx, user.Email, user.Name, resetURL); err != nil {
 		return fmt.Errorf("send password reset email: %w", err)
 	}
 
@@ -440,6 +464,19 @@ func (s *AuthService) VerifyPassword(ctx context.Context, userID string, passwor
 	}
 
 	return nil
+}
+
+func (s *AuthService) resolveSecurityEmailService(ctx context.Context) (authSecurityEmailSender, error) {
+	if s.securityEmailProvider != nil {
+		emailService, err := s.securityEmailProvider.Security(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("resolve security email service: %w", err)
+		}
+
+		return emailService, nil
+	}
+
+	return s.securityEmailService, nil
 }
 
 func (s *AuthService) currentTokenHash(rawSessionToken string) (string, error) {

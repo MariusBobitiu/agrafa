@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -152,6 +153,63 @@ func (s *InstanceSettingService) List(ctx context.Context) ([]InstanceSettingVie
 	}
 
 	return views, nil
+}
+
+func (s *InstanceSettingService) ListForUI(ctx context.Context) ([]types.InstanceSettingReadData, error) {
+	definitions := instanceSettingsUIDefinitions()
+	items := make([]types.InstanceSettingReadData, 0, len(definitions))
+	for _, definition := range definitions {
+		resolved, err := s.resolve(ctx, definition.Key)
+		if err != nil {
+			return nil, fmt.Errorf("resolve instance setting %s: %w", definition.Key, err)
+		}
+
+		item, err := mapInstanceSettingReadData(definition, resolved)
+		if err != nil {
+			return nil, fmt.Errorf("map instance setting %s: %w", definition.Key, err)
+		}
+
+		items = append(items, item)
+	}
+
+	return items, nil
+}
+
+func (s *InstanceSettingService) UpdateBatchForUI(ctx context.Context, updates []types.InstanceSettingsUpdateItemRequest) ([]types.InstanceSettingReadData, error) {
+	type normalizedUpdate struct {
+		key   config.SettingKey
+		value *string
+	}
+
+	normalized := make([]normalizedUpdate, 0, len(updates))
+	for _, update := range updates {
+		key := config.SettingKey(update.Key)
+		definition, ok := instanceSettingsUIDefinition(key)
+		if !ok {
+			return nil, fmt.Errorf("%w: %s is not supported", types.ErrInvalidInstanceSettingKey, update.Key)
+		}
+
+		value, err := normalizeInstanceSettingInputValue(definition, update.Value)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", types.ErrInvalidInstanceSettingValue, err)
+		}
+		if err := config.ValidateSettingValue(definition, value); err != nil {
+			return nil, fmt.Errorf("%w: %v", types.ErrInvalidInstanceSettingValue, err)
+		}
+
+		normalized = append(normalized, normalizedUpdate{
+			key:   key,
+			value: value,
+		})
+	}
+
+	for _, update := range normalized {
+		if _, err := s.Upsert(ctx, update.key, update.value); err != nil {
+			return nil, err
+		}
+	}
+
+	return s.ListForUI(ctx)
 }
 
 func (s *InstanceSettingService) ResolveString(ctx context.Context, key config.SettingKey) (config.ResolvedSettingValue, error) {
@@ -365,4 +423,131 @@ func lookupResolvedEnvValue(definition config.SettingDefinition, lookup config.E
 	}
 
 	return "", false
+}
+
+func instanceSettingsUIDefinitions() []config.SettingDefinition {
+	definitions := make([]config.SettingDefinition, 0)
+	for _, definition := range config.DBSettingDefinitions() {
+		if definition.Group != "email" {
+			continue
+		}
+
+		definitions = append(definitions, definition)
+	}
+
+	return definitions
+}
+
+func instanceSettingsUIDefinition(key config.SettingKey) (config.SettingDefinition, bool) {
+	definition, ok := config.LookupDefinition(key)
+	if !ok || definition.IsEnvOnly || definition.Group != "email" {
+		return config.SettingDefinition{}, false
+	}
+
+	return definition, true
+}
+
+func mapInstanceSettingReadData(definition config.SettingDefinition, resolved config.ResolvedSettingValue) (types.InstanceSettingReadData, error) {
+	item := types.InstanceSettingReadData{
+		Key:             string(definition.Key),
+		Group:           definition.Group,
+		Label:           settingLabel(definition),
+		Description:     definition.Description,
+		Type:            string(definition.Type),
+		IsSensitive:     definition.IsSensitive,
+		IsEncrypted:     definition.IsEncrypted,
+		IsEnvOverridden: resolved.Source == config.ValueSourceEnv,
+		IsEditable:      true,
+	}
+
+	if definition.IsSensitive {
+		configured := resolved.HasValue
+		item.IsConfigured = &configured
+		if configured {
+			item.Value = maskSensitiveValue(resolved.Value)
+		}
+
+		return item, nil
+	}
+
+	if !resolved.HasValue {
+		return item, nil
+	}
+
+	value, err := parseInstanceSettingValue(definition, resolved.Value)
+	if err != nil {
+		return types.InstanceSettingReadData{}, err
+	}
+
+	item.Value = value
+	return item, nil
+}
+
+func settingLabel(definition config.SettingDefinition) string {
+	if definition.Label != "" {
+		return definition.Label
+	}
+
+	return string(definition.Key)
+}
+
+func parseInstanceSettingValue(definition config.SettingDefinition, value string) (any, error) {
+	switch definition.Type {
+	case config.SettingTypeBool:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+		if err != nil {
+			return nil, fmt.Errorf("%s must be a boolean: %w", definition.Key, err)
+		}
+
+		return parsed, nil
+	case config.SettingTypeInt:
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return nil, fmt.Errorf("%s must be an integer: %w", definition.Key, err)
+		}
+
+		return parsed, nil
+	case config.SettingTypeEnum, config.SettingTypeString:
+		return value, nil
+	default:
+		return nil, fmt.Errorf("%s has unsupported type %q", definition.Key, definition.Type)
+	}
+}
+
+func normalizeInstanceSettingInputValue(definition config.SettingDefinition, value any) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	switch definition.Type {
+	case config.SettingTypeBool:
+		parsed, ok := value.(bool)
+		if !ok {
+			return nil, fmt.Errorf("%s expects a boolean value", definition.Key)
+		}
+
+		normalized := strconv.FormatBool(parsed)
+		return &normalized, nil
+	case config.SettingTypeInt:
+		number, ok := value.(float64)
+		if !ok {
+			return nil, fmt.Errorf("%s expects an integer value", definition.Key)
+		}
+		if math.Trunc(number) != number {
+			return nil, fmt.Errorf("%s expects an integer value", definition.Key)
+		}
+
+		normalized := strconv.Itoa(int(number))
+		return &normalized, nil
+	case config.SettingTypeEnum, config.SettingTypeString:
+		parsed, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("%s expects a string value", definition.Key)
+		}
+
+		normalized := strings.TrimSpace(parsed)
+		return &normalized, nil
+	default:
+		return nil, fmt.Errorf("%s has unsupported type %q", definition.Key, definition.Type)
+	}
 }

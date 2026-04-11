@@ -16,4 +16,5 @@ var (
 	ErrInvalidNotificationMinSeverity    = errors.New("min_severity must be info, warning, or critical")
 	ErrNotificationRecipientNotFound     = errors.New("notification recipient not found")
 	ErrInvalidNotificationDeliveryStatus = errors.New("status must be sent or failed")
+	ErrEmailNotConfigured                = errors.New("email sending is not configured")
 )

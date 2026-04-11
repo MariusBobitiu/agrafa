@@ -31,11 +31,16 @@ type alertEmailService interface {
 	SendAlertResolvedEmail(ctx context.Context, to string, data emailpkg.AlertTemplateData) error
 }
 
+type alertEmailProvider interface {
+	Alerts(ctx context.Context) (*emailpkg.Service, error)
+}
+
 type NotificationService struct {
 	notificationRecipientRepo notificationDispatchRecipientRepository
 	projectRepo               notificationDispatchProjectRepository
 	notificationDeliverySvc   notificationDeliveryRecorder
 	emailService              alertEmailService
+	emailProvider             alertEmailProvider
 }
 
 func NewNotificationService(
@@ -52,6 +57,10 @@ func NewNotificationService(
 	}
 }
 
+func (s *NotificationService) WithEmailProvider(emailProvider alertEmailProvider) {
+	s.emailProvider = emailProvider
+}
+
 func (s *NotificationService) NotifyAlertTriggered(ctx context.Context, rule generated.AlertRule, alert generated.AlertInstance) error {
 	return s.notifyAlert(ctx, types.EventTypeAlertTriggered, rule, alert)
 }
@@ -61,7 +70,11 @@ func (s *NotificationService) NotifyAlertResolved(ctx context.Context, rule gene
 }
 
 func (s *NotificationService) notifyAlert(ctx context.Context, eventType string, rule generated.AlertRule, alert generated.AlertInstance) error {
-	if s == nil || s.emailService == nil {
+	emailService, err := s.resolveEmailService(ctx)
+	if err != nil {
+		return err
+	}
+	if s == nil || emailService == nil {
 		return nil
 	}
 
@@ -86,9 +99,9 @@ func (s *NotificationService) notifyAlert(ctx context.Context, eventType string,
 		var sendErr error
 		switch eventType {
 		case types.EventTypeAlertResolved:
-			sendErr = s.emailService.SendAlertResolvedEmail(ctx, recipient.Target, data)
+			sendErr = emailService.SendAlertResolvedEmail(ctx, recipient.Target, data)
 		default:
-			sendErr = s.emailService.SendAlertTriggeredEmail(ctx, recipient.Target, data)
+			sendErr = emailService.SendAlertTriggeredEmail(ctx, recipient.Target, data)
 		}
 
 		deliveryStatus := types.NotificationDeliveryStatusSent
@@ -135,6 +148,23 @@ func (s *NotificationService) notifyAlert(ctx context.Context, eventType string,
 	}
 
 	return nil
+}
+
+func (s *NotificationService) resolveEmailService(ctx context.Context) (alertEmailService, error) {
+	if s == nil {
+		return nil, nil
+	}
+
+	if s.emailProvider != nil {
+		emailService, err := s.emailProvider.Alerts(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("resolve alert email service: %w", err)
+		}
+
+		return emailService, nil
+	}
+
+	return s.emailService, nil
 }
 
 func (s *NotificationService) buildAlertTemplateData(ctx context.Context, rule generated.AlertRule, alert generated.AlertInstance) emailpkg.AlertTemplateData {

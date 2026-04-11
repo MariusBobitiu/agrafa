@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
+	emailpkg "github.com/MariusBobitiu/agrafa-backend/src/email"
 	"github.com/MariusBobitiu/agrafa-backend/src/repositories"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
 	"github.com/MariusBobitiu/agrafa-backend/src/utils"
@@ -17,6 +19,7 @@ import (
 type notificationRecipientRepository interface {
 	Create(ctx context.Context, params generated.CreateNotificationRecipientParams) (generated.NotificationRecipient, error)
 	List(ctx context.Context, projectID *int64) ([]generated.NotificationRecipient, error)
+	ListByProjectAndChannel(ctx context.Context, projectID int64, channelType string) ([]generated.NotificationRecipient, error)
 	GetByID(ctx context.Context, id int64) (generated.NotificationRecipient, error)
 	UpdateEnabled(ctx context.Context, id int64, isEnabled bool) (generated.NotificationRecipient, error)
 	Delete(ctx context.Context, id int64) (int64, error)
@@ -26,9 +29,19 @@ type notificationRecipientProjectRepository interface {
 	GetByID(ctx context.Context, id int64) (generated.Project, error)
 }
 
+type notificationRecipientEmailService interface {
+	SendNotificationRecipientTestEmail(ctx context.Context, to string, data emailpkg.NotificationRecipientTestTemplateData) error
+}
+
+type notificationRecipientEmailProvider interface {
+	Notifications(ctx context.Context) (*emailpkg.Service, error)
+}
+
 type NotificationRecipientService struct {
 	notificationRecipientRepo notificationRecipientRepository
 	projectRepo               notificationRecipientProjectRepository
+	emailService              notificationRecipientEmailService
+	emailProvider             notificationRecipientEmailProvider
 }
 
 func NewNotificationRecipientService(
@@ -39,6 +52,16 @@ func NewNotificationRecipientService(
 		notificationRecipientRepo: notificationRecipientRepo,
 		projectRepo:               projectRepo,
 	}
+}
+
+func (s *NotificationRecipientService) WithEmail(emailService notificationRecipientEmailService) {
+	s.emailService = emailService
+	s.emailProvider = nil
+}
+
+func (s *NotificationRecipientService) WithEmailProvider(emailProvider notificationRecipientEmailProvider) {
+	s.emailProvider = emailProvider
+	s.emailService = nil
 }
 
 func (s *NotificationRecipientService) Create(ctx context.Context, input types.CreateNotificationRecipientsInput) ([]types.NotificationRecipientReadData, error) {
@@ -160,6 +183,74 @@ func (s *NotificationRecipientService) Delete(ctx context.Context, notificationR
 	}
 
 	return nil
+}
+
+func (s *NotificationRecipientService) SendTestEmail(ctx context.Context, projectID int64, email string) error {
+	if projectID <= 0 {
+		return types.ErrInvalidProjectID
+	}
+
+	emailService, err := s.resolveEmailService(ctx)
+	if err != nil {
+		return err
+	}
+	if s == nil || emailService == nil {
+		return types.ErrEmailNotConfigured
+	}
+
+	target, err := normalizeNotificationEmailTarget(email)
+	if err != nil {
+		return err
+	}
+
+	recipients, err := s.notificationRecipientRepo.ListByProjectAndChannel(ctx, projectID, types.NotificationChannelTypeEmail)
+	if err != nil {
+		return fmt.Errorf("list notification recipients: %w", err)
+	}
+
+	found := false
+	for _, recipient := range recipients {
+		if recipient.Target == target {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return types.ErrNotificationRecipientNotFound
+	}
+
+	project, err := s.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return types.ErrProjectNotFound
+		}
+
+		return fmt.Errorf("get project: %w", err)
+	}
+
+	return emailService.SendNotificationRecipientTestEmail(ctx, target, emailpkg.NotificationRecipientTestTemplateData{
+		ProjectName: project.Name,
+		ProjectID:   projectID,
+		Recipient:   target,
+		SentAt:      time.Now().UTC(),
+	})
+}
+
+func (s *NotificationRecipientService) resolveEmailService(ctx context.Context) (notificationRecipientEmailService, error) {
+	if s == nil {
+		return nil, nil
+	}
+
+	if s.emailProvider != nil {
+		emailService, err := s.emailProvider.Notifications(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("resolve notification email service: %w", err)
+		}
+
+		return emailService, nil
+	}
+
+	return s.emailService, nil
 }
 
 func normalizeNotificationEmailTarget(value string) (string, error) {

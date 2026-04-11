@@ -9,6 +9,7 @@ import { AlertRulesSection } from "./components/alert-rules-section.tsx";
 import { ProjectSection } from "./components/project-section.tsx";
 import { MembersSection } from "./components/members-section.tsx";
 import { DangerZoneSection } from "./components/danger-zone-section.tsx";
+import { InstanceSection } from "./components/instance-section.tsx";
 
 // ─── Tab nav styles ───────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ export function SettingsPage() {
           <TabsTrigger value="project" className={tabTriggerClass}>Project</TabsTrigger>
           <TabsTrigger value="members" className={tabTriggerClass}>Members</TabsTrigger>
           <TabsTrigger value="integrations" className={tabTriggerClass}>Integrations</TabsTrigger>
+          <TabsTrigger value="instance" className={tabTriggerClass}>Instance</TabsTrigger>
           {canDeleteProject && (
             <TabsTrigger value="danger-zone" className={tabTriggerClass}>Danger Zone</TabsTrigger>
           )}
@@ -70,6 +72,11 @@ export function SettingsPage() {
             title="Integrations coming soon"
             description="Integrations will be available in a future release."
           />
+        </TabsContent>
+
+        {/* ── Instance ── */}
+        <TabsContent value="instance" className="mt-6">
+          <InstanceSection />
         </TabsContent>
 
         {/* ── Danger Zone ── */}

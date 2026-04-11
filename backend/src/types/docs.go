@@ -473,6 +473,11 @@ type NotificationRecipientUpdateRequest struct {
 	IsEnabled *bool `json:"is_enabled" example:"false"`
 }
 
+type NotificationRecipientTestEmailRequest struct {
+	ProjectID int64  `json:"project_id" example:"1"`
+	Email     string `json:"email" example:"ops@example.com"`
+}
+
 type ProjectMemberCreateRequest struct {
 	ProjectID int64  `json:"project_id" example:"1"`
 	UserID    string `json:"user_id" example:"usr_0123456789abcdef"`
@@ -481,6 +486,15 @@ type ProjectMemberCreateRequest struct {
 
 type ProjectMemberUpdateRequest struct {
 	Role string `json:"role" example:"admin"`
+}
+
+type InstanceSettingsUpdateItemRequest struct {
+	Key   string `json:"key" example:"email.enabled"`
+	Value any    `json:"value" swaggertype:"object"`
+}
+
+type InstanceSettingsUpdateRequest struct {
+	Settings []InstanceSettingsUpdateItemRequest `json:"settings"`
 }
 
 type HeartbeatResponse struct {
@@ -611,6 +625,24 @@ type ProjectInvitationsResponse struct {
 type ProjectInvitationAcceptResponse struct {
 	Status        string `json:"status" example:"ok"`
 	AlreadyMember bool   `json:"already_member" example:"false"`
+}
+
+type InstanceSettingDocument struct {
+	Key             string `json:"key" example:"email.enabled"`
+	Group           string `json:"group" example:"email"`
+	Label           string `json:"label" example:"Email Enabled"`
+	Description     string `json:"description" example:"Enables outbound email delivery when provider config is complete."`
+	Type            string `json:"type" example:"bool"`
+	Value           any    `json:"value,omitempty" swaggertype:"object"`
+	IsSensitive     bool   `json:"is_sensitive" example:"false"`
+	IsEncrypted     bool   `json:"is_encrypted" example:"false"`
+	IsEnvOverridden bool   `json:"is_env_overridden" example:"false"`
+	IsEditable      bool   `json:"is_editable" example:"true"`
+	IsConfigured    *bool  `json:"is_configured,omitempty" example:"true"`
+}
+
+type InstanceSettingsResponse struct {
+	Settings []InstanceSettingDocument `json:"settings"`
 }
 
 type OverviewResponse struct {

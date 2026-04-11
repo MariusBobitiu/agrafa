@@ -37,6 +37,13 @@ type ProjectInviteTemplateData struct {
 	AcceptURL   string
 }
 
+type NotificationRecipientTestTemplateData struct {
+	ProjectName string
+	ProjectID   int64
+	Recipient   string
+	SentAt      time.Time
+}
+
 type Service struct {
 	renderer *Renderer
 	sender   Sender
@@ -149,6 +156,31 @@ func (s *Service) SendProjectInvite(ctx context.Context, to string, data Project
 	})
 }
 
+func (s *Service) SendNotificationRecipientTestEmail(ctx context.Context, to string, data NotificationRecipientTestTemplateData) error {
+	htmlBody, err := s.renderHTML("notification_recipient_test.html", data)
+	if err != nil {
+		return err
+	}
+
+	textBody, err := s.renderText("notification_recipient_test.txt", data)
+	if err != nil {
+		return err
+	}
+
+	subject := "[Agrafa] Test notification email"
+	if strings.TrimSpace(data.ProjectName) != "" {
+		subject = "[Agrafa] Test notification email for " + data.ProjectName
+	}
+
+	return s.sendMessage(ctx, Message{
+		From:    s.from,
+		To:      []string{strings.TrimSpace(to)},
+		Subject: subject,
+		HTML:    htmlBody,
+		Text:    textBody,
+	})
+}
+
 func (s *Service) sendAlert(ctx context.Context, to string, definition alertEmailDefinition, data AlertTemplateData) error {
 	if s == nil || s.renderer == nil || s.sender == nil {
 		return nil
@@ -182,10 +214,18 @@ func (s *Service) sendMessage(ctx context.Context, message Message) error {
 }
 
 func (s *Service) renderHTML(templateName string, data any) (string, error) {
+	if s == nil || s.renderer == nil {
+		return "", fmt.Errorf("email renderer is not configured")
+	}
+
 	return s.renderer.RenderHTML(templateName, data)
 }
 
 func (s *Service) renderText(templateName string, data any) (string, error) {
+	if s == nil || s.renderer == nil {
+		return "", fmt.Errorf("email renderer is not configured")
+	}
+
 	return s.renderer.RenderText(templateName, data)
 }
 

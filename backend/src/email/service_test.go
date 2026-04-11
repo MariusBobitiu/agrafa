@@ -246,3 +246,57 @@ func TestSendProjectInviteRendersInviteTemplate(t *testing.T) {
 		t.Fatalf("unexpected rendered text: %q", message.Text)
 	}
 }
+
+func TestSendNotificationRecipientTestEmailRendersTemplate(t *testing.T) {
+	t.Parallel()
+
+	sender := &fakeSender{}
+	service := NewService(NewRenderer(), sender, "Agrafa Notifications <notifications@example.com>")
+
+	err := service.SendNotificationRecipientTestEmail(context.Background(), "ops@example.com", NotificationRecipientTestTemplateData{
+		ProjectName: "Agrafa Team",
+		ProjectID:   1,
+		Recipient:   "ops@example.com",
+		SentAt:      time.Date(2026, time.April, 11, 18, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("SendNotificationRecipientTestEmail returned error: %v", err)
+	}
+	if len(sender.messages) != 1 {
+		t.Fatalf("expected 1 email, got %d", len(sender.messages))
+	}
+
+	message := sender.messages[0]
+	if message.From != "Agrafa Notifications <notifications@example.com>" {
+		t.Fatalf("from = %q", message.From)
+	}
+	if !strings.Contains(message.Subject, "Agrafa Team") {
+		t.Fatalf("subject = %q", message.Subject)
+	}
+	if !strings.Contains(message.HTML, "delivery test from Agrafa") || !strings.Contains(message.HTML, "ops@example.com") {
+		t.Fatalf("unexpected rendered HTML: %q", message.HTML)
+	}
+	if !strings.Contains(message.Text, "AGRAFA TEST NOTIFICATION EMAIL") || !strings.Contains(message.Text, "Project: Agrafa Team") {
+		t.Fatalf("unexpected rendered text: %q", message.Text)
+	}
+}
+
+func TestSendNotificationRecipientTestEmailWithoutRendererReturnsError(t *testing.T) {
+	t.Parallel()
+
+	sender := &fakeSender{}
+	service := NewService(nil, sender, "Agrafa Notifications <notifications@example.com>")
+
+	err := service.SendNotificationRecipientTestEmail(context.Background(), "ops@example.com", NotificationRecipientTestTemplateData{
+		ProjectName: "Agrafa Team",
+		ProjectID:   1,
+		Recipient:   "ops@example.com",
+		SentAt:      time.Date(2026, time.April, 11, 18, 0, 0, 0, time.UTC),
+	})
+	if err == nil {
+		t.Fatal("SendNotificationRecipientTestEmail() error = nil")
+	}
+	if !strings.Contains(err.Error(), "email renderer is not configured") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

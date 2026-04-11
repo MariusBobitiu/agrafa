@@ -45,6 +45,10 @@ type projectInviteEmailSender interface {
 	SendProjectInvite(ctx context.Context, to string, data emailpkg.ProjectInviteTemplateData) error
 }
 
+type projectInviteEmailProvider interface {
+	Notifications(ctx context.Context) (*emailpkg.Service, error)
+}
+
 type ProjectInvitationService struct {
 	invitationRepo projectInvitationRepository
 	projectRepo    projectInvitationProjectRepository
@@ -52,6 +56,7 @@ type ProjectInvitationService struct {
 	userRepo       projectInvitationUserRepository
 	tokenService   *VerificationTokenService
 	emailService   projectInviteEmailSender
+	emailProvider  projectInviteEmailProvider
 	appBaseURL     string
 	now            func() time.Time
 }
@@ -74,6 +79,14 @@ func NewProjectInvitationService(
 
 func (s *ProjectInvitationService) WithEmail(emailService projectInviteEmailSender, appBaseURL string) *ProjectInvitationService {
 	s.emailService = emailService
+	s.emailProvider = nil
+	s.appBaseURL = strings.TrimRight(strings.TrimSpace(appBaseURL), "/")
+	return s
+}
+
+func (s *ProjectInvitationService) WithEmailProvider(emailProvider projectInviteEmailProvider, appBaseURL string) *ProjectInvitationService {
+	s.emailProvider = emailProvider
+	s.emailService = nil
 	s.appBaseURL = strings.TrimRight(strings.TrimSpace(appBaseURL), "/")
 	return s
 }
@@ -329,8 +342,13 @@ func (s *ProjectInvitationService) createForProject(ctx context.Context, project
 		return types.ProjectInvitationReadData{}, fmt.Errorf("create project invitation: %w", err)
 	}
 
-	if s.emailService != nil {
-		if err := s.emailService.SendProjectInvite(ctx, email, emailpkg.ProjectInviteTemplateData{
+	emailService, err := s.resolveEmailService(ctx)
+	if err != nil {
+		return types.ProjectInvitationReadData{}, err
+	}
+
+	if emailService != nil {
+		if err := emailService.SendProjectInvite(ctx, email, emailpkg.ProjectInviteTemplateData{
 			ProjectName: project.Name,
 			Role:        role,
 			InviterName: strings.TrimSpace(invitedByName),
@@ -341,6 +359,19 @@ func (s *ProjectInvitationService) createForProject(ctx context.Context, project
 	}
 
 	return mapProjectInvitation(invitation), nil
+}
+
+func (s *ProjectInvitationService) resolveEmailService(ctx context.Context) (projectInviteEmailSender, error) {
+	if s.emailProvider != nil {
+		emailService, err := s.emailProvider.Notifications(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("resolve invitation email service: %w", err)
+		}
+
+		return emailService, nil
+	}
+
+	return s.emailService, nil
 }
 
 func normalizeInvitationRole(role string) (string, error) {

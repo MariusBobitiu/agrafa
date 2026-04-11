@@ -391,6 +391,63 @@ definitions:
         example: ok
         type: string
     type: object
+  types.InstanceSettingDocument:
+    properties:
+      description:
+        example: Enables outbound email delivery when provider config is complete.
+        type: string
+      group:
+        example: email
+        type: string
+      is_configured:
+        example: true
+        type: boolean
+      is_editable:
+        example: true
+        type: boolean
+      is_encrypted:
+        example: false
+        type: boolean
+      is_env_overridden:
+        example: false
+        type: boolean
+      is_sensitive:
+        example: false
+        type: boolean
+      key:
+        example: email.enabled
+        type: string
+      label:
+        example: Email Enabled
+        type: string
+      type:
+        example: bool
+        type: string
+      value:
+        type: object
+    type: object
+  types.InstanceSettingsResponse:
+    properties:
+      settings:
+        items:
+          $ref: '#/definitions/types.InstanceSettingDocument'
+        type: array
+    type: object
+  types.InstanceSettingsUpdateItemRequest:
+    properties:
+      key:
+        example: email.enabled
+        type: string
+      value:
+        type: object
+    type: object
+  types.InstanceSettingsUpdateRequest:
+    properties:
+      settings:
+        items:
+          $ref: '#/definitions/types.InstanceSettingsUpdateItemRequest'
+        type: array
+    type: object
   types.MetricSampleRequest:
     properties:
       metric_name:
@@ -689,6 +746,15 @@ definitions:
     properties:
       notification_recipient:
         $ref: '#/definitions/types.NotificationRecipientDocument'
+    type: object
+  types.NotificationRecipientTestEmailRequest:
+    properties:
+      email:
+        example: ops@example.com
+        type: string
+      project_id:
+        example: 1
+        type: integer
     type: object
   types.NotificationRecipientUpdateRequest:
     properties:
@@ -2048,6 +2114,58 @@ paths:
       summary: List events
       tags:
       - events
+  /instance-settings:
+    get:
+      description: Returns email-related DB-capable instance settings with UI metadata,
+        masked sensitive values, and env override indicators.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.InstanceSettingsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: List instance settings
+      tags:
+      - settings
+    patch:
+      consumes:
+      - application/json
+      description: Validates and upserts email-related DB-capable instance settings.
+        Sensitive values are encrypted before storage.
+      parameters:
+      - description: Instance settings update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.InstanceSettingsUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.InstanceSettingsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Update instance settings
+      tags:
+      - settings
   /nodes:
     get:
       description: Returns visible nodes ordered by id. Hidden managed nodes are excluded.
@@ -2491,6 +2609,45 @@ paths:
           schema:
             $ref: '#/definitions/types.ErrorResponse'
       summary: Update notification recipient
+      tags:
+      - notifications
+  /notification-recipients/test-email:
+    post:
+      consumes:
+      - application/json
+      description: Verifies that the provided email exists as a project notification
+        recipient before sending a test email.
+      parameters:
+      - description: Notification recipient test email payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.NotificationRecipientTestEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthLogoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Send notification recipient test email
       tags:
       - notifications
   /overview:

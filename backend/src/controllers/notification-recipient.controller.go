@@ -16,6 +16,7 @@ type notificationRecipientService interface {
 	GetByID(ctx context.Context, notificationRecipientID int64) (types.NotificationRecipientReadData, error)
 	SetEnabled(ctx context.Context, input types.UpdateNotificationRecipientInput) (types.NotificationRecipientReadData, error)
 	Delete(ctx context.Context, notificationRecipientID int64) error
+	SendTestEmail(ctx context.Context, projectID int64, email string) error
 }
 
 type NotificationRecipientController struct {
@@ -216,4 +217,37 @@ func (c *NotificationRecipientController) Delete(w http.ResponseWriter, r *http.
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// SendTestEmail sends a test email to an existing notification recipient.
+//
+// @Summary      Send notification recipient test email
+// @Description  Verifies that the provided email exists as a project notification recipient before sending a test email.
+// @Tags         notifications
+// @Accept       json
+// @Produce      json
+// @Param        request  body      types.NotificationRecipientTestEmailRequest  true  "Notification recipient test email payload"
+// @Success      200      {object}  types.AuthLogoutResponse
+// @Failure      400      {object}  types.ErrorResponse
+// @Failure      404      {object}  types.ErrorResponse
+// @Failure      409      {object}  types.ErrorResponse
+// @Failure      500      {object}  types.ErrorResponse
+// @Router       /notification-recipients/test-email [post]
+func (c *NotificationRecipientController) SendTestEmail(w http.ResponseWriter, r *http.Request) {
+	var request types.NotificationRecipientTestEmailRequest
+	if err := utils.DecodeJSON(r, &request); err != nil {
+		utils.WriteError(w, http.StatusBadRequest, "invalid notification recipient test email payload")
+		return
+	}
+
+	if err := c.notificationRecipientService.SendTestEmail(r.Context(), request.ProjectID, request.Email); err != nil {
+		if utils.WriteDomainError(w, err) {
+			return
+		}
+
+		utils.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, types.AuthLogoutResponse{Status: "ok"})
 }

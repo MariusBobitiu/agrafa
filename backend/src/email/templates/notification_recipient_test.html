@@ -1,0 +1,11 @@
+<html>
+  <body style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+    <h1 style="margin-bottom: 16px;">Test notification email</h1>
+    <p>This is a delivery test from Agrafa.</p>
+    {{if .ProjectName}}<p><strong>Project:</strong> {{.ProjectName}}</p>{{end}}
+    {{if .ProjectID}}<p><strong>Project ID:</strong> {{.ProjectID}}</p>{{end}}
+    <p><strong>Recipient:</strong> {{.Recipient}}</p>
+    <p><strong>Sent at:</strong> {{formatTime .SentAt}}</p>
+    <p>If you received this message, your notification email setup is working.</p>
+  </body>
+</html>

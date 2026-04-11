@@ -20,7 +20,6 @@ import (
 	"github.com/MariusBobitiu/agrafa-backend/src/controllers"
 	"github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
-	emailpkg "github.com/MariusBobitiu/agrafa-backend/src/email"
 	"github.com/MariusBobitiu/agrafa-backend/src/jobs"
 	"github.com/MariusBobitiu/agrafa-backend/src/repositories"
 	"github.com/MariusBobitiu/agrafa-backend/src/routes"
@@ -97,40 +96,22 @@ func main() {
 	alertService := services.NewAlertService(alertInstanceRepo)
 	notificationRecipientService := services.NewNotificationRecipientService(notificationRecipientRepo, projectRepo)
 	notificationDeliveryService := services.NewNotificationDeliveryService(notificationDeliveryRepo)
-
-	var emailService *emailpkg.Service
-	var authEmailService *emailpkg.Service
-	var inviteEmailService *emailpkg.Service
+	runtimeEmailProvider := services.NewRuntimeEmailProvider(instanceSettingService)
 	emailConfig, err := instanceSettingService.ResolveEmailConfig(ctx)
 	if err != nil {
 		log.Printf("email notifications disabled: invalid email configuration: %v", err)
 	} else if emailConfig.IsAvailable {
-		emailRenderer := emailpkg.NewRenderer()
-		emailSender := emailpkg.NewResendSender(emailConfig.ResendAPIKey)
-		emailService = emailpkg.NewService(
-			emailRenderer,
-			emailSender,
-			emailConfig.AlertsFrom,
-		)
-		authEmailService = emailpkg.NewService(
-			emailRenderer,
-			emailSender,
-			emailConfig.SecurityFrom,
-		)
-		inviteEmailService = emailpkg.NewService(
-			emailRenderer,
-			emailSender,
-			emailConfig.NotificationsFrom,
-		)
 		log.Printf("email notifications configured via %s", emailConfig.Provider)
 	} else {
 		log.Printf("email notifications disabled: %s", emailConfig.UnavailableReason)
 	}
 
-	authService.WithSecurityEmail(authEmailService, cfg.AppBaseURL)
-	projectInvitationService.WithEmail(inviteEmailService, cfg.AppBaseURL)
+	authService.WithSecurityEmailProvider(runtimeEmailProvider, cfg.AppBaseURL)
+	projectInvitationService.WithEmailProvider(runtimeEmailProvider, cfg.AppBaseURL)
+	notificationRecipientService.WithEmailProvider(runtimeEmailProvider)
 
-	notificationService := services.NewNotificationService(notificationRecipientRepo, projectRepo, notificationDeliveryService, emailService)
+	notificationService := services.NewNotificationService(notificationRecipientRepo, projectRepo, notificationDeliveryService, nil)
+	notificationService.WithEmailProvider(runtimeEmailProvider)
 	alertEvaluatorService := services.NewAlertEvaluatorService(alertRuleRepo, alertInstanceRepo, metricRepo, eventService, notificationService)
 	agentAuthService := services.NewAgentAuthService(nodeRepo)
 	nodeStateService := services.NewNodeStateService(nodeRepo, eventService, alertEvaluatorService)
@@ -145,6 +126,7 @@ func main() {
 
 	authController := controllers.NewAuthController(authService, sessionService)
 	agentController := controllers.NewAgentController(heartbeatService, nodeStateService, healthIngestionService, metricIngestionService, agentConfigService)
+	instanceSettingController := controllers.NewInstanceSettingController(instanceSettingService)
 	readController := controllers.NewReadController(nodeReadService, serviceReadService, eventService, alertRuleService, alertService, overviewService)
 	projectController := controllers.NewProjectController(projectService)
 	projectMemberController := controllers.NewProjectMemberController(projectMemberService)
@@ -156,7 +138,7 @@ func main() {
 	notificationDeliveryController := controllers.NewNotificationDeliveryController(notificationDeliveryService)
 	docsController := controllers.NewDocsController()
 
-	router := routes.NewRouter(authController, agentController, readController, projectController, projectMemberController, projectInvitationController, nodeController, serviceController, alertRuleController, notificationRecipientController, notificationDeliveryController, docsController, authService, authorizationService, sessionService, agentAuthService)
+	router := routes.NewRouter(authController, agentController, instanceSettingController, readController, projectController, projectMemberController, projectInvitationController, nodeController, serviceController, alertRuleController, notificationRecipientController, notificationDeliveryController, docsController, authService, authorizationService, sessionService, agentAuthService)
 
 	expiryJob := jobs.NewNodeExpiryJob(nodeRepo, nodeStateService, cfg.NodeHeartbeatTTL, cfg.NodeExpiryCheckInterval)
 	managedServiceCheckJob := jobs.NewManagedServiceCheckJob(serviceStateService, nodeStateService, heartbeatService, healthIngestionService, cfg.ManagedCheckInterval, cfg.ManagedCheckTimeout)

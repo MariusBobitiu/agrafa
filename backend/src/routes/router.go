@@ -14,6 +14,7 @@ import (
 func NewRouter(
 	authController *controllers.AuthController,
 	agentController *controllers.AgentController,
+	instanceSettingController *controllers.InstanceSettingController,
 	readController *controllers.ReadController,
 	projectController *controllers.ProjectController,
 	projectMemberController *controllers.ProjectMemberController,
@@ -73,6 +74,8 @@ func NewRouter(
 			protected.Post("/auth/verify-email/send", authController.SendVerifyEmail)
 			protected.Post("/auth/verify-password", authController.VerifyPassword)
 			protected.Delete("/auth/sessions/{id}", authController.DeleteSession)
+			protected.Get("/instance-settings", instanceSettingController.List)
+			protected.Patch("/instance-settings", instanceSettingController.Update)
 			protected.Get("/projects", projectController.List)
 			protected.Post("/projects", projectController.Create)
 			protected.With(
@@ -151,6 +154,9 @@ func NewRouter(
 			protected.With(
 				withProjectPermission(authorizationService, services.PermissionNotificationRecipientsWrite, agentmiddleware.ProjectIDFromBodyField("project_id")),
 			).Post("/notification-recipients", notificationRecipientController.Create)
+			protected.With(
+				withProjectPermission(authorizationService, services.PermissionNotificationRecipientsWrite, agentmiddleware.ProjectIDFromBodyField("project_id")),
+			).Post("/notification-recipients/test-email", notificationRecipientController.SendTestEmail)
 			protected.With(
 				withProjectPermission(authorizationService, services.PermissionNotificationRecipientsRead, agentmiddleware.ProjectIDFromRequiredQueryParam("project_id")),
 			).Get("/notification-recipients", notificationRecipientController.List)
