@@ -8,9 +8,7 @@ include .env
 export
 endif
 
-POSTGRES_MIGRATIONS_SCHEMA ?= agrafa_meta
-POSTGRES_MIGRATIONS_TABLE ?= schema_migrations
-POSTGRES_MIGRATIONS_URI := $(POSTGRES_URI)$(if $(findstring ?,$(POSTGRES_URI)),&,?)x-migrations-table=%22$(POSTGRES_MIGRATIONS_SCHEMA)%22.%22$(POSTGRES_MIGRATIONS_TABLE)%22&x-migrations-table-quoted=true
+POSTGRES_MIGRATIONS_URI := $(POSTGRES_URI)$(if $(findstring ?,$(POSTGRES_URI)),&,?)x-migrations-table=%22agrafa_meta%22.%22schema_migrations%22&x-migrations-table-quoted=true
 SEED_FILE ?= src/db/seeds/app/001_test_project_node.sql
 SWAG ?= swag
 
@@ -23,13 +21,13 @@ check-postgres-uri:
 	@test -n "$(POSTGRES_URI)" || (echo "POSTGRES_URI is required" && exit 1)
 
 migrate-up: check-postgres-uri
-	psql "$(POSTGRES_URI)" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS \"$(POSTGRES_MIGRATIONS_SCHEMA)\""
+	psql "$(POSTGRES_URI)" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS \"agrafa_meta\""
 	go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest -path src/db/migrations/app -database "$(POSTGRES_MIGRATIONS_URI)" up
 
 migrate-down: check-postgres-uri
-	psql "$(POSTGRES_URI)" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS \"$(POSTGRES_MIGRATIONS_SCHEMA)\""
+	psql "$(POSTGRES_URI)" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS \"agrafa_meta\""
 	go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest -path src/db/migrations/app -database "$(POSTGRES_MIGRATIONS_URI)" down -all
-	psql "$(POSTGRES_URI)" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS \"$(POSTGRES_MIGRATIONS_SCHEMA)\" CASCADE"
+	psql "$(POSTGRES_URI)" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS \"agrafa_meta\" CASCADE"
 
 seed: check-postgres-uri
 	psql "$(POSTGRES_URI)" -v ON_ERROR_STOP=1 -f "$(SEED_FILE)"

@@ -5,6 +5,7 @@ type AlertRule = AppAlertRule
 type Event = AppEvent
 type HealthCheckResult = AppHealthCheckResult
 type Heartbeat = AppHeartbeat
+type InstanceSetting = AgrafaMetaInstanceSetting
 type MetricSample = AppMetricSample
 type Node = AppNode
 type NotificationDelivery = AppNotificationDelivery

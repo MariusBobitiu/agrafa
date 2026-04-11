@@ -53,3 +53,29 @@ func TestAlertSeverityMigrationBackfillsExistingRows(t *testing.T) {
 		t.Fatalf("expected notification recipient min_severity backfill in migration:\n%s", sql)
 	}
 }
+
+func TestInstanceSettingsMigrationCreatesMetaTable(t *testing.T) {
+	t.Parallel()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+
+	migrationPath := filepath.Join(filepath.Dir(currentFile), "migrations", "app", "000012_instance_settings.up.sql")
+	contents, err := os.ReadFile(migrationPath)
+	if err != nil {
+		t.Fatalf("read migration file: %v", err)
+	}
+
+	sql := string(contents)
+	if !strings.Contains(sql, "CREATE TABLE agrafa_meta.instance_settings") {
+		t.Fatalf("expected instance_settings table creation in migration:\n%s", sql)
+	}
+	if !strings.Contains(sql, "key TEXT NOT NULL UNIQUE") {
+		t.Fatalf("expected unique key constraint in migration:\n%s", sql)
+	}
+	if !strings.Contains(sql, "is_encrypted BOOLEAN NOT NULL DEFAULT FALSE") {
+		t.Fatalf("expected is_encrypted column in migration:\n%s", sql)
+	}
+}

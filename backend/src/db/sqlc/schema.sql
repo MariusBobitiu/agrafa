@@ -1,5 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS app;
 CREATE SCHEMA IF NOT EXISTS auth;
+CREATE SCHEMA IF NOT EXISTS agrafa_meta;
 
 CREATE TABLE auth.users (
     id TEXT PRIMARY KEY,
@@ -258,6 +259,17 @@ CREATE TABLE app.project_members (
     role TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'viewer')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (project_id, user_id)
+);
+
+CREATE TABLE agrafa_meta.instance_settings (
+    id BIGSERIAL PRIMARY KEY,
+    key TEXT NOT NULL UNIQUE,
+    value TEXT,
+    description TEXT,
+    is_sensitive BOOLEAN NOT NULL DEFAULT FALSE,
+    is_encrypted BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_auth_users_email ON auth.users(email);

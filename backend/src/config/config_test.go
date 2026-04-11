@@ -9,6 +9,7 @@ import (
 
 func TestLoadRequiresPostgresURI(t *testing.T) {
 	t.Setenv("POSTGRES_URI", "")
+	t.Setenv("APP_SECRET", "test-secret")
 	t.Setenv("PORT", "")
 	t.Setenv("NODE_HEARTBEAT_TTL_SECONDS", "")
 	t.Setenv("NODE_EXPIRY_CHECK_INTERVAL_SECONDS", "")
@@ -23,8 +24,26 @@ func TestLoadRequiresPostgresURI(t *testing.T) {
 	}
 }
 
+func TestLoadRequiresAppSecret(t *testing.T) {
+	t.Setenv("POSTGRES_URI", "postgres://user:pass@localhost:5432/agrafa?sslmode=disable")
+	t.Setenv("APP_SECRET", "")
+	t.Setenv("PORT", "")
+	t.Setenv("NODE_HEARTBEAT_TTL_SECONDS", "")
+	t.Setenv("NODE_EXPIRY_CHECK_INTERVAL_SECONDS", "")
+	t.Setenv("SESSION_TTL_DAYS", "")
+	t.Setenv("SESSION_REMEMBER_TTL_DAYS", "")
+
+	withWorkingDirectory(t, t.TempDir())
+
+	_, err := Load()
+	if err == nil || err.Error() != "APP_SECRET is required" {
+		t.Fatalf("Load() error = %v, want APP_SECRET is required", err)
+	}
+}
+
 func TestLoadUsesSinglePostgresURIAndDefaults(t *testing.T) {
 	t.Setenv("POSTGRES_URI", "postgres://user:pass@localhost:5432/agrafa?sslmode=disable")
+	t.Setenv("APP_SECRET", "test-secret")
 	t.Setenv("PORT", "")
 	t.Setenv("NODE_HEARTBEAT_TTL_SECONDS", "")
 	t.Setenv("NODE_EXPIRY_CHECK_INTERVAL_SECONDS", "")
@@ -57,6 +76,14 @@ func TestLoadUsesSinglePostgresURIAndDefaults(t *testing.T) {
 
 	if cfg.Environment != "development" {
 		t.Fatalf("Environment = %q, want development", cfg.Environment)
+	}
+
+	if cfg.AppBaseURL != "http://localhost:3000" {
+		t.Fatalf("AppBaseURL = %q, want http://localhost:3000", cfg.AppBaseURL)
+	}
+
+	if cfg.AppSecret != "test-secret" {
+		t.Fatalf("AppSecret = %q", cfg.AppSecret)
 	}
 
 	if cfg.SessionTTL != 7*24*time.Hour {

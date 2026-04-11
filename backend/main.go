@@ -63,6 +63,7 @@ func main() {
 	projectRepo := repositories.NewProjectRepository(dbConn, queries)
 	projectMemberRepo := repositories.NewProjectMemberRepository(queries)
 	projectInvitationRepo := repositories.NewProjectInvitationRepository(dbConn, queries)
+	instanceSettingRepo := repositories.NewInstanceSettingRepository(queries)
 	userRepo := repositories.NewUserRepository(queries)
 	authRepo := repositories.NewAuthRepository(dbConn, queries)
 	nodeRepo := repositories.NewNodeRepository(queries)
@@ -81,6 +82,11 @@ func main() {
 	passwordService := services.NewPasswordService()
 	sessionService := services.NewSessionService(cfg.SessionTTL, cfg.SessionRememberTTL, cfg.SessionCookieSecure)
 	authService := services.NewAuthService(authRepo, passwordService, sessionService)
+	settingEncryptor, err := config.NewEncryptor(cfg.AppSecret)
+	if err != nil {
+		log.Fatalf("configure instance setting encryption: %v", err)
+	}
+	instanceSettingService := services.NewInstanceSettingService(instanceSettingRepo, settingEncryptor, os.LookupEnv)
 	authorizationService := services.NewAuthorizationService(projectMemberRepo, projectRepo, nodeRepo, serviceRepo, alertRuleRepo, notificationRecipientRepo, projectInvitationRepo)
 	projectService := services.NewProjectService(projectRepo, projectMemberRepo, overviewRepo)
 	projectMemberService := services.NewProjectMemberService(projectMemberRepo, projectRepo, userRepo)
@@ -95,29 +101,30 @@ func main() {
 	var emailService *emailpkg.Service
 	var authEmailService *emailpkg.Service
 	var inviteEmailService *emailpkg.Service
-	if cfg.ResendAPIKey != "" && (cfg.AlertsFromEmail != "" || cfg.ResendEmailDomain != "") {
+	emailConfig, err := instanceSettingService.ResolveEmailConfig(ctx)
+	if err != nil {
+		log.Printf("email notifications disabled: invalid email configuration: %v", err)
+	} else if emailConfig.IsAvailable {
 		emailRenderer := emailpkg.NewRenderer()
-		emailSender := emailpkg.NewResendSender(cfg.ResendAPIKey)
+		emailSender := emailpkg.NewResendSender(emailConfig.ResendAPIKey)
 		emailService = emailpkg.NewService(
 			emailRenderer,
 			emailSender,
-			emailpkg.BuildAlertsFromAddress(cfg.ResendEmailDomain, cfg.AlertsFromEmail),
+			emailConfig.AlertsFrom,
 		)
-		if cfg.ResendEmailDomain != "" {
-			authEmailService = emailpkg.NewService(
-				emailRenderer,
-				emailSender,
-				emailpkg.BuildSecurityFromAddress(cfg.ResendEmailDomain),
-			)
-			inviteEmailService = emailpkg.NewService(
-				emailRenderer,
-				emailSender,
-				emailpkg.BuildNotificationsFromAddress(cfg.ResendEmailDomain),
-			)
-		}
-		log.Print("email notifications configured via Resend")
+		authEmailService = emailpkg.NewService(
+			emailRenderer,
+			emailSender,
+			emailConfig.SecurityFrom,
+		)
+		inviteEmailService = emailpkg.NewService(
+			emailRenderer,
+			emailSender,
+			emailConfig.NotificationsFrom,
+		)
+		log.Printf("email notifications configured via %s", emailConfig.Provider)
 	} else {
-		log.Print("email notifications disabled: missing RESEND_API_KEY and sender address configuration")
+		log.Printf("email notifications disabled: %s", emailConfig.UnavailableReason)
 	}
 
 	authService.WithSecurityEmail(authEmailService, cfg.AppBaseURL)

@@ -10,6 +10,17 @@ import (
 	"time"
 )
 
+type AgrafaMetaInstanceSetting struct {
+	ID          int64          `json:"id"`
+	Key         string         `json:"key"`
+	Value       sql.NullString `json:"value"`
+	Description sql.NullString `json:"description"`
+	IsSensitive bool           `json:"is_sensitive"`
+	IsEncrypted bool           `json:"is_encrypted"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+}
+
 type AppAlertInstance struct {
 	ID          int64         `json:"id"`
 	AlertRuleID int64         `json:"alert_rule_id"`

@@ -1,8 +1,6 @@
 package config
 
 import (
-	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -11,138 +9,112 @@ import (
 )
 
 type Config struct {
-	Port                    string
 	PostgresURI             string
+	Port                    string
+	Environment             string
+	AppBaseURL              string
+	AppSecret               string
 	NodeHeartbeatTTL        time.Duration
 	NodeExpiryCheckInterval time.Duration
 	ManagedCheckInterval    time.Duration
 	ManagedCheckTimeout     time.Duration
-	Environment             string
 	SessionTTL              time.Duration
 	SessionRememberTTL      time.Duration
 	SessionCookieSecure     bool
-	AppBaseURL              string
-	ResendAPIKey            string
-	ResendEmailDomain       string
-	AlertsFromEmail         string
 }
 
 func Load() (Config, error) {
 	_ = godotenv.Load(".env.local", ".env")
 
-	postgresURI, err := requiredEnv("POSTGRES_URI")
+	postgresURI, err := envString(SettingKeyPostgresURI)
 	if err != nil {
 		return Config{}, err
 	}
 
-	heartbeatTTL, err := envDurationSeconds("NODE_HEARTBEAT_TTL_SECONDS", 60)
+	port, err := envString(SettingKeyPort)
 	if err != nil {
 		return Config{}, err
 	}
 
-	expiryInterval, err := envDurationSeconds("NODE_EXPIRY_CHECK_INTERVAL_SECONDS", 15)
+	environment, err := envString(SettingKeyAppEnv)
 	if err != nil {
 		return Config{}, err
 	}
 
-	managedCheckInterval, err := envDurationSeconds("MANAGED_SERVICE_CHECK_INTERVAL_SECONDS", 15)
+	appBaseURL, err := envString(SettingKeyAppBaseURL)
 	if err != nil {
 		return Config{}, err
 	}
 
-	managedCheckTimeout, err := envDurationSeconds("MANAGED_SERVICE_CHECK_TIMEOUT_SECONDS", 10)
+	appSecret, err := envString(SettingKeyAppSecret)
 	if err != nil {
 		return Config{}, err
 	}
 
-	sessionTTL, err := envDurationDays("SESSION_TTL_DAYS", 7)
+	heartbeatTTLSeconds, err := envInt(SettingKeyNodeHeartbeatTTLSeconds)
 	if err != nil {
 		return Config{}, err
 	}
 
-	sessionRememberTTL, err := envDurationDays("SESSION_REMEMBER_TTL_DAYS", 30)
+	expiryIntervalSeconds, err := envInt(SettingKeyNodeExpiryCheckIntervalSeconds)
 	if err != nil {
 		return Config{}, err
 	}
 
-	port := strings.TrimSpace(os.Getenv("PORT"))
-	if port == "" {
-		port = "8080"
+	managedCheckIntervalSeconds, err := envInt(SettingKeyManagedCheckIntervalSeconds)
+	if err != nil {
+		return Config{}, err
 	}
 
-	environment := strings.TrimSpace(os.Getenv("APP_ENV"))
-	if environment == "" {
-		environment = "development"
+	managedCheckTimeoutSeconds, err := envInt(SettingKeyManagedCheckTimeoutSeconds)
+	if err != nil {
+		return Config{}, err
+	}
+
+	sessionTTLDays, err := envInt(SettingKeySessionTTLDays)
+	if err != nil {
+		return Config{}, err
+	}
+
+	sessionRememberTTLDays, err := envInt(SettingKeySessionRememberTTLDays)
+	if err != nil {
+		return Config{}, err
 	}
 
 	return Config{
-		Port:                    port,
 		PostgresURI:             postgresURI,
-		NodeHeartbeatTTL:        heartbeatTTL,
-		NodeExpiryCheckInterval: expiryInterval,
-		ManagedCheckInterval:    managedCheckInterval,
-		ManagedCheckTimeout:     managedCheckTimeout,
+		Port:                    port,
 		Environment:             environment,
-		SessionTTL:              sessionTTL,
-		SessionRememberTTL:      sessionRememberTTL,
+		AppBaseURL:              trimTrailingSlash(appBaseURL),
+		AppSecret:               appSecret,
+		NodeHeartbeatTTL:        time.Duration(heartbeatTTLSeconds) * time.Second,
+		NodeExpiryCheckInterval: time.Duration(expiryIntervalSeconds) * time.Second,
+		ManagedCheckInterval:    time.Duration(managedCheckIntervalSeconds) * time.Second,
+		ManagedCheckTimeout:     time.Duration(managedCheckTimeoutSeconds) * time.Second,
+		SessionTTL:              time.Duration(sessionTTLDays) * 24 * time.Hour,
+		SessionRememberTTL:      time.Duration(sessionRememberTTLDays) * 24 * time.Hour,
 		SessionCookieSecure:     strings.EqualFold(environment, "production"),
-		AppBaseURL:              envStringDefault("APP_BASE_URL", "http://localhost:3000"),
-		ResendAPIKey:            strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
-		ResendEmailDomain:       strings.TrimSpace(os.Getenv("RESEND_EMAIL_DOMAIN")),
-		AlertsFromEmail:         strings.TrimSpace(os.Getenv("ALERTS_FROM_EMAIL")),
 	}, nil
 }
 
-func requiredEnv(name string) (string, error) {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return "", fmt.Errorf("%s is required", name)
-	}
-
-	return value, nil
-}
-
-func envDurationSeconds(name string, defaultSeconds int) (time.Duration, error) {
-	rawValue := strings.TrimSpace(os.Getenv(name))
-	if rawValue == "" {
-		return time.Duration(defaultSeconds) * time.Second, nil
-	}
-
-	seconds, err := strconv.Atoi(rawValue)
+func envString(key SettingKey) (string, error) {
+	resolved, err := ResolveEnvValueFromOS(key)
 	if err != nil {
-		return 0, fmt.Errorf("%s must be an integer number of seconds: %w", name, err)
+		return "", err
 	}
 
-	if seconds <= 0 {
-		return 0, fmt.Errorf("%s must be greater than zero", name)
-	}
-
-	return time.Duration(seconds) * time.Second, nil
+	return resolved.Value, nil
 }
 
-func envDurationDays(name string, defaultDays int) (time.Duration, error) {
-	rawValue := strings.TrimSpace(os.Getenv(name))
-	if rawValue == "" {
-		return time.Duration(defaultDays) * 24 * time.Hour, nil
-	}
-
-	days, err := strconv.Atoi(rawValue)
+func envInt(key SettingKey) (int, error) {
+	resolved, err := ResolveEnvValueFromOS(key)
 	if err != nil {
-		return 0, fmt.Errorf("%s must be an integer number of days: %w", name, err)
+		return 0, err
 	}
 
-	if days <= 0 {
-		return 0, fmt.Errorf("%s must be greater than zero", name)
-	}
-
-	return time.Duration(days) * 24 * time.Hour, nil
+	return strconv.Atoi(resolved.Value)
 }
 
-func envStringDefault(name, defaultValue string) string {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		value = defaultValue
-	}
-
+func trimTrailingSlash(value string) string {
 	return strings.TrimRight(value, "/")
 }
