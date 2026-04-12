@@ -28,12 +28,12 @@ services:
       - /bin/sh
       - -ec
       - |
-        psql "$POSTGRES_URI" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS \"agrafa_meta\""
-        case "$POSTGRES_URI" in
-          *\?*) POSTGRES_MIGRATIONS_URI="${POSTGRES_URI}&x-migrations-table=%22agrafa_meta%22.%22schema_migrations%22&x-migrations-table-quoted=true" ;;
-          *) POSTGRES_MIGRATIONS_URI="${POSTGRES_URI}?x-migrations-table=%22agrafa_meta%22.%22schema_migrations%22&x-migrations-table-quoted=true" ;;
+        psql "$$POSTGRES_URI" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS \"agrafa_meta\""
+        case "$$POSTGRES_URI" in
+          *\?*) POSTGRES_MIGRATIONS_URI="$$POSTGRES_URI&x-migrations-table=%22agrafa_meta%22.%22schema_migrations%22&x-migrations-table-quoted=true" ;;
+          *) POSTGRES_MIGRATIONS_URI="$$POSTGRES_URI?x-migrations-table=%22agrafa_meta%22.%22schema_migrations%22&x-migrations-table-quoted=true" ;;
         esac
-        migrate -path /app/src/db/migrations/app -database "$POSTGRES_MIGRATIONS_URI" up
+        migrate -path /app/src/db/migrations/app -database "$$POSTGRES_MIGRATIONS_URI" up
         exec agrafa-backend
     ports:
       - "8080:8080"

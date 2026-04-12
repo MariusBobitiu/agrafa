@@ -10,12 +10,15 @@ import (
 	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
+	emailpkg "github.com/MariusBobitiu/agrafa-backend/src/email"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
 )
 
 type fakeAuthStore struct {
 	registerUser                generated.User
 	registerErr                 error
+	markEmailVerifiedUserID      string
+	markEmailVerifiedErr         error
 	userWithPassword            generated.GetUserWithPasswordByEmailRow
 	userWithPasswordErr         error
 	userWithPasswordByID        generated.GetUserWithPasswordByIDRow
@@ -62,6 +65,11 @@ type fakeAuthStore struct {
 
 func (r *fakeAuthStore) Register(_ context.Context, _ generated.CreateUserParams, _ generated.CreatePasswordCredentialParams, _ generated.CreateSessionParams) (generated.User, error) {
 	return r.registerUser, r.registerErr
+}
+
+func (r *fakeAuthStore) MarkEmailVerifiedByID(_ context.Context, id string) error {
+	r.markEmailVerifiedUserID = id
+	return r.markEmailVerifiedErr
 }
 
 func (r *fakeAuthStore) GetUserWithPasswordByEmail(_ context.Context, _ string) (generated.GetUserWithPasswordByEmailRow, error) {
@@ -218,6 +226,110 @@ func (s *fakeAuthSecurityEmailSender) SendPasswordResetEmail(_ context.Context, 
 	s.resetName = name
 	s.resetURL = resetURL
 	return nil
+}
+
+type fakeAuthSecurityEmailProvider struct {
+	service authSecurityEmailSender
+	err     error
+}
+
+func (p *fakeAuthSecurityEmailProvider) Security(_ context.Context) (*emailpkg.Service, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+	if p.service == nil {
+		return nil, nil
+	}
+
+	service, _ := p.service.(*emailpkg.Service)
+	return service, nil
+}
+
+func TestAuthServiceRegisterAutoVerifiesWhenSecurityEmailUnavailable(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAuthStore{
+		registerUser: generated.User{
+			ID:            "usr_1",
+			Name:          "Alice",
+			Email:         "alice@example.com",
+			EmailVerified: false,
+		},
+	}
+
+	service := NewAuthService(store, NewPasswordService(), NewSessionService(7*24*time.Hour, 30*24*time.Hour, false)).
+		WithSecurityEmailProvider(&fakeAuthSecurityEmailProvider{}, "http://localhost:5173")
+
+	user, token, expiresAt, err := service.Register(context.Background(), types.RegisterInput{
+		Name:     "Alice",
+		Email:    "alice@example.com",
+		Password: "supersecret",
+	}, types.SessionActor{IPAddress: "127.0.0.1", UserAgent: "test-agent"})
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if token == "" {
+		t.Fatal("token = empty, want non-empty")
+	}
+	if expiresAt.IsZero() {
+		t.Fatal("expiresAt = zero, want non-zero")
+	}
+	if store.markEmailVerifiedUserID != "usr_1" {
+		t.Fatalf("markEmailVerifiedUserID = %q, want usr_1", store.markEmailVerifiedUserID)
+	}
+	if !user.EmailVerified {
+		t.Fatal("user.EmailVerified = false, want true")
+	}
+}
+
+func TestAuthServiceSendVerifyEmailNoopsWhenProviderReturnsTypedNilService(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAuthStore{}
+
+	service := NewAuthService(store, NewPasswordService(), NewSessionService(7*24*time.Hour, 30*24*time.Hour, false)).
+		WithSecurityEmailProvider(&fakeAuthSecurityEmailProvider{}, "http://localhost:5173")
+
+	err := service.SendVerifyEmail(context.Background(), generated.User{
+		ID:            "usr_1",
+		Name:          "Alice",
+		Email:         "alice@example.com",
+		EmailVerified: false,
+	})
+	if err != nil {
+		t.Fatalf("SendVerifyEmail() error = %v", err)
+	}
+}
+
+func TestAuthServiceRegisterKeepsVerificationPendingWhenSecurityEmailConfigured(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAuthStore{
+		registerUser: generated.User{
+			ID:            "usr_1",
+			Name:          "Alice",
+			Email:         "alice@example.com",
+			EmailVerified: false,
+		},
+	}
+
+	service := NewAuthService(store, NewPasswordService(), NewSessionService(7*24*time.Hour, 30*24*time.Hour, false)).
+		WithSecurityEmail(&fakeAuthSecurityEmailSender{}, "http://localhost:5173")
+
+	user, _, _, err := service.Register(context.Background(), types.RegisterInput{
+		Name:     "Alice",
+		Email:    "alice@example.com",
+		Password: "supersecret",
+	}, types.SessionActor{IPAddress: "127.0.0.1", UserAgent: "test-agent"})
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if store.markEmailVerifiedUserID != "" {
+		t.Fatalf("markEmailVerifiedUserID = %q, want empty", store.markEmailVerifiedUserID)
+	}
+	if user.EmailVerified {
+		t.Fatal("user.EmailVerified = true, want false")
+	}
 }
 
 func TestAuthServiceLoginCreatesSessionWithDefaultTTL(t *testing.T) {

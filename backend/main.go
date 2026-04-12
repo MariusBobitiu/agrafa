@@ -91,7 +91,6 @@ func main() {
 	projectMemberService := services.NewProjectMemberService(projectMemberRepo, projectRepo, userRepo)
 	projectInvitationService := services.NewProjectInvitationService(projectInvitationRepo, projectRepo, projectMemberRepo, userRepo)
 	nodeService := services.NewNodeService(nodeRepo, projectRepo, serviceRepo)
-	inventoryService := services.NewServiceService(serviceRepo, projectRepo, nodeRepo)
 	alertRuleService := services.NewAlertRuleService(alertRuleRepo, projectRepo, nodeRepo, serviceRepo)
 	alertService := services.NewAlertService(alertInstanceRepo)
 	notificationRecipientService := services.NewNotificationRecipientService(notificationRecipientRepo, projectRepo)
@@ -121,6 +120,8 @@ func main() {
 	agentConfigService := services.NewAgentConfigService(serviceRepo)
 	heartbeatService := services.NewHeartbeatService(heartbeatRepo, nodeStateService)
 	healthIngestionService := services.NewHealthIngestionService(healthCheckRepo, serviceRepo, serviceStateService)
+	managedServiceBootstrapChecker := services.NewManagedServiceBootstrapChecker(heartbeatService, healthIngestionService, cfg.ManagedCheckTimeout)
+	inventoryService := services.NewServiceService(serviceRepo, projectRepo, nodeRepo).WithManagedChecker(managedServiceBootstrapChecker)
 	metricIngestionService := services.NewMetricIngestionService(metricRepo, serviceRepo, alertEvaluatorService)
 	overviewService := services.NewOverviewService(overviewRepo, eventService, nodeReadService)
 

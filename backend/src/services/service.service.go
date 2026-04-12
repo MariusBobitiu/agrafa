@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/repositories"
@@ -28,10 +29,15 @@ type serviceServiceNodeRepository interface {
 	EnsureManagedByProject(ctx context.Context, projectID int64, name string, identifier string) (generated.Node, error)
 }
 
+type managedServiceBootstrapChecker interface {
+	CheckNow(ctx context.Context, service generated.Service) error
+}
+
 type ServiceService struct {
-	serviceRepo serviceServiceRepository
-	projectRepo serviceServiceProjectRepository
-	nodeRepo    serviceServiceNodeRepository
+	serviceRepo    serviceServiceRepository
+	projectRepo    serviceServiceProjectRepository
+	nodeRepo       serviceServiceNodeRepository
+	managedChecker managedServiceBootstrapChecker
 }
 
 func NewServiceService(
@@ -44,6 +50,11 @@ func NewServiceService(
 		projectRepo: projectRepo,
 		nodeRepo:    nodeRepo,
 	}
+}
+
+func (s *ServiceService) WithManagedChecker(checker managedServiceBootstrapChecker) *ServiceService {
+	s.managedChecker = checker
+	return s
 }
 
 func (s *ServiceService) Create(
@@ -91,6 +102,12 @@ func (s *ServiceService) Create(
 	})
 	if err != nil {
 		return generated.Service{}, fmt.Errorf("create service: %w", err)
+	}
+
+	if utils.NormalizeRequiredString(input.ExecutionMode) == types.ExecutionModeManaged && s.managedChecker != nil {
+		if err := s.managedChecker.CheckNow(ctx, service); err != nil {
+			log.Printf("initial managed service check failed for service %d: %v", service.ID, err)
+		}
 	}
 
 	return service, nil

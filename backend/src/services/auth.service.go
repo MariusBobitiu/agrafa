@@ -17,6 +17,7 @@ import (
 
 type authStore interface {
 	Register(ctx context.Context, userParams generated.CreateUserParams, passwordParams generated.CreatePasswordCredentialParams, sessionParams generated.CreateSessionParams) (generated.User, error)
+	MarkEmailVerifiedByID(ctx context.Context, id string) error
 	GetUserWithPasswordByEmail(ctx context.Context, email string) (generated.GetUserWithPasswordByEmailRow, error)
 	GetUserWithPasswordByID(ctx context.Context, id string) (generated.GetUserWithPasswordByIDRow, error)
 	CompleteOnboardingByUserID(ctx context.Context, id string) (generated.User, error)
@@ -141,6 +142,17 @@ func (s *AuthService) Register(ctx context.Context, input types.RegisterInput, a
 	)
 	if err != nil {
 		return generated.User{}, "", time.Time{}, fmt.Errorf("register user: %w", err)
+	}
+
+	emailService, err := s.resolveSecurityEmailService(ctx)
+	if err != nil {
+		return generated.User{}, "", time.Time{}, err
+	}
+	if emailService == nil {
+		if err := s.authRepo.MarkEmailVerifiedByID(ctx, user.ID); err != nil {
+			return generated.User{}, "", time.Time{}, fmt.Errorf("mark user email verified: %w", err)
+		}
+		user.EmailVerified = true
 	}
 
 	return user, rawSessionToken, expiresAt, nil
@@ -471,6 +483,9 @@ func (s *AuthService) resolveSecurityEmailService(ctx context.Context) (authSecu
 		emailService, err := s.securityEmailProvider.Security(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("resolve security email service: %w", err)
+		}
+		if emailService == nil {
+			return nil, nil
 		}
 
 		return emailService, nil

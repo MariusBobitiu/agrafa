@@ -64,6 +64,18 @@ func (r *AuthRepository) GetUserWithPasswordByEmail(ctx context.Context, email s
 	return r.queries.GetUserWithPasswordByEmail(ctx, email)
 }
 
+func (r *AuthRepository) MarkEmailVerifiedByID(ctx context.Context, id string) error {
+	rowsUpdated, err := r.queries.MarkUserEmailVerifiedByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if rowsUpdated == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
 func (r *AuthRepository) GetUserWithPasswordByID(ctx context.Context, id string) (generated.GetUserWithPasswordByIDRow, error) {
 	return r.queries.GetUserWithPasswordByID(ctx, id)
 }

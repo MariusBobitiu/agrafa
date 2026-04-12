@@ -80,6 +80,16 @@ func (r *fakeServiceServiceNodeRepo) EnsureManagedByProject(_ context.Context, p
 	return r.managedNode, r.err
 }
 
+type fakeManagedServiceBootstrapChecker struct {
+	checked []generated.Service
+	err     error
+}
+
+func (c *fakeManagedServiceBootstrapChecker) CheckNow(_ context.Context, service generated.Service) error {
+	c.checked = append(c.checked, service)
+	return c.err
+}
+
 func TestServiceServiceCreateManagedAutoCreatesManagedNode(t *testing.T) {
 	t.Parallel()
 
@@ -119,6 +129,71 @@ func TestServiceServiceCreateManagedAutoCreatesManagedNode(t *testing.T) {
 	}
 	if nodeRepo.ensureManagedIdent != "agrafa-managed-3" {
 		t.Fatalf("managed identifier = %q, want agrafa-managed-3", nodeRepo.ensureManagedIdent)
+	}
+}
+
+func TestServiceServiceCreateManagedTriggersImmediateCheck(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeServiceServiceRepo{
+		service: generated.Service{ID: 9, NodeID: 88, CheckType: "http", CheckTarget: "https://example.com/health"},
+	}
+	nodeRepo := &fakeServiceServiceNodeRepo{
+		managedNode: generated.Node{ID: 88, ProjectID: 3, NodeType: types.NodeTypeManaged, IsVisible: false},
+	}
+	checker := &fakeManagedServiceBootstrapChecker{}
+	service := (&ServiceService{
+		serviceRepo: repo,
+		projectRepo: &fakeServiceServiceProjectRepo{},
+		nodeRepo:    nodeRepo,
+	}).WithManagedChecker(checker)
+
+	created, err := service.Create(context.Background(), types.CreateServiceInput{
+		ProjectID:     3,
+		ExecutionMode: types.ExecutionModeManaged,
+		Name:          "api",
+		CheckType:     "http",
+		CheckTarget:   "https://example.com/health",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if len(checker.checked) != 1 {
+		t.Fatalf("checked len = %d, want 1", len(checker.checked))
+	}
+	if checker.checked[0].ID != created.ID {
+		t.Fatalf("checked service id = %d, want %d", checker.checked[0].ID, created.ID)
+	}
+}
+
+func TestServiceServiceCreateAgentDoesNotTriggerImmediateManagedCheck(t *testing.T) {
+	t.Parallel()
+
+	nodeID := int64(11)
+	repo := &fakeServiceServiceRepo{
+		service: generated.Service{ID: 9, NodeID: nodeID, CheckType: "http", CheckTarget: "https://example.com/health"},
+	}
+	checker := &fakeManagedServiceBootstrapChecker{}
+	service := (&ServiceService{
+		serviceRepo: repo,
+		projectRepo: &fakeServiceServiceProjectRepo{},
+		nodeRepo: &fakeServiceServiceNodeRepo{
+			node: generated.Node{ID: nodeID, ProjectID: 3, NodeType: types.NodeTypeAgent},
+		},
+	}).WithManagedChecker(checker)
+
+	if _, err := service.Create(context.Background(), types.CreateServiceInput{
+		ProjectID:     3,
+		NodeID:        &nodeID,
+		ExecutionMode: types.ExecutionModeAgent,
+		Name:          "api",
+		CheckType:     "http",
+		CheckTarget:   "https://example.com/health",
+	}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if len(checker.checked) != 0 {
+		t.Fatalf("checked len = %d, want 0", len(checker.checked))
 	}
 }
 
