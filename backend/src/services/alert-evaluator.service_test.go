@@ -303,6 +303,61 @@ func TestEvaluateNodeRulesIgnoresNotificationFailures(t *testing.T) {
 	}
 }
 
+func TestEvaluateServiceRulesOnlyNotifiesOnLifecycleTransitions(t *testing.T) {
+	t.Parallel()
+
+	occurredAt := time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC)
+	rule := generated.AlertRule{
+		ID:        31,
+		ProjectID: 1,
+		ServiceID: sql.NullInt64{Int64: 21, Valid: true},
+		RuleType:  types.AlertRuleTypeServiceUnhealthy,
+		IsEnabled: true,
+	}
+
+	instanceRepo := &fakeAlertInstanceRepo{}
+	notifications := &fakeAlertNotificationService{}
+	service := &AlertEvaluatorService{
+		alertRuleRepo:       &fakeAlertRuleRepo{rules: []generated.AlertRule{rule}},
+		alertInstanceRepo:   instanceRepo,
+		metricRepo:          &fakeAlertMetricRepo{},
+		eventService:        &fakeAlertEventRecorder{},
+		notificationService: notifications,
+	}
+
+	if err := service.EvaluateServiceRules(context.Background(), generated.Service{ID: 21, CurrentState: types.ServiceStateUnhealthy}, occurredAt); err != nil {
+		t.Fatalf("first unhealthy EvaluateServiceRules returned error: %v", err)
+	}
+
+	if err := service.EvaluateServiceRules(context.Background(), generated.Service{ID: 21, CurrentState: types.ServiceStateUnhealthy}, occurredAt.Add(time.Minute)); err != nil {
+		t.Fatalf("second unhealthy EvaluateServiceRules returned error: %v", err)
+	}
+
+	if len(notifications.triggeredCalls) != 1 {
+		t.Fatalf("expected 1 triggered notification while alert stays active, got %d", len(notifications.triggeredCalls))
+	}
+
+	if len(notifications.resolvedCalls) != 0 {
+		t.Fatalf("expected 0 resolved notifications before recovery, got %d", len(notifications.resolvedCalls))
+	}
+
+	if err := service.EvaluateServiceRules(context.Background(), generated.Service{ID: 21, CurrentState: types.ServiceStateHealthy}, occurredAt.Add(2*time.Minute)); err != nil {
+		t.Fatalf("healthy EvaluateServiceRules returned error: %v", err)
+	}
+
+	if len(notifications.resolvedCalls) != 1 {
+		t.Fatalf("expected 1 resolved notification on recovery, got %d", len(notifications.resolvedCalls))
+	}
+
+	if err := service.EvaluateServiceRules(context.Background(), generated.Service{ID: 21, CurrentState: types.ServiceStateUnhealthy}, occurredAt.Add(3*time.Minute)); err != nil {
+		t.Fatalf("re-trigger unhealthy EvaluateServiceRules returned error: %v", err)
+	}
+
+	if len(notifications.triggeredCalls) != 2 {
+		t.Fatalf("expected 2 triggered notifications after re-trigger, got %d", len(notifications.triggeredCalls))
+	}
+}
+
 func TestEvaluateMetricRulesActivatesAndResolvesThresholdAlert(t *testing.T) {
 	t.Parallel()
 
