@@ -255,7 +255,7 @@ function MemberRow({
       {canManage && member.role !== "owner" && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground/60">
+            <Button variant="ghost" size="icon-sm" className="shrink-0 hover:bg-secondary hover:text-secondary-foreground text-muted-foreground/60">
               <MoreHorizontalIcon size={15} />
             </Button>
           </DropdownMenuTrigger>

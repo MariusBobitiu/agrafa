@@ -88,6 +88,59 @@ pnpm dev
 
 The frontend uses `VITE_API_URL` from `frontend/.env` and proxies `/v1` requests to the backend during development.
 
+## Self-Hosting MVP
+
+This repo includes two Compose setups for `postgres`, `backend`, and `frontend`:
+
+- `docker-compose.yml` pulls released backend and frontend images from GitHub Container Registry.
+- `docker-compose.local.yml` builds backend and frontend locally from this checkout.
+
+1. Copy the root env file:
+
+```bash
+cp .env.example .env
+```
+
+2. Set the required values in `.env`:
+
+- `POSTGRES_PASSWORD`
+- `APP_SECRET`
+- `APP_BASE_URL`
+- `VITE_API_URL`
+
+Keep the email variables blank unless you want outbound email. Agrafa boots without email configured.
+
+3. Set the published image owner and tags in `.env` when using released images:
+
+- `GHCR_OWNER`
+- `AGRAFA_BACKEND_TAG`
+- `AGRAFA_FRONTEND_TAG`
+
+4. Start the released stack:
+
+```bash
+docker compose up -d
+```
+
+5. Or start the local-build stack:
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+6. Access the app:
+
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:8080/v1`
+- Swagger UI: `http://localhost:8080/docs`
+
+Notes:
+
+- The backend connects to PostgreSQL over the Compose network using the `postgres` service hostname from `POSTGRES_URI`.
+- The backend runs app migrations on startup using the app's fixed `agrafa_meta.schema_migrations` metadata table.
+- The released-image Compose file defaults to `latest` tags; pin `AGRAFA_BACKEND_TAG` and `AGRAFA_FRONTEND_TAG` in `.env` if you want a specific release.
+- Reverse proxying is not bundled. If you want a single public entrypoint or TLS, place your own nginx, Traefik, or Caddy in front.
+
 ## Common Commands
 
 | Area | Command |

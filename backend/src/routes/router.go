@@ -29,6 +29,7 @@ func NewRouter(
 	authorizationService *services.AuthorizationService,
 	sessionService *services.SessionService,
 	agentAuthService *services.AgentAuthService,
+	appBaseURL string,
 ) http.Handler {
 	router := chi.NewRouter()
 
@@ -37,6 +38,7 @@ func NewRouter(
 	router.Use(chimiddleware.Logger)
 	router.Use(chimiddleware.Recoverer)
 	router.Use(chimiddleware.Timeout(30 * time.Second))
+	router.Use(agentmiddleware.CORS(appBaseURL))
 
 	router.Get("/docs", docsController.Scalar)
 	router.Handle("/openapi/*", http.StripPrefix("/openapi/", http.FileServer(http.Dir("docs"))))
