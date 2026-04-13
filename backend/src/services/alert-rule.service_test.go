@@ -49,6 +49,26 @@ func (r *fakeAlertRuleServiceAlertRuleRepo) List(_ context.Context, _ *int64) ([
 	return nil, nil
 }
 
+func (r *fakeAlertRuleServiceAlertRuleRepo) ListEnabled(_ context.Context, ruleType string, nodeID *int64, serviceID *int64, metricName *string) ([]generated.AlertRule, error) {
+	if r.rule.ID == 0 || !r.rule.IsEnabled || r.rule.RuleType != ruleType {
+		return nil, nil
+	}
+
+	if nodeID != nil && (!r.rule.NodeID.Valid || r.rule.NodeID.Int64 != *nodeID) {
+		return nil, nil
+	}
+
+	if serviceID != nil && (!r.rule.ServiceID.Valid || r.rule.ServiceID.Int64 != *serviceID) {
+		return nil, nil
+	}
+
+	if metricName != nil && (!r.rule.MetricName.Valid || r.rule.MetricName.String != *metricName) {
+		return nil, nil
+	}
+
+	return []generated.AlertRule{r.rule}, nil
+}
+
 func (r *fakeAlertRuleServiceAlertRuleRepo) Delete(_ context.Context, _ int64) (int64, error) {
 	return r.deleteRows, r.deleteErr
 }
@@ -233,5 +253,203 @@ func TestAlertRuleServiceGetByIDMapsNullableFields(t *testing.T) {
 	}
 	if rule.Severity != types.AlertSeverityCritical {
 		t.Fatalf("rule.Severity = %q, want %q", rule.Severity, types.AlertSeverityCritical)
+	}
+}
+
+func TestAlertRuleServiceCreateEvaluatesCurrentServiceStateImmediately(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, &fakeAlertEventRecorder{}, nil)
+	serviceID := int64(7)
+
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo,
+		projectRepo: &fakeAlertRuleServiceProjectRepo{
+			projects: map[int64]generated.Project{
+				1: {ID: 1},
+			},
+		},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{},
+		serviceRepo: &fakeAlertRuleServiceServiceRepo{
+			services: map[int64]generated.Service{
+				7: {ID: 7, ProjectID: 1, CurrentState: types.ServiceStateUnhealthy},
+			},
+		},
+		evaluator: evaluator,
+	}
+
+	_, err := service.Create(context.Background(), types.CreateAlertRuleInput{
+		ProjectID: 1,
+		ServiceID: &serviceID,
+		RuleType:  types.AlertRuleTypeServiceUnhealthy,
+		Severity:  types.AlertSeverityCritical,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	active, err := instanceRepo.FindActiveByRuleID(context.Background(), ruleRepo.rule.ID)
+	if err != nil {
+		t.Fatalf("expected active alert after create, got error: %v", err)
+	}
+
+	if active.ServiceID.Int64 != serviceID {
+		t.Fatalf("active.ServiceID = %d, want %d", active.ServiceID.Int64, serviceID)
+	}
+}
+
+func TestAlertRuleServiceCreateEvaluatesCurrentNodeStateImmediately(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, &fakeAlertEventRecorder{}, nil)
+	nodeID := int64(8)
+
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo,
+		projectRepo: &fakeAlertRuleServiceProjectRepo{
+			projects: map[int64]generated.Project{
+				1: {ID: 1},
+			},
+		},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{
+			nodes: map[int64]generated.Node{
+				8: {ID: 8, ProjectID: 1, CurrentState: types.NodeStateOffline},
+			},
+		},
+		serviceRepo: &fakeAlertRuleServiceServiceRepo{},
+		evaluator:   evaluator,
+	}
+
+	_, err := service.Create(context.Background(), types.CreateAlertRuleInput{
+		ProjectID: 1,
+		NodeID:    &nodeID,
+		RuleType:  types.AlertRuleTypeNodeOffline,
+		Severity:  types.AlertSeverityCritical,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	active, err := instanceRepo.FindActiveByRuleID(context.Background(), ruleRepo.rule.ID)
+	if err != nil {
+		t.Fatalf("expected active alert after create, got error: %v", err)
+	}
+
+	if active.NodeID.Int64 != nodeID {
+		t.Fatalf("active.NodeID = %d, want %d", active.NodeID.Int64, nodeID)
+	}
+}
+
+func TestAlertRuleServiceCreateEvaluatesCurrentThresholdStateImmediately(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	metricRepo := &fakeAlertMetricRepo{
+		samples: map[string]generated.MetricSample{
+			metricKey(9, types.MetricNameCPUUsage): {
+				NodeID:      9,
+				MetricName:  types.MetricNameCPUUsage,
+				MetricValue: 95,
+				ObservedAt:  time.Date(2026, time.April, 5, 11, 59, 0, 0, time.UTC),
+			},
+		},
+	}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, metricRepo, &fakeAlertEventRecorder{}, nil)
+	nodeID := int64(9)
+	threshold := 80.0
+
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo,
+		projectRepo: &fakeAlertRuleServiceProjectRepo{
+			projects: map[int64]generated.Project{
+				1: {ID: 1},
+			},
+		},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{
+			nodes: map[int64]generated.Node{
+				9: {ID: 9, ProjectID: 1, CurrentState: types.NodeStateOnline},
+			},
+		},
+		serviceRepo: &fakeAlertRuleServiceServiceRepo{},
+		evaluator:   evaluator,
+	}
+
+	_, err := service.Create(context.Background(), types.CreateAlertRuleInput{
+		ProjectID:      1,
+		NodeID:         &nodeID,
+		RuleType:       types.AlertRuleTypeCPUAboveThreshold,
+		Severity:       types.AlertSeverityWarning,
+		ThresholdValue: &threshold,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	active, err := instanceRepo.FindActiveByRuleID(context.Background(), ruleRepo.rule.ID)
+	if err != nil {
+		t.Fatalf("expected active threshold alert after create, got error: %v", err)
+	}
+
+	if active.Title != "Node 9 CPU usage is above 80" {
+		t.Fatalf("unexpected threshold alert title %q", active.Title)
+	}
+}
+
+func TestAlertRuleServiceCreateDoesNotDuplicateExistingActiveAlert(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
+	instanceRepo := &fakeAlertInstanceRepo{
+		instances: []generated.AlertInstance{
+			{
+				ID:          44,
+				AlertRuleID: 11,
+				ProjectID:   1,
+				NodeID:      sql.NullInt64{Int64: 10, Valid: true},
+				Status:      types.AlertStatusActive,
+			},
+		},
+		nextID: 44,
+	}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, &fakeAlertEventRecorder{}, nil)
+	nodeID := int64(10)
+
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo,
+		projectRepo: &fakeAlertRuleServiceProjectRepo{
+			projects: map[int64]generated.Project{
+				1: {ID: 1},
+			},
+		},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{
+			nodes: map[int64]generated.Node{
+				10: {ID: 10, ProjectID: 1, CurrentState: types.NodeStateOffline},
+			},
+		},
+		serviceRepo: &fakeAlertRuleServiceServiceRepo{},
+		evaluator:   evaluator,
+	}
+
+	_, err := service.Create(context.Background(), types.CreateAlertRuleInput{
+		ProjectID: 1,
+		NodeID:    &nodeID,
+		RuleType:  types.AlertRuleTypeNodeOffline,
+		Severity:  types.AlertSeverityCritical,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if instanceRepo.createCalls != 0 {
+		t.Fatalf("expected no new active alert when one already exists, got %d creates", instanceRepo.createCalls)
+	}
+
+	if len(instanceRepo.instances) != 1 {
+		t.Fatalf("expected existing alert instance to be reused, got %d instances", len(instanceRepo.instances))
 	}
 }

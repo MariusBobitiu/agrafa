@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/repositories"
@@ -32,11 +33,18 @@ type alertRuleServiceServiceRepository interface {
 	GetByID(ctx context.Context, id int64) (generated.Service, error)
 }
 
+type alertRuleServiceEvaluator interface {
+	EvaluateNodeRules(ctx context.Context, node generated.Node, occurredAt time.Time) error
+	EvaluateServiceRules(ctx context.Context, service generated.Service, occurredAt time.Time) error
+	EvaluateMetricRules(ctx context.Context, nodeID int64, metricName string, occurredAt time.Time) error
+}
+
 type AlertRuleService struct {
 	alertRuleRepo alertRuleServiceAlertRuleRepository
 	projectRepo   alertRuleServiceProjectRepository
 	nodeRepo      alertRuleServiceNodeRepository
 	serviceRepo   alertRuleServiceServiceRepository
+	evaluator     alertRuleServiceEvaluator
 }
 
 func NewAlertRuleService(
@@ -44,12 +52,14 @@ func NewAlertRuleService(
 	projectRepo *repositories.ProjectRepository,
 	nodeRepo *repositories.NodeRepository,
 	serviceRepo *repositories.ServiceRepository,
+	evaluator alertRuleServiceEvaluator,
 ) *AlertRuleService {
 	return &AlertRuleService{
 		alertRuleRepo: alertRuleRepo,
 		projectRepo:   projectRepo,
 		nodeRepo:      nodeRepo,
 		serviceRepo:   serviceRepo,
+		evaluator:     evaluator,
 	}
 }
 
@@ -89,6 +99,9 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 		serviceID      sql.NullInt64
 		metricName     sql.NullString
 		thresholdValue sql.NullFloat64
+		node           generated.Node
+		service        generated.Service
+		err            error
 	)
 
 	switch ruleType {
@@ -97,7 +110,7 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 			return types.AlertRuleReadData{}, types.ErrInvalidNodeID
 		}
 
-		node, err := s.nodeRepo.GetByID(ctx, *input.NodeID)
+		node, err = s.nodeRepo.GetByID(ctx, *input.NodeID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return types.AlertRuleReadData{}, types.ErrNodeNotFound
@@ -116,7 +129,7 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 			return types.AlertRuleReadData{}, types.ErrInvalidServiceID
 		}
 
-		service, err := s.serviceRepo.GetByID(ctx, *input.ServiceID)
+		service, err = s.serviceRepo.GetByID(ctx, *input.ServiceID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return types.AlertRuleReadData{}, types.ErrServiceNotFound
@@ -139,7 +152,7 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 			return types.AlertRuleReadData{}, types.ErrInvalidThresholdValue
 		}
 
-		node, err := s.nodeRepo.GetByID(ctx, *input.NodeID)
+		node, err = s.nodeRepo.GetByID(ctx, *input.NodeID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return types.AlertRuleReadData{}, types.ErrNodeNotFound
@@ -171,7 +184,44 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 		return types.AlertRuleReadData{}, fmt.Errorf("create alert rule: %w", err)
 	}
 
+	if err := s.evaluateCurrentState(ctx, rule, node, service); err != nil {
+		return types.AlertRuleReadData{}, err
+	}
+
 	return mapAlertRule(rule), nil
+}
+
+func (s *AlertRuleService) evaluateCurrentState(
+	ctx context.Context,
+	rule generated.AlertRule,
+	node generated.Node,
+	service generated.Service,
+) error {
+	if s.evaluator == nil {
+		return nil
+	}
+
+	switch rule.RuleType {
+	case types.AlertRuleTypeNodeOffline:
+		if err := s.evaluator.EvaluateNodeRules(ctx, node, rule.CreatedAt); err != nil {
+			return fmt.Errorf("evaluate current node state: %w", err)
+		}
+	case types.AlertRuleTypeServiceUnhealthy:
+		if err := s.evaluator.EvaluateServiceRules(ctx, service, rule.CreatedAt); err != nil {
+			return fmt.Errorf("evaluate current service state: %w", err)
+		}
+	default:
+		metricName := metricNameForRuleType(rule.RuleType)
+		if metricName == "" {
+			return nil
+		}
+
+		if err := s.evaluator.EvaluateMetricRules(ctx, node.ID, metricName, rule.CreatedAt); err != nil {
+			return fmt.Errorf("evaluate current metric state: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *AlertRuleService) List(ctx context.Context, projectID *int64) ([]types.AlertRuleReadData, error) {
