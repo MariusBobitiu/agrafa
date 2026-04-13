@@ -132,9 +132,12 @@ func TestAuthorizationServiceRequireProjectPermission(t *testing.T) {
 				notificationRecipientRepo: &fakeAuthorizationNotificationRecipientRepo{},
 			}
 
-			err := service.RequireProjectPermission(context.Background(), "usr_1", 42, testCase.permission)
+			role, err := service.RequireProjectPermission(context.Background(), "usr_1", 42, testCase.permission)
 			if !errors.Is(err, testCase.wantErr) {
 				t.Fatalf("RequireProjectPermission() error = %v, want %v", err, testCase.wantErr)
+			}
+			if testCase.wantErr == nil && role == "" {
+				t.Fatal("expected role for allowed permission check")
 			}
 		})
 	}

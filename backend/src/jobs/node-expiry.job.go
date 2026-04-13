@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/repositories"
 	"github.com/MariusBobitiu/agrafa-backend/src/services"
@@ -60,6 +61,7 @@ func (j *NodeExpiryJob) Start(ctx context.Context) {
 }
 
 func (j *NodeExpiryJob) runOnce(ctx context.Context) {
+	ctx = appdb.WithInternalRLSBypass(ctx)
 	cutoff := timeNow().Add(-j.heartbeatTTL)
 
 	nodes, err := j.nodeRepo.ListStaleOnline(ctx, cutoff)

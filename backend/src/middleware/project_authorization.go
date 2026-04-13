@@ -11,13 +11,14 @@ import (
 	"strconv"
 	"strings"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
 	"github.com/MariusBobitiu/agrafa-backend/src/utils"
 	"github.com/go-chi/chi/v5"
 )
 
 type projectPermissionAuthorizer interface {
-	RequireProjectPermission(ctx context.Context, userID string, projectID int64, permission string) error
+	RequireProjectPermission(ctx context.Context, userID string, projectID int64, permission string) (string, error)
 }
 
 type ProjectIDResolver func(ctx context.Context, r *http.Request) (int64, error)
@@ -59,7 +60,8 @@ func RequireProjectPermission(
 				return
 			}
 
-			if err := authorizer.RequireProjectPermission(r.Context(), user.ID, projectID, permission); err != nil {
+			role, err := authorizer.RequireProjectPermission(r.Context(), user.ID, projectID, permission)
+			if err != nil {
 				if utils.WriteDomainError(w, err) {
 					return
 				}
@@ -68,7 +70,8 @@ func RequireProjectPermission(
 				return
 			}
 
-			next.ServeHTTP(w, r)
+			ctx := appdb.WithProjectRLSContext(r.Context(), projectID, role)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

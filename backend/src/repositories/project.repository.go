@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 )
 
@@ -21,25 +22,35 @@ func NewProjectRepository(db *sql.DB, queries *generated.Queries) *ProjectReposi
 }
 
 func (r *ProjectRepository) Create(ctx context.Context, params generated.CreateProjectParams) (generated.Project, error) {
-	return r.queries.CreateProject(ctx, params)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.Project, error) {
+		return queries.CreateProject(ctx, params)
+	})
 }
 
 func (r *ProjectRepository) GetByID(ctx context.Context, id int64) (generated.Project, error) {
-	return r.queries.GetProjectByID(ctx, id)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.Project, error) {
+		return queries.GetProjectByID(ctx, id)
+	})
 }
 
 func (r *ProjectRepository) ListForUser(ctx context.Context, userID string) ([]generated.ListProjectsForUserRow, error) {
-	return r.queries.ListProjectsForUser(ctx, userID)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.ListProjectsForUserRow, error) {
+		return queries.ListProjectsForUser(ctx, userID)
+	})
 }
 
 func (r *ProjectRepository) Delete(ctx context.Context, id int64) (int64, error) {
-	return r.queries.DeleteProjectByID(ctx, id)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (int64, error) {
+		return queries.DeleteProjectByID(ctx, id)
+	})
 }
 
 func (r *ProjectRepository) UpdateName(ctx context.Context, id int64, name string) (generated.Project, error) {
-	return r.queries.UpdateProjectName(ctx, generated.UpdateProjectNameParams{
-		ID:   id,
-		Name: name,
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.Project, error) {
+		return queries.UpdateProjectName(ctx, generated.UpdateProjectNameParams{
+			ID:   id,
+			Name: name,
+		})
 	})
 }
 
@@ -61,13 +72,22 @@ func (r *ProjectRepository) CreateWithOwner(
 
 	queries := r.queries.WithTx(tx)
 
+	if err := appdb.ApplyRLSSessionContext(ctx, tx); err != nil {
+		return generated.Project{}, err
+	}
+
 	project, err := queries.CreateProject(ctx, projectParams)
 	if err != nil {
 		return generated.Project{}, err
 	}
 
+	bootstrapCtx := appdb.WithInternalRLSBypass(ctx)
+	if err := appdb.ApplyRLSSessionContext(bootstrapCtx, tx); err != nil {
+		return generated.Project{}, err
+	}
+
 	projectMemberParams.ProjectID = project.ID
-	if _, err := queries.CreateProjectMember(ctx, projectMemberParams); err != nil {
+	if _, err := queries.CreateProjectMember(bootstrapCtx, projectMemberParams); err != nil {
 		return generated.Project{}, err
 	}
 

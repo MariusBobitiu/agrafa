@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/services"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
@@ -97,6 +98,7 @@ func (j *ManagedServiceCheckJob) Start(ctx context.Context) {
 }
 
 func (j *ManagedServiceCheckJob) runOnce(ctx context.Context) {
+	ctx = appdb.WithInternalRLSBypass(ctx)
 	nodes, err := j.nodes.ListNodes(ctx, nil)
 	if err != nil {
 		log.Printf("managed service check node query failed: %v", err)

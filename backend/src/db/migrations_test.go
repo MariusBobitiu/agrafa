@@ -79,3 +79,29 @@ func TestInstanceSettingsMigrationCreatesMetaTable(t *testing.T) {
 		t.Fatalf("expected is_encrypted column in migration:\n%s", sql)
 	}
 }
+
+func TestProjectScopeRLSMigrationVerifiesMembershipInDatabase(t *testing.T) {
+	t.Parallel()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+
+	migrationPath := filepath.Join(filepath.Dir(currentFile), "migrations", "app", "000013_project_scope_rls.up.sql")
+	contents, err := os.ReadFile(migrationPath)
+	if err != nil {
+		t.Fatalf("read migration file: %v", err)
+	}
+
+	sql := string(contents)
+	if !strings.Contains(sql, "FROM app.project_members AS pm") {
+		t.Fatalf("expected helper functions to verify membership from app.project_members:\n%s", sql)
+	}
+	if strings.Contains(sql, "app.current_project_id() = target_project_id") {
+		t.Fatalf("helpers must not trust current_project_id for authorization:\n%s", sql)
+	}
+	if strings.Contains(sql, "pm.role = app.current_project_role()") {
+		t.Fatalf("helpers must not trust current_project_role for authorization:\n%s", sql)
+	}
+}

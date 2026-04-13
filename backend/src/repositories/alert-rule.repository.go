@@ -8,23 +8,33 @@ import (
 )
 
 type AlertRuleRepository struct {
+	db      *sql.DB
 	queries *generated.Queries
 }
 
-func NewAlertRuleRepository(queries *generated.Queries) *AlertRuleRepository {
-	return &AlertRuleRepository{queries: queries}
+func NewAlertRuleRepository(db *sql.DB, queries *generated.Queries) *AlertRuleRepository {
+	return &AlertRuleRepository{
+		db:      db,
+		queries: queries,
+	}
 }
 
 func (r *AlertRuleRepository) Create(ctx context.Context, params generated.CreateAlertRuleParams) (generated.AlertRule, error) {
-	return r.queries.CreateAlertRule(ctx, params)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.AlertRule, error) {
+		return queries.CreateAlertRule(ctx, params)
+	})
 }
 
 func (r *AlertRuleRepository) GetByID(ctx context.Context, id int64) (generated.AlertRule, error) {
-	return r.queries.GetAlertRuleByID(ctx, id)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.AlertRule, error) {
+		return queries.GetAlertRuleByID(ctx, id)
+	})
 }
 
 func (r *AlertRuleRepository) Update(ctx context.Context, params generated.UpdateAlertRuleParams) (generated.AlertRule, error) {
-	return r.queries.UpdateAlertRule(ctx, params)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.AlertRule, error) {
+		return queries.UpdateAlertRule(ctx, params)
+	})
 }
 
 func (r *AlertRuleRepository) UpdateEnabled(ctx context.Context, id int64, isEnabled bool) (generated.AlertRule, error) {
@@ -36,7 +46,9 @@ func (r *AlertRuleRepository) UpdateEnabled(ctx context.Context, id int64, isEna
 }
 
 func (r *AlertRuleRepository) Delete(ctx context.Context, id int64) (int64, error) {
-	return r.queries.DeleteAlertRuleByID(ctx, id)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (int64, error) {
+		return queries.DeleteAlertRuleByID(ctx, id)
+	})
 }
 
 func (r *AlertRuleRepository) List(ctx context.Context, projectID *int64) ([]generated.AlertRule, error) {
@@ -46,7 +58,9 @@ func (r *AlertRuleRepository) List(ctx context.Context, projectID *int64) ([]gen
 		params.ProjectID = *projectID
 	}
 
-	return r.queries.ListAlertRules(ctx, params)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.AlertRule, error) {
+		return queries.ListAlertRules(ctx, params)
+	})
 }
 
 func (r *AlertRuleRepository) ListEnabled(
@@ -75,5 +89,7 @@ func (r *AlertRuleRepository) ListEnabled(
 		params.MetricName = sql.NullString{String: *metricName, Valid: true}
 	}
 
-	return r.queries.ListEnabledAlertRules(ctx, params)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.AlertRule, error) {
+		return queries.ListEnabledAlertRules(ctx, params)
+	})
 }

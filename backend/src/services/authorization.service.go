@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/repositories"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
@@ -71,28 +72,28 @@ func NewAuthorizationService(
 	}
 }
 
-func (s *AuthorizationService) RequireProjectPermission(ctx context.Context, userID string, projectID int64, permission string) error {
+func (s *AuthorizationService) RequireProjectPermission(ctx context.Context, userID string, projectID int64, permission string) (string, error) {
 	if projectID <= 0 {
-		return types.ErrInvalidProjectID
+		return "", types.ErrInvalidProjectID
 	}
 	if userID == "" {
-		return types.ErrUnauthenticated
+		return "", types.ErrUnauthenticated
 	}
 
 	member, err := s.projectMemberRepo.GetByProjectAndUser(ctx, projectID, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return types.ErrForbidden
+			return "", types.ErrForbidden
 		}
 
-		return fmt.Errorf("get project membership: %w", err)
+		return "", fmt.Errorf("get project membership: %w", err)
 	}
 
 	if !RoleHasPermission(member.Role, permission) {
-		return types.ErrForbidden
+		return "", types.ErrForbidden
 	}
 
-	return nil
+	return member.Role, nil
 }
 
 func (s *AuthorizationService) ProjectIDForNode(ctx context.Context, nodeID int64) (int64, error) {
@@ -100,7 +101,7 @@ func (s *AuthorizationService) ProjectIDForNode(ctx context.Context, nodeID int6
 		return 0, types.ErrInvalidNodeID
 	}
 
-	node, err := s.nodeRepo.GetByID(ctx, nodeID)
+	node, err := s.nodeRepo.GetByID(appdb.WithInternalRLSBypass(ctx), nodeID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, types.ErrNodeNotFound
@@ -117,7 +118,7 @@ func (s *AuthorizationService) ProjectIDForProject(ctx context.Context, projectI
 		return 0, types.ErrInvalidProjectID
 	}
 
-	if _, err := s.projectRepo.GetByID(ctx, projectID); err != nil {
+	if _, err := s.projectRepo.GetByID(appdb.WithInternalRLSBypass(ctx), projectID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, types.ErrProjectNotFound
 		}
@@ -133,7 +134,7 @@ func (s *AuthorizationService) ProjectIDForService(ctx context.Context, serviceI
 		return 0, types.ErrInvalidServiceID
 	}
 
-	service, err := s.serviceRepo.GetByID(ctx, serviceID)
+	service, err := s.serviceRepo.GetByID(appdb.WithInternalRLSBypass(ctx), serviceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, types.ErrServiceNotFound
@@ -150,7 +151,7 @@ func (s *AuthorizationService) ProjectIDForAlertRule(ctx context.Context, alertR
 		return 0, types.ErrAlertRuleNotFound
 	}
 
-	rule, err := s.alertRuleRepo.GetByID(ctx, alertRuleID)
+	rule, err := s.alertRuleRepo.GetByID(appdb.WithInternalRLSBypass(ctx), alertRuleID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, types.ErrAlertRuleNotFound
@@ -167,7 +168,7 @@ func (s *AuthorizationService) ProjectIDForNotificationRecipient(ctx context.Con
 		return 0, types.ErrNotificationRecipientNotFound
 	}
 
-	recipient, err := s.notificationRecipientRepo.GetByID(ctx, notificationRecipientID)
+	recipient, err := s.notificationRecipientRepo.GetByID(appdb.WithInternalRLSBypass(ctx), notificationRecipientID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, types.ErrNotificationRecipientNotFound
@@ -185,7 +186,7 @@ func (s *AuthorizationService) ProjectIDForProjectMember(ctx context.Context, pr
 		return 0, types.ErrProjectMemberNotFound
 	}
 
-	member, err := s.projectMemberRepo.GetByID(ctx, projectMemberID)
+	member, err := s.projectMemberRepo.GetByID(appdb.WithInternalRLSBypass(ctx), projectMemberID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, types.ErrProjectMemberNotFound
@@ -203,7 +204,7 @@ func (s *AuthorizationService) ProjectIDForProjectInvitation(ctx context.Context
 		return 0, types.ErrProjectInvitationNotFound
 	}
 
-	invitation, err := s.projectInvitationRepo.GetByID(ctx, projectInvitationID)
+	invitation, err := s.projectInvitationRepo.GetByID(appdb.WithInternalRLSBypass(ctx), projectInvitationID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, types.ErrProjectInvitationNotFound

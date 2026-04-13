@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/services"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
@@ -18,14 +19,21 @@ type fakeProjectPermissionAuthorizer struct {
 	projectID  int64
 	userID     string
 	permission string
+	role       string
 	err        error
 }
 
-func (a *fakeProjectPermissionAuthorizer) RequireProjectPermission(_ context.Context, userID string, projectID int64, permission string) error {
+func (a *fakeProjectPermissionAuthorizer) RequireProjectPermission(_ context.Context, userID string, projectID int64, permission string) (string, error) {
 	a.userID = userID
 	a.projectID = projectID
 	a.permission = permission
-	return a.err
+	if a.err != nil {
+		return "", a.err
+	}
+	if a.role == "" {
+		return services.ProjectRoleViewer, nil
+	}
+	return a.role, nil
 }
 
 func TestRequireProjectPermissionMembersRead(t *testing.T) {
@@ -60,7 +68,7 @@ func TestRequireProjectPermissionMembersRead(t *testing.T) {
 func TestRequireProjectPermissionMembersManageFromBody(t *testing.T) {
 	t.Parallel()
 
-	authorizer := &fakeProjectPermissionAuthorizer{}
+	authorizer := &fakeProjectPermissionAuthorizer{role: services.ProjectRoleOwner}
 	nextCalled := false
 	handler := RequireProjectPermission(
 		authorizer,
@@ -71,6 +79,9 @@ func TestRequireProjectPermissionMembersManageFromBody(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		if !strings.Contains(string(body), `"project_id":12`) {
 			t.Fatalf("request body was not preserved, got %q", string(body))
+		}
+		if !appdb.HasRLSSessionContext(r.Context()) {
+			t.Fatal("expected RLS session context to be attached")
 		}
 		w.WriteHeader(http.StatusOK)
 	}))

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/services"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
@@ -42,6 +43,7 @@ func SessionAuth(authService sessionAuthenticator, sessionService *services.Sess
 			}
 
 			ctx := context.WithValue(r.Context(), authenticatedUserContextKey{}, user)
+			ctx = appdb.WithUserRLSContext(ctx, user.ID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

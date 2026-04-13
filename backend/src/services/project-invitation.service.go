@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	emailpkg "github.com/MariusBobitiu/agrafa-backend/src/email"
 	"github.com/MariusBobitiu/agrafa-backend/src/repositories"
@@ -173,7 +174,7 @@ func (s *ProjectInvitationService) List(ctx context.Context, projectID int64) ([
 }
 
 func (s *ProjectInvitationService) GetByToken(ctx context.Context, rawToken string) (types.ProjectInvitationLookupData, error) {
-	invitation, err := s.getValidInvitationByToken(ctx, rawToken)
+	invitation, err := s.getValidInvitationByToken(appdb.WithInternalRLSBypass(ctx), rawToken)
 	if err != nil {
 		return types.ProjectInvitationLookupData{}, err
 	}
@@ -192,6 +193,8 @@ func (s *ProjectInvitationService) Accept(ctx context.Context, rawToken string, 
 	if strings.TrimSpace(user.ID) == "" {
 		return false, types.ErrUnauthenticated
 	}
+
+	ctx = appdb.WithInternalRLSBypass(ctx)
 
 	invitation, err := s.getValidInvitationByToken(ctx, rawToken)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 )
 
@@ -28,10 +29,14 @@ func (r *ProjectInvitationRepository) CreateReplacingPending(ctx context.Context
 	}
 
 	defer func() {
-		if tx != nil {
-			_ = tx.Rollback()
-		}
+		_ = tx.Rollback()
 	}()
+
+	if appdb.HasRLSSessionContext(ctx) {
+		if err := appdb.ApplyRLSSessionContext(ctx, tx); err != nil {
+			return generated.ProjectInvitation{}, err
+		}
+	}
 
 	queries := r.queries.WithTx(tx)
 	if _, err := queries.DeletePendingProjectInvitationsByProjectAndEmail(ctx, generated.DeletePendingProjectInvitationsByProjectAndEmailParams{
@@ -50,37 +55,48 @@ func (r *ProjectInvitationRepository) CreateReplacingPending(ctx context.Context
 		return generated.ProjectInvitation{}, fmt.Errorf("commit tx: %w", err)
 	}
 
-	tx = nil
 	return invitation, nil
 }
 
 func (r *ProjectInvitationRepository) GetByID(ctx context.Context, id string) (generated.ProjectInvitation, error) {
-	return r.queries.GetProjectInvitationByID(ctx, id)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.ProjectInvitation, error) {
+		return queries.GetProjectInvitationByID(ctx, id)
+	})
 }
 
 func (r *ProjectInvitationRepository) GetActiveByProjectAndEmail(ctx context.Context, projectID int64, email string, now time.Time) (generated.ProjectInvitation, error) {
-	return r.queries.GetActiveProjectInvitationByProjectAndEmail(ctx, generated.GetActiveProjectInvitationByProjectAndEmailParams{
-		ProjectID: projectID,
-		Email:     email,
-		ExpiresAt: now.UTC(),
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.ProjectInvitation, error) {
+		return queries.GetActiveProjectInvitationByProjectAndEmail(ctx, generated.GetActiveProjectInvitationByProjectAndEmailParams{
+			ProjectID: projectID,
+			Email:     email,
+			ExpiresAt: now.UTC(),
+		})
 	})
 }
 
 func (r *ProjectInvitationRepository) ListByProjectID(ctx context.Context, projectID int64) ([]generated.ProjectInvitation, error) {
-	return r.queries.ListProjectInvitationsByProjectID(ctx, projectID)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.ProjectInvitation, error) {
+		return queries.ListProjectInvitationsByProjectID(ctx, projectID)
+	})
 }
 
 func (r *ProjectInvitationRepository) GetByTokenHash(ctx context.Context, tokenHash string) (generated.GetProjectInvitationByTokenHashRow, error) {
-	return r.queries.GetProjectInvitationByTokenHash(ctx, tokenHash)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.GetProjectInvitationByTokenHashRow, error) {
+		return queries.GetProjectInvitationByTokenHash(ctx, tokenHash)
+	})
 }
 
 func (r *ProjectInvitationRepository) MarkAccepted(ctx context.Context, id string, acceptedAt time.Time) (generated.ProjectInvitation, error) {
-	return r.queries.MarkProjectInvitationAccepted(ctx, generated.MarkProjectInvitationAcceptedParams{
-		ID:         id,
-		AcceptedAt: sql.NullTime{Time: acceptedAt.UTC(), Valid: true},
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.ProjectInvitation, error) {
+		return queries.MarkProjectInvitationAccepted(ctx, generated.MarkProjectInvitationAcceptedParams{
+			ID:         id,
+			AcceptedAt: sql.NullTime{Time: acceptedAt.UTC(), Valid: true},
+		})
 	})
 }
 
 func (r *ProjectInvitationRepository) Delete(ctx context.Context, id string) (int64, error) {
-	return r.queries.DeleteProjectInvitationByID(ctx, id)
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (int64, error) {
+		return queries.DeleteProjectInvitationByID(ctx, id)
+	})
 }
