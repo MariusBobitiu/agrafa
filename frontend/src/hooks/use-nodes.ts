@@ -46,7 +46,11 @@ export function useUpdateNode(projectId: number) {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: NodeUpdateInput }) =>
       nodesApi.update(id, payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["nodes", projectId] }),
+    onSuccess: (_, variables) => {
+      void qc.invalidateQueries({ queryKey: ["nodes", projectId] });
+      void qc.invalidateQueries({ queryKey: ["nodes", "detail", variables.id] });
+      void qc.invalidateQueries({ queryKey: ["overview", projectId] });
+    },
   });
 }
 

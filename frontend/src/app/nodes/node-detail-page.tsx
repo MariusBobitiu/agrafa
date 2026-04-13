@@ -7,6 +7,7 @@ import {
   CpuIcon,
   HardDriveIcon,
   MemoryStickIcon,
+  PencilIcon,
   ServerIcon,
   TrashIcon,
 } from "lucide-react";
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils.ts";
 import { MetaItem } from "@/components/meta-item.tsx";
 import { SectionHeading } from "@/components/section-heading.tsx";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
+import { CreateNodeDialog } from "./components/create-node-dialog.tsx";
 import type { Node } from "@/types/node.ts";
 import type { Service } from "@/types/service.ts";
 import type { Alert } from "@/types/alert.ts";
@@ -258,6 +260,7 @@ export function NodeDetailPage() {
   const navigate = useNavigate();
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const nodeId = id ? parseInt(id, 10) : 0;
 
@@ -372,6 +375,14 @@ export function NodeDetailPage() {
               {/* Status + delete */}
               <div className="flex items-center gap-2 shrink-0 sm:mt-0.5">
                 <StatusBadge status={node.current_state} />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground/40 hover:text-foreground"
+                  onClick={() => setEditOpen(true)}
+                >
+                  <PencilIcon size={14} />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -527,6 +538,14 @@ export function NodeDetailPage() {
         onConfirm={handleDelete}
         loading={deleteNode.isPending}
       />
+      {activeProjectId && (
+        <CreateNodeDialog
+          projectId={activeProjectId}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          node={node}
+        />
+      )}
     </div>
   );
 }

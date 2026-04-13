@@ -33,12 +33,17 @@ import {
 } from "@/components/ui/select.tsx";
 import { ApiError, NetworkError } from "@/lib/fetch-client.ts";
 import { useNodes } from "@/hooks/use-nodes.ts";
-import { useCreateService } from "@/hooks/use-services.ts";
+import { useCreateService, useUpdateService } from "@/hooks/use-services.ts";
 import {
   useServiceCreationStore,
   type ServiceCreationDraft,
 } from "@/stores/service-creation-store.ts";
-import type { ServiceCreateInput, ServiceExecutionMode } from "@/types/service.ts";
+import type {
+  Service,
+  ServiceCreateInput,
+  ServiceExecutionMode,
+  ServiceUpdateInput,
+} from "@/types/service.ts";
 
 const schema = z
   .object({
@@ -82,6 +87,7 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRequestNodeSetup: () => void;
+  service?: Service | null;
 };
 
 const DEFAULT_FORM_VALUES: FormValues = {
@@ -114,7 +120,35 @@ function getCreateServiceErrorMessage(error: unknown) {
   return "Couldn't create the service. Try again.";
 }
 
-export function CreateServiceDialog({ projectId, open, onOpenChange, onRequestNodeSetup }: Props) {
+function getUpdateServiceErrorMessage(error: unknown) {
+  if (error instanceof NetworkError) {
+    return error.message;
+  }
+
+  if (error instanceof ApiError) {
+    if (error.status === 409) {
+      return "A service with this name already exists for that location.";
+    }
+
+    if (error.status === 400 || error.status === 404) {
+      return "Review the service details and try again.";
+    }
+
+    if (error.status >= 500) {
+      return "Agrafa couldn't update the service right now. Try again in a moment.";
+    }
+  }
+
+  return "Couldn't update the service. Try again.";
+}
+
+export function CreateServiceDialog({
+  projectId,
+  open,
+  onOpenChange,
+  onRequestNodeSetup,
+  service = null,
+}: Props) {
   const pendingDraft = useServiceCreationStore((s) => s.draft);
   const pendingNodeId = useServiceCreationStore((s) => s.pendingNodeId);
   const resumeRequested = useServiceCreationStore((s) => s.resumeRequested);
@@ -122,16 +156,26 @@ export function CreateServiceDialog({ projectId, open, onOpenChange, onRequestNo
   const consumeResume = useServiceCreationStore((s) => s.consumeResume);
   const clearDraft = useServiceCreationStore((s) => s.clear);
   const createService = useCreateService(projectId);
+  const updateService = useUpdateService(projectId);
+  const isEditMode = service !== null;
   const initialValues =
-    resumeRequested && pendingDraft
+    isEditMode && service
       ? {
-          ...pendingDraft,
-          executionMode: (pendingNodeId
-            ? "agent"
-            : pendingDraft.executionMode) as ServiceExecutionMode,
-          nodeId: pendingNodeId ?? pendingDraft.nodeId ?? "",
+          name: service.name,
+          executionMode: service.execution_mode,
+          nodeId: service.node_id ? String(service.node_id) : "",
+          checkType: service.check_type,
+          checkTarget: service.check_target,
         }
-      : DEFAULT_FORM_VALUES;
+      : resumeRequested && pendingDraft
+        ? {
+            ...pendingDraft,
+            executionMode: (pendingNodeId
+              ? "agent"
+              : pendingDraft.executionMode) as ServiceExecutionMode,
+            nodeId: pendingNodeId ?? pendingDraft.nodeId ?? "",
+          }
+        : DEFAULT_FORM_VALUES;
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: initialValues,
@@ -146,6 +190,17 @@ export function CreateServiceDialog({ projectId, open, onOpenChange, onRequestNo
     executionMode === "agent" && (nodesQuery.isLoading || nodesQuery.isError || hasNoAgentNodes);
 
   useEffect(() => {
+    if (open && isEditMode && service) {
+      form.reset({
+        name: service.name,
+        executionMode: service.execution_mode,
+        nodeId: service.node_id ? String(service.node_id) : "",
+        checkType: service.check_type,
+        checkTarget: service.check_target,
+      });
+      return;
+    }
+
     if (open && resumeRequested && pendingDraft) {
       form.reset({
         ...pendingDraft,
@@ -156,26 +211,63 @@ export function CreateServiceDialog({ projectId, open, onOpenChange, onRequestNo
       });
       consumeResume();
     }
-  }, [consumeResume, form, open, pendingDraft, pendingNodeId, resumeRequested]);
+  }, [
+    consumeResume,
+    form,
+    isEditMode,
+    open,
+    pendingDraft,
+    pendingNodeId,
+    resumeRequested,
+    service,
+  ]);
 
   function handleOpenChange(nextOpen: boolean, options?: { preserveDraft?: boolean }) {
     onOpenChange(nextOpen);
     if (!nextOpen) {
-      form.reset(DEFAULT_FORM_VALUES);
+      form.reset(
+        isEditMode && service
+          ? {
+              name: service.name,
+              executionMode: service.execution_mode,
+              nodeId: service.node_id ? String(service.node_id) : "",
+              checkType: service.check_type,
+              checkTarget: service.check_target,
+            }
+          : DEFAULT_FORM_VALUES,
+      );
 
-      if (!options?.preserveDraft) {
+      if (!isEditMode && !options?.preserveDraft) {
         clearDraft();
       }
     }
   }
 
   async function onSubmit(values: FormValues) {
+    if (isEditMode && service) {
+      const payload: ServiceUpdateInput = {
+        name: values.name.trim(),
+        check_type: values.checkType,
+        check_target: values.checkTarget.trim(),
+      };
+
+      try {
+        await updateService.mutateAsync({ id: service.id, payload });
+        toast.success("Service updated");
+        handleOpenChange(false);
+      } catch (error) {
+        toast.error(getUpdateServiceErrorMessage(error));
+      }
+
+      return;
+    }
+
     const payload: ServiceCreateInput = {
       project_id: projectId,
       execution_mode: values.executionMode,
-      name: values.name,
+      name: values.name.trim(),
       check_type: values.checkType,
-      check_target: values.checkTarget,
+      check_target: values.checkTarget.trim(),
     };
 
     if (values.executionMode === "agent" && values.nodeId) {
@@ -210,9 +302,11 @@ export function CreateServiceDialog({ projectId, open, onOpenChange, onRequestNo
     <Dialog open={open} onOpenChange={(nextOpen) => handleOpenChange(nextOpen)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Add service</DialogTitle>
+          <DialogTitle>{isEditMode ? "Edit service" : "Add service"}</DialogTitle>
           <DialogDescription>
-            Choose what to monitor and where the checks should run from.
+            {isEditMode
+              ? "Update the service definition used by the current health check."
+              : "Choose what to monitor and where the checks should run from."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -230,74 +324,76 @@ export function CreateServiceDialog({ projectId, open, onOpenChange, onRequestNo
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="executionMode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Where should checks run from?</FormLabel>
-                  <FormDescription>
-                    Choose whether Agrafa runs the check itself or through a server you manage.
-                  </FormDescription>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {EXECUTION_LOCATION_OPTIONS.map((option) => {
-                      const isSelected = field.value === option.value;
+            {!isEditMode && (
+              <FormField
+                control={form.control}
+                name="executionMode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Where should checks run from?</FormLabel>
+                    <FormDescription>
+                      Choose whether Agrafa runs the check itself or through a server you manage.
+                    </FormDescription>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {EXECUTION_LOCATION_OPTIONS.map((option) => {
+                        const isSelected = field.value === option.value;
 
-                      return (
-                        <label
-                          key={option.value}
-                          className={cn(
-                            "flex cursor-pointer rounded-lg border px-4 py-3 transition-colors",
-                            isSelected
-                              ? "border-primary bg-primary/10 shadow-[0_0_0_1px_hsl(var(--primary))]"
-                              : "border-border bg-card hover:border-primary/40 hover:bg-muted/30",
-                          )}
-                        >
-                          <input
-                            type="radio"
-                            name={field.name}
-                            value={option.value}
-                            checked={isSelected}
-                            className="sr-only"
-                            onChange={(event) => {
-                              field.onChange(event.target.value);
-                              if (event.target.value === "managed") {
-                                form.clearErrors("nodeId");
-                              }
-                            }}
-                          />
-                          <span className="flex w-full items-start justify-between gap-3">
-                            <span className="space-y-1">
-                              <span className="block text-sm font-medium text-foreground">
-                                {option.title}
+                        return (
+                          <label
+                            key={option.value}
+                            className={cn(
+                              "flex cursor-pointer rounded-lg border px-4 py-3 transition-colors",
+                              isSelected
+                                ? "border-primary bg-primary/10 shadow-[0_0_0_1px_hsl(var(--primary))]"
+                                : "border-border bg-card hover:border-primary/40 hover:bg-muted/30",
+                            )}
+                          >
+                            <input
+                              type="radio"
+                              name={field.name}
+                              value={option.value}
+                              checked={isSelected}
+                              className="sr-only"
+                              onChange={(event) => {
+                                field.onChange(event.target.value);
+                                if (event.target.value === "managed") {
+                                  form.clearErrors("nodeId");
+                                }
+                              }}
+                            />
+                            <span className="flex w-full items-start justify-between gap-3">
+                              <span className="space-y-1">
+                                <span className="block text-sm font-medium text-foreground">
+                                  {option.title}
+                                </span>
+                                <span className="block text-sm text-muted-foreground">
+                                  {option.description}
+                                </span>
                               </span>
-                              <span className="block text-sm text-muted-foreground">
-                                {option.description}
-                              </span>
-                            </span>
-                            <span
-                              className={cn(
-                                "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
-                                isSelected ? "border-primary" : "border-muted-foreground/40",
-                              )}
-                            >
                               <span
                                 className={cn(
-                                  "h-2 w-2 rounded-full bg-primary transition-opacity",
-                                  !isSelected && "opacity-0",
+                                  "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+                                  isSelected ? "border-primary" : "border-muted-foreground/40",
                                 )}
-                              />
+                              >
+                                <span
+                                  className={cn(
+                                    "h-2 w-2 rounded-full bg-primary transition-opacity",
+                                    !isSelected && "opacity-0",
+                                  )}
+                                />
+                              </span>
                             </span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {executionMode === "agent" && (
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {!isEditMode && executionMode === "agent" && (
               <FormField
                 control={form.control}
                 name="nodeId"
@@ -412,9 +508,18 @@ export function CreateServiceDialog({ projectId, open, onOpenChange, onRequestNo
               </Button>
               <Button
                 type="submit"
-                disabled={createService.isPending || isAgentSelectionUnavailable}
+                disabled={
+                  (isEditMode ? updateService.isPending : createService.isPending) ||
+                  (!isEditMode && isAgentSelectionUnavailable)
+                }
               >
-                {createService.isPending ? "Creating..." : "Create"}
+                {isEditMode
+                  ? updateService.isPending
+                    ? "Saving..."
+                    : "Save changes"
+                  : createService.isPending
+                    ? "Creating..."
+                    : "Create"}
               </Button>
             </div>
           </form>

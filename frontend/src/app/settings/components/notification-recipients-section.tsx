@@ -5,14 +5,9 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, AlertDescription } from "@/components/ui/alert.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/components/ui/form.tsx";
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import {
   Select,
@@ -24,7 +19,9 @@ import {
 import { Separator } from "@/components/ui/separator.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { notificationsApi } from "@/data/notifications.ts";
+import { useInstanceSettings } from "@/hooks/use-instance-settings.ts";
 import { useCanWrite } from "@/hooks/use-project-role.ts";
+import { isEmailDeliveryAvailableOnInstance } from "@/lib/instance-settings.ts";
 import type { Severity } from "@/types/alert.ts";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
@@ -42,6 +39,11 @@ type FormValues = z.infer<typeof schema>;
 export function NotificationRecipientsSection({ projectId }: { projectId: number }) {
   const qc = useQueryClient();
   const canWrite = useCanWrite(projectId);
+  const { data: instanceSettingsData } = useInstanceSettings();
+  const isEmailDeliveryAvailable = isEmailDeliveryAvailableOnInstance(
+    instanceSettingsData?.settings ?? [],
+  );
+  const canManageRecipients = canWrite && isEmailDeliveryAvailable;
 
   const { data, isSuccess } = useQuery({
     queryKey: ["notifications", projectId],
@@ -85,6 +87,7 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
   }, [isSuccess, data]);
 
   async function onSubmit(values: FormValues) {
+    if (!canManageRecipients) return;
     await save.mutateAsync(values.recipients);
   }
 
@@ -96,12 +99,16 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
 
   return (
     <div className="space-y-6">
+      {!isEmailDeliveryAvailable && (
+        <Alert>
+          <AlertDescription>Email delivery is not configured on this instance.</AlertDescription>
+        </Alert>
+      )}
 
       {/* ── Recipients card ── */}
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <div className="rounded-xl border border-border overflow-hidden">
-
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5">
               <div>
@@ -110,7 +117,7 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
                   Each recipient only receives alerts at or above their minimum severity.
                 </p>
               </div>
-              {fields.length > 0 && canWrite && (
+              {fields.length > 0 && canManageRecipients && (
                 <Button type="submit" size="sm" disabled={save.isPending}>
                   <SaveIcon size={14} />
                   Save
@@ -145,6 +152,7 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
                               type="email"
                               placeholder="name@example.com"
                               className="font-mono text-sm"
+                              disabled={!canManageRecipients}
                               {...f}
                             />
                           </FormControl>
@@ -157,7 +165,11 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
                       name={`recipients.${index}.min_severity`}
                       render={({ field: f }) => (
                         <FormItem className="w-32 shrink-0">
-                          <Select onValueChange={f.onChange} value={f.value}>
+                          <Select
+                            onValueChange={f.onChange}
+                            value={f.value}
+                            disabled={!canManageRecipients}
+                          >
                             <FormControl>
                               <SelectTrigger className="text-sm">
                                 <SelectValue />
@@ -175,7 +187,7 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
                         </FormItem>
                       )}
                     />
-                    {canWrite && (
+                    {canManageRecipients && (
                       <div className="mt-1 flex items-center gap-1 shrink-0">
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -184,7 +196,7 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
                               variant="ghost"
                               size="icon-sm"
                               className="text-muted-foreground/40 hover:text-foreground"
-                              disabled={sendTest.isPending}
+                              disabled={sendTest.isPending || !canManageRecipients}
                               onClick={() => {
                                 const email = form.getValues(`recipients.${index}.target`);
                                 if (email) sendTest.mutate(email);
@@ -214,7 +226,7 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
             <Separator />
 
             {/* Footer */}
-            {canWrite && (
+            {canManageRecipients && (
               <div className="px-6 py-4 bg-muted/20">
                 <Button
                   type="button"
@@ -227,11 +239,9 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
                 </Button>
               </div>
             )}
-
           </div>
         </form>
       </Form>
-
     </div>
   );
 }

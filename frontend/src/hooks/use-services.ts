@@ -36,7 +36,11 @@ export function useUpdateService(projectId: number) {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: ServiceUpdateInput }) =>
       servicesApi.update(id, payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["services", projectId] }),
+    onSuccess: (_, variables) => {
+      void qc.invalidateQueries({ queryKey: ["services", projectId] });
+      void qc.invalidateQueries({ queryKey: ["services", "detail", variables.id] });
+      void qc.invalidateQueries({ queryKey: ["overview", projectId] });
+    },
   });
 }
 

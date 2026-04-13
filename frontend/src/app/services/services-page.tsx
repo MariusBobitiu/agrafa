@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronRightIcon, GlobeIcon, NetworkIcon, TrashIcon } from "lucide-react";
+import { ChevronRightIcon, GlobeIcon, NetworkIcon, PencilIcon, TrashIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
@@ -20,7 +20,15 @@ import type { Service } from "@/types/service.ts";
 
 // ─── Service row card ─────────────────────────────────────────────────────────
 
-function ServiceRowCard({ svc, onDelete }: { svc: Service; onDelete: (id: number) => void }) {
+function ServiceRowCard({
+  svc,
+  onDelete,
+  onEdit,
+}: {
+  svc: Service;
+  onDelete: (id: number) => void;
+  onEdit: (service: Service) => void;
+}) {
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const latencyMs = svc.latest_health_check?.response_time_ms ?? null;
@@ -109,6 +117,17 @@ function ServiceRowCard({ svc, onDelete }: { svc: Service; onDelete: (id: number
           <Button
             variant="ghost"
             size="icon-sm"
+            className="text-muted-foreground/30 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(svc);
+            }}
+          >
+            <PencilIcon size={13} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             className="text-muted-foreground/30 hover:bg-destructive hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={(e) => {
               e.stopPropagation();
@@ -174,6 +193,7 @@ export function ServicesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const createOpen = searchParams.get("create") === "1";
   const [nodeSetupOpen, setNodeSetupOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
   const [, setNow] = useState(() => Date.now());
 
   function handleDelete(id: number) {
@@ -261,7 +281,12 @@ export function ServicesPage() {
       ) : (
         <div className="space-y-2">
           {data.services.map((svc) => (
-            <ServiceRowCard key={svc.id} svc={svc} onDelete={handleDelete} />
+            <ServiceRowCard
+              key={svc.id}
+              svc={svc}
+              onDelete={handleDelete}
+              onEdit={setEditingService}
+            />
           ))}
         </div>
       )}
@@ -273,6 +298,17 @@ export function ServicesPage() {
             open={createOpen}
             onOpenChange={setCreateOpen}
             onRequestNodeSetup={handleRequestNodeSetup}
+          />
+          <CreateServiceDialog
+            projectId={activeProjectId}
+            open={editingService !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setEditingService(null);
+              }
+            }}
+            onRequestNodeSetup={handleRequestNodeSetup}
+            service={editingService}
           />
           <CreateNodeDialog
             projectId={activeProjectId}

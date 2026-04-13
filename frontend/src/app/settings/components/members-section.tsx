@@ -22,13 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/components/ui/form.tsx";
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import {
   Select,
@@ -39,6 +33,7 @@ import {
 } from "@/components/ui/select.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { useAuth } from "@/hooks/use-auth.ts";
+import { useInstanceSettings } from "@/hooks/use-instance-settings.ts";
 import {
   useInviteMembers,
   useProjectInvitations,
@@ -48,6 +43,7 @@ import {
   useUpdateMemberRole,
 } from "@/hooks/use-project-members.ts";
 import { useCanManageMembers } from "@/hooks/use-project-role.ts";
+import { isEmailDeliveryAvailableOnInstance } from "@/lib/instance-settings.ts";
 import type { ProjectMember, ProjectMemberRole } from "@/types/project-member.ts";
 import type { ProjectInvitationRole } from "@/types/project-invitation.ts";
 
@@ -123,9 +119,7 @@ function InviteDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Invite member</DialogTitle>
-          <DialogDescription>
-            Send an invitation to a user to join this project.
-          </DialogDescription>
+          <DialogDescription>Send an invitation to a user to join this project.</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -255,7 +249,11 @@ function MemberRow({
       {canManage && member.role !== "owner" && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="shrink-0 hover:bg-secondary hover:text-secondary-foreground text-muted-foreground/60">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 hover:bg-secondary hover:text-secondary-foreground text-muted-foreground/60"
+            >
               <MoreHorizontalIcon size={15} />
             </Button>
           </DropdownMenuTrigger>
@@ -315,9 +313,7 @@ function PendingInvitationsCard({
     <div className="rounded-xl border border-border overflow-hidden">
       <div className="px-6 py-5">
         <h2 className="text-sm font-semibold">Pending invitations</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Awaiting acceptance.
-        </p>
+        <p className="mt-0.5 text-sm text-muted-foreground">Awaiting acceptance.</p>
       </div>
       <Separator />
       <div className="divide-y divide-border">
@@ -332,7 +328,10 @@ function PendingInvitationsCard({
                 Expires {new Date(inv.expires_at).toLocaleDateString()}
               </p>
             </div>
-            <Badge variant={roleBadgeVariant[inv.role as ProjectInvitationRole] ?? "outline"} className="shrink-0 text-xs">
+            <Badge
+              variant={roleBadgeVariant[inv.role as ProjectInvitationRole] ?? "outline"}
+              className="shrink-0 text-xs"
+            >
               {roleLabel[inv.role] ?? inv.role}
             </Badge>
             {canManage && (
@@ -359,7 +358,10 @@ export function MembersSection({ projectId }: { projectId: number }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const { user } = useAuth();
   const canManage = useCanManageMembers(projectId);
+  const { data: instanceSettingsData } = useInstanceSettings();
   const { data, isLoading } = useProjectMembers(projectId);
+  const canInviteMembers =
+    canManage && isEmailDeliveryAvailableOnInstance(instanceSettingsData?.settings ?? []);
 
   const members = data?.project_members ?? [];
 
@@ -374,7 +376,7 @@ export function MembersSection({ projectId }: { projectId: number }) {
               People with access to this project.
             </p>
           </div>
-          {canManage && (
+          {canInviteMembers && (
             <Button size="sm" onClick={() => setInviteOpen(true)}>
               <PlusIcon size={14} />
               Invite
@@ -411,7 +413,7 @@ export function MembersSection({ projectId }: { projectId: number }) {
       {/* Invite dialog */}
       <InviteDialog
         projectId={projectId}
-        open={inviteOpen}
+        open={canInviteMembers && inviteOpen}
         onOpenChange={setInviteOpen}
       />
     </div>

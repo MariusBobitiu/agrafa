@@ -8,6 +8,7 @@ import {
   ClockIcon,
   GlobeIcon,
   NetworkIcon,
+  PencilIcon,
   SirenIcon,
   TrashIcon,
   XCircleIcon,
@@ -19,6 +20,7 @@ import { StatusBadge } from "@/components/ui/status-badge.tsx";
 import { MetaItem } from "@/components/meta-item.tsx";
 import { SectionHeading } from "@/components/section-heading.tsx";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
+import { CreateServiceDialog } from "./components/create-service-dialog.tsx";
 import { useService, useDeleteService } from "@/hooks/use-services.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
 import { formatDate, formatRelativeTime, cn } from "@/lib/utils.ts";
@@ -148,6 +150,7 @@ export function ServiceDetailPage() {
   const navigate = useNavigate();
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const serviceId = id ? parseInt(id, 10) : 0;
 
   const { data, isLoading, error } = useService(serviceId);
@@ -250,6 +253,14 @@ export function ServiceDetailPage() {
               </div>
               <div className="flex items-center gap-2 shrink-0 sm:mt-0.5">
                 <StatusBadge status={service.status} />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground/40 hover:text-foreground"
+                  onClick={() => setEditOpen(true)}
+                >
+                  <PencilIcon size={14} />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -468,6 +479,15 @@ export function ServiceDetailPage() {
         onConfirm={handleDelete}
         loading={deleteService.isPending}
       />
+      {activeProjectId && (
+        <CreateServiceDialog
+          projectId={activeProjectId}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          onRequestNodeSetup={() => {}}
+          service={service}
+        />
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   CpuIcon,
   HardDriveIcon,
   MemoryStickIcon,
+  PencilIcon,
   ServerIcon,
   TrashIcon,
 } from "lucide-react";
@@ -25,7 +26,15 @@ import type { Node } from "@/types/node.ts";
 import { InlineMetric } from "@/components/inline-metric.tsx";
 // ─── Node row card ────────────────────────────────────────────────────────────
 
-function NodeRowCard({ node, onDelete }: { node: Node; onDelete: (id: number) => void }) {
+function NodeRowCard({
+  node,
+  onDelete,
+  onEdit,
+}: {
+  node: Node;
+  onDelete: (id: number) => void;
+  onEdit: (node: Node) => void;
+}) {
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const cpu = node.latest_cpu?.value ?? null;
@@ -133,6 +142,17 @@ function NodeRowCard({ node, onDelete }: { node: Node; onDelete: (id: number) =>
           <Button
             variant="ghost"
             size="icon-sm"
+            className="text-muted-foreground/30 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(node);
+            }}
+          >
+            <PencilIcon size={13} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             className="text-muted-foreground/30 hover:bg-destructive hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={(e) => {
               e.stopPropagation();
@@ -215,6 +235,7 @@ export function NodesPage() {
   const deleteNode = useDeleteNode(activeProjectId ?? 0);
   const [searchParams, setSearchParams] = useSearchParams();
   const setupOpen = searchParams.get("setup") === "1";
+  const [editingNode, setEditingNode] = useState<Node | null>(null);
 
   function handleDelete(id: number) {
     deleteNode.mutate(id, {
@@ -267,17 +288,34 @@ export function NodesPage() {
       ) : (
         <div className="space-y-2">
           {data.nodes.map((node) => (
-            <NodeRowCard key={node.id} node={node} onDelete={handleDelete} />
+            <NodeRowCard
+              key={node.id}
+              node={node}
+              onDelete={handleDelete}
+              onEdit={setEditingNode}
+            />
           ))}
         </div>
       )}
 
       {activeProjectId && (
-        <CreateNodeDialog
-          projectId={activeProjectId}
-          open={setupOpen}
-          onOpenChange={setSetupOpen}
-        />
+        <>
+          <CreateNodeDialog
+            projectId={activeProjectId}
+            open={setupOpen}
+            onOpenChange={setSetupOpen}
+          />
+          <CreateNodeDialog
+            projectId={activeProjectId}
+            open={editingNode !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setEditingNode(null);
+              }
+            }}
+            node={editingNode}
+          />
+        </>
       )}
     </div>
   );

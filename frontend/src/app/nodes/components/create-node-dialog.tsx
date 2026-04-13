@@ -25,10 +25,15 @@ import {
 } from "@/components/ui/form.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { StatusBadge } from "@/components/ui/status-badge.tsx";
-import { useCreateNode, useNode, useRegenerateAgentToken } from "@/hooks/use-nodes.ts";
+import {
+  useCreateNode,
+  useNode,
+  useRegenerateAgentToken,
+  useUpdateNode,
+} from "@/hooks/use-nodes.ts";
 import { ApiError, NetworkError, getAgentApiBaseUrl } from "@/lib/fetch-client.ts";
 import { formatRelativeTime } from "@/lib/utils.ts";
-import type { NodeResponse } from "@/types/node.ts";
+import type { Node, NodeResponse } from "@/types/node.ts";
 import { CodeBlock } from "@/components/code-block.tsx";
 import { AnimatePresence, motion } from "motion/react";
 
@@ -46,6 +51,7 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   launchedFromService?: boolean;
+  node?: Node | null;
   onComplete?: (nodeId: number) => void;
 };
 
@@ -84,6 +90,28 @@ function getNodeCreateErrorMessage(error: unknown) {
   }
 
   return "Couldn't create the node. Try again.";
+}
+
+function getNodeUpdateErrorMessage(error: unknown) {
+  if (error instanceof NetworkError) {
+    return error.message;
+  }
+
+  if (error instanceof ApiError) {
+    if (error.status === 409) {
+      return "A node with that name already exists in this project.";
+    }
+
+    if (error.status === 400 || error.status === 404) {
+      return "Review the node details and try again.";
+    }
+
+    if (error.status >= 500) {
+      return "Agrafa couldn't update the node right now. Try again in a moment.";
+    }
+  }
+
+  return "Couldn't update the node. Try again.";
 }
 
 function getTokenErrorMessage(error: unknown) {
@@ -160,11 +188,14 @@ export function CreateNodeDialog({
   open,
   onOpenChange,
   launchedFromService = false,
+  node = null,
   onComplete,
 }: Props) {
   const queryClient = useQueryClient();
   const createNode = useCreateNode(projectId);
+  const updateNode = useUpdateNode(projectId);
   const regenerateToken = useRegenerateAgentToken();
+  const isEditMode = node !== null;
   const [step, setStep] = useState<Step>(0);
   const [createdNode, setCreatedNode] = useState<NodeResponse | null>(null);
   const [rawToken, setRawToken] = useState<string | null>(null);
@@ -174,7 +205,7 @@ export function CreateNodeDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "" },
+    defaultValues: { name: node?.name ?? "" },
   });
 
   const nodeQuery = useNode(createdNode?.id ?? 0, {
@@ -216,9 +247,18 @@ export function CreateNodeDialog({
       setCreatedNode(null);
       setRawToken(null);
       setTokenError(null);
-      form.reset({ name: "" });
+      setRegenerated(false);
+      form.reset({ name: node?.name ?? "" });
     }
-  }, [form, open]);
+  }, [form, node?.name, open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    form.reset({ name: node?.name ?? "" });
+  }, [form, node?.name, open]);
 
   useEffect(() => {
     if (!open || !isNodeOnline) {
@@ -230,6 +270,23 @@ export function CreateNodeDialog({
   }, [isNodeOnline, open, projectId, queryClient]);
 
   async function handleCreate(values: FormValues) {
+    if (isEditMode && node) {
+      try {
+        await updateNode.mutateAsync({
+          id: node.id,
+          payload: {
+            name: values.name.trim(),
+          },
+        });
+        toast.success("Node updated");
+        onOpenChange(false);
+      } catch (error) {
+        toast.error(getNodeUpdateErrorMessage(error));
+      }
+
+      return;
+    }
+
     try {
       const response = await createNode.mutateAsync({
         project_id: projectId,
@@ -296,19 +353,23 @@ export function CreateNodeDialog({
       <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden border-border/70 bg-background p-0">
         <DialogHeader className="border-b border-border/70 bg-muted/10 px-6 py-5">
           <div className="space-y-1">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground mb-2">
-                Step {step + 1} of {STEP_COPY.length}
-              </p>
-            </div>
-            <DialogTitle>Install and start the agent</DialogTitle>
+            {!isEditMode && (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground mb-2">
+                  Step {step + 1} of {STEP_COPY.length}
+                </p>
+              </div>
+            )}
+            <DialogTitle>{isEditMode ? "Edit node" : "Install and start the agent"}</DialogTitle>
             <DialogDescription className="max-w-2xl">
-              {STEP_COPY[step].description}
+              {isEditMode
+                ? "Update the node name used throughout the workspace."
+                : STEP_COPY[step].description}
             </DialogDescription>
           </div>
         </DialogHeader>
         <div className="flex-1 space-y-3 overflow-x-hidden overflow-y-auto px-6 pb-2">
-          {step === 0 && (
+          {(isEditMode || step === 0) && (
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(handleCreate)}
@@ -316,8 +377,12 @@ export function CreateNodeDialog({
                 id="create-node-form"
               >
                 <SectionTitle
-                  title="Create the node record"
-                  description="This registers the machine in Agrafa so a one-time agent token can be issued for it."
+                  title={isEditMode ? "Update node details" : "Create the node record"}
+                  description={
+                    isEditMode
+                      ? "Edit the node name shown in lists, details, and service assignments."
+                      : "This registers the machine in Agrafa so a one-time agent token can be issued for it."
+                  }
                 />
                 <FormField
                   control={form.control}
@@ -332,15 +397,17 @@ export function CreateNodeDialog({
                     </FormItem>
                   )}
                 />
-                <div className="rounded-xl border border-dashed border-border/70 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
-                  Create the node first. Token generation and setup instructions stay locked until
-                  the backend confirms the node exists.
-                </div>
+                {!isEditMode && (
+                  <div className="rounded-xl border border-dashed border-border/70 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
+                    Create the node first. Token generation and setup instructions stay locked until
+                    the backend confirms the node exists.
+                  </div>
+                )}
               </form>
             </Form>
           )}
 
-          {step === 1 && createNode && (
+          {!isEditMode && step === 1 && createNode && (
             <div className="space-y-6">
               <SectionTitle
                 title="Install and start the agent"
@@ -434,7 +501,7 @@ export function CreateNodeDialog({
               </div>
             </div>
           )}
-          {step === 2 && createdNode && (
+          {!isEditMode && step === 2 && createdNode && (
             <div className="space-y-6">
               <SectionTitle
                 title="Wait for the first heartbeat"
@@ -483,7 +550,17 @@ export function CreateNodeDialog({
         </div>
         <DialogFooter className="border-t border-border/70 bg-muted/10 px-6 py-5">
           {/* Buttons */}
-          {step === 0 && (
+          {isEditMode && (
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" form="create-node-form" disabled={updateNode.isPending}>
+                {updateNode.isPending ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
+          )}
+          {!isEditMode && step === 0 && (
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
@@ -493,7 +570,7 @@ export function CreateNodeDialog({
               </Button>
             </div>
           )}
-          {step === 1 && (
+          {!isEditMode && step === 1 && (
             <div className="flex justify-between gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {launchedFromService ? "Back to service" : "Close"}
@@ -503,7 +580,7 @@ export function CreateNodeDialog({
               </Button>
             </div>
           )}
-          {step === 2 && (
+          {!isEditMode && step === 2 && (
             <div className="w-full flex flex-wrap justify-between gap-2">
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" onClick={() => void nodeQuery.refetch()}>

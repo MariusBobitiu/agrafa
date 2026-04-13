@@ -39,7 +39,9 @@ import {
 import { authApi } from "@/data/auth.ts";
 import { projectInvitationsApi } from "@/data/project-invitations.ts";
 import { useAuth } from "@/hooks/use-auth.ts";
+import { useInstanceSettings } from "@/hooks/use-instance-settings.ts";
 import { useCreateProject, useProjects, useUpdateProject } from "@/hooks/use-projects.ts";
+import { isEmailDeliveryAvailableOnInstance } from "@/lib/instance-settings.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
 import type {
   ProjectInvitationCreateResult,
@@ -89,23 +91,22 @@ const inviteSchema = z.object({
 type ProjectFormValues = z.infer<typeof projectSchema>;
 type InviteFormValues = z.infer<typeof inviteSchema>;
 
-const STEP_COPY = [
-  {
-    eyebrow: "Step 1 of 3",
+const STEP_COPY = {
+  project: {
     title: "Create your first project",
     description: "Projects group your nodes, services, and alerts.",
   },
-  {
-    eyebrow: "Step 2 of 3",
+  invite: {
     title: "Invite your team",
     description: "Add teammates now or skip and invite them later from the app.",
   },
-  {
-    eyebrow: "Step 3 of 3",
+  finish: {
     title: "Finish setup",
     description: "Review what was created, complete onboarding, and continue to your overview.",
   },
-] as const;
+} as const;
+
+type Step = keyof typeof STEP_COPY;
 
 function getInviteResultLabel(result: ProjectInvitationCreateResult) {
   if (result.status === "created") return "Invited";
@@ -123,14 +124,31 @@ function getInviteResultVariant(result: ProjectInvitationCreateResult) {
 export function OnboardingPage() {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<Step>("project");
   const [project, setProject] = useState<Project | null>(null);
   const [inviteResults, setInviteResults] = useState<ProjectInvitationCreateResult[]>([]);
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const { data: projectsData, isLoading: isProjectsLoading } = useProjects();
+  const { data: instanceSettingsData } = useInstanceSettings();
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
   const setActiveProjectId = useUIStore((s) => s.setActiveProjectId);
+  const isEmailDeliveryAvailable = isEmailDeliveryAvailableOnInstance(
+    instanceSettingsData?.settings ?? [],
+  );
+  const visibleSteps: Step[] = isEmailDeliveryAvailable
+    ? ["project", "invite", "finish"]
+    : ["project", "finish"];
+  const currentStepIndex = visibleSteps.indexOf(step);
+  const safeStepIndex = currentStepIndex >= 0 ? currentStepIndex : 0;
+  const currentStep = STEP_COPY[step];
+  const totalSteps = visibleSteps.length;
+
+  useEffect(() => {
+    if (step === "invite" && !isEmailDeliveryAvailable) {
+      setStep("finish");
+    }
+  }, [isEmailDeliveryAvailable, step]);
 
   const projectForm = useForm<ProjectFormValues>({
     resolver: zodResolver(projectSchema),
@@ -178,7 +196,9 @@ export function OnboardingPage() {
     if (project || !projectsData?.projects.length) return;
 
     const existingProject =
-      projectsData.projects.find((item) => item.id === activeProjectId) ?? projectsData.projects[0] ?? null;
+      projectsData.projects.find((item) => item.id === activeProjectId) ??
+      projectsData.projects[0] ??
+      null;
 
     if (!existingProject) return;
 
@@ -195,31 +215,30 @@ export function OnboardingPage() {
 
     setProject(result.project);
     setActiveProjectId(result.project.id);
-    setStep(1);
+    setStep(isEmailDeliveryAvailable ? "invite" : "finish");
   }
 
   async function handleInviteSubmit(values: InviteFormValues) {
     const response = await inviteMutation.mutateAsync(values);
     setInviteResults(response.results);
-    setStep(2);
+    setStep("finish");
   }
 
   function handleSkipInvites() {
     setInviteResults([]);
-    setStep(2);
+    setStep("finish");
   }
 
   async function handleCompleteOnboarding() {
     await completeOnboarding.mutateAsync();
   }
 
-  const currentStep = STEP_COPY[step]!;
   const createdInviteCount = inviteResults.filter((result) => result.status === "created").length;
   const failedInviteCount = inviteResults.length - createdInviteCount;
   const hasExistingProject = (projectsData?.projects.length ?? 0) > 0;
   const isResolvingProject = isProjectsLoading && !project;
   const stepTitle =
-    step === 0
+    step === "project"
       ? hasExistingProject
         ? "Name your first project"
         : `Welcome, ${user?.name.split(" ")[0]}`
@@ -230,17 +249,19 @@ export function OnboardingPage() {
       <Card className="w-full max-w-3xl">
         <CardHeader className="space-y-4">
           <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">{currentStep.eyebrow}</p>
+            <p className="text-sm text-muted-foreground">
+              Step {safeStepIndex + 1} of {totalSteps}
+            </p>
             <CardTitle className="text-2xl">{stepTitle}</CardTitle>
             <p className="text-sm text-muted-foreground">
-              {step === 0
+              {step === "project"
                 ? hasExistingProject
                   ? "Choose the name for your initial project and get Agrafa ready for your team."
                   : "Set up your first project and get Agrafa ready for your team."
                 : currentStep.description}
             </p>
           </div>
-          <Progress value={((step + 1) / STEP_COPY.length) * 100} className="h-2" />
+          <Progress value={((safeStepIndex + 1) / totalSteps) * 100} className="h-2" />
         </CardHeader>
         <CardContent className="space-y-6">
           <AnimatePresence mode="wait">
@@ -251,7 +272,7 @@ export function OnboardingPage() {
               exit={{ opacity: 0, x: -16 }}
               transition={{ duration: 0.15 }}
             >
-              {step === 0 && (
+              {step === "project" && (
                 <div className="space-y-6">
                   <Form {...projectForm}>
                     <form
@@ -276,7 +297,8 @@ export function OnboardingPage() {
                         <Alert>
                           <AlertTitle>Initial project ready</AlertTitle>
                           <AlertDescription>
-                            The backend already provisioned your first project. This step updates its name instead of creating another one.
+                            The backend already provisioned your first project. This step updates
+                            its name instead of creating another one.
                           </AlertDescription>
                         </Alert>
                       )}
@@ -284,7 +306,9 @@ export function OnboardingPage() {
                       <div className="flex justify-end">
                         <Button
                           type="submit"
-                          disabled={isResolvingProject || createProject.isPending || updateProject.isPending}
+                          disabled={
+                            isResolvingProject || createProject.isPending || updateProject.isPending
+                          }
                         >
                           {isResolvingProject
                             ? "Preparing..."
@@ -300,13 +324,13 @@ export function OnboardingPage() {
                 </div>
               )}
 
-              {step === 1 && (
+              {step === "invite" && (
                 <div className="space-y-6">
                   <Alert>
                     <AlertTitle>{project?.name}</AlertTitle>
                     <AlertDescription>
-                      Your project has been created. Invite admins or viewers now, or skip and do
-                      it later from your workspace.
+                      Your project has been created. Invite admins or viewers now, or skip and do it
+                      later from your workspace.
                     </AlertDescription>
                   </Alert>
 
@@ -399,7 +423,7 @@ export function OnboardingPage() {
                 </div>
               )}
 
-              {step === 2 && (
+              {step === "finish" && (
                 <div className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="rounded-lg border border-border p-4">
@@ -455,7 +479,10 @@ export function OnboardingPage() {
                   )}
 
                   <div className="flex justify-between gap-3">
-                    <Button variant="outline" onClick={() => setStep(1)}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setStep(isEmailDeliveryAvailable ? "invite" : "project")}
+                    >
                       Back
                     </Button>
                     <Button
