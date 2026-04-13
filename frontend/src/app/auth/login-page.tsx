@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input.tsx";
 import { useAuth } from "@/hooks/use-auth.ts";
 import { getRedirectCandidateFromState } from "@/lib/auth-redirect.ts";
+import { useMeta } from "@/hooks/use-meta";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -25,6 +26,10 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function LoginPage() {
+  useMeta({
+    title: "Sign In",
+    description: "Sign in to your account to access your dashboard and manage your projects",
+  });
   const { login } = useAuth();
   const location = useLocation();
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +54,7 @@ export function LoginPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Enter your credentials to continue
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">Enter your credentials to continue</p>
       </div>
 
       {error && (
@@ -88,11 +91,7 @@ export function LoginPage() {
               </FormItem>
             )}
           />
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={form.formState.isSubmitting}
-          >
+          <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
             {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
           </Button>
         </form>
@@ -109,7 +108,10 @@ export function LoginPage() {
 
       <p className="text-center text-sm text-muted-foreground">
         Don't have an account?{" "}
-        <Link to="/register" className="font-medium text-foreground underline-offset-4 hover:underline">
+        <Link
+          to="/register"
+          className="font-medium text-foreground underline-offset-4 hover:underline"
+        >
           Sign up
         </Link>
       </p>

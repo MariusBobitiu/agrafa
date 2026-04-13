@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
+import { createBrowserRouter, Outlet } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { AuthProvider } from "@/contexts/auth-context.tsx";
 import { RequireAuth } from "@/components/auth/require-auth.tsx";
@@ -20,6 +20,8 @@ import { AlertsPage } from "@/app/alerts/alerts-page.tsx";
 import { SettingsPage } from "@/app/settings/settings-page.tsx";
 import { ProfilePage } from "@/app/profile/profile-page.tsx";
 import { InvitePage } from "@/app/invite/invite-page.tsx";
+import { NotFoundPage } from "@/app/not-found/not-found-page.tsx";
+import { RouteErrorBoundary } from "@/components/error/route-error-boundary.tsx";
 
 // Root layout — wraps everything in AuthProvider (which needs useNavigate from the router)
 function RootLayout() {
@@ -34,6 +36,7 @@ function RootLayout() {
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: <AuthLayout />,
@@ -52,7 +55,11 @@ export const router = createBrowserRouter([
           {
             element: <AuthLayout />,
             children: [
+              { path: "/sign-in", element: <LoginPage /> },
+              { path: "/signin", element: <LoginPage /> },
               { path: "/login", element: <LoginPage /> },
+              { path: "/sign-up", element: <RegisterPage /> },
+              { path: "/signup", element: <RegisterPage /> },
               { path: "/register", element: <RegisterPage /> },
             ],
           },
@@ -66,6 +73,7 @@ export const router = createBrowserRouter([
           { path: "/onboarding", element: <OnboardingPage /> },
           {
             element: <AppLayout />,
+            errorElement: <RouteErrorBoundary />,
             children: [
               { path: "/overview", element: <OverviewPage /> },
               { path: "/nodes", element: <NodesPage /> },
@@ -81,7 +89,7 @@ export const router = createBrowserRouter([
       },
 
       // Catch-all
-      { path: "*", element: <Navigate to="/overview" replace /> },
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
 ]);

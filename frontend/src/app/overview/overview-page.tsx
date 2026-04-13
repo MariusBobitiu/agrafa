@@ -34,6 +34,7 @@ import { formatRelativeTime } from "@/lib/utils.ts";
 import { cn } from "@/lib/utils.ts";
 import type { Overview, NodeSummary, OverviewEvent } from "@/types/overview.ts";
 import type { Service } from "@/types/service.ts";
+import { useMeta } from "@/hooks/use-meta";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,6 @@ function statusDotClass(status: NodeStateStatus | "healthy" | "degraded" | "unhe
     "bg-muted-foreground/40": status === "unknown",
   });
 }
-
 
 function severityConfig(severity: string) {
   switch (severity) {
@@ -83,7 +83,8 @@ function SystemStatusBanner({ data, services }: BannerProps) {
   const unhealthyServices = services.filter(
     (s) => s.status === "unhealthy" || s.status === "degraded",
   );
-  const issueCount = offlineNodes.length + unhealthyServices.length + (data.active_alerts > 0 ? 1 : 0);
+  const issueCount =
+    offlineNodes.length + unhealthyServices.length + (data.active_alerts > 0 ? 1 : 0);
   const hasIssues = issueCount > 0;
 
   if (!hasIssues) {
@@ -119,9 +120,12 @@ function SystemStatusBanner({ data, services }: BannerProps) {
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {[
-              offlineNodes.length > 0 && `${offlineNodes.length} node${offlineNodes.length > 1 ? "s" : ""} offline`,
-              unhealthyServices.length > 0 && `${unhealthyServices.length} service${unhealthyServices.length > 1 ? "s" : ""} degraded`,
-              data.active_alerts > 0 && `${data.active_alerts} active alert${data.active_alerts > 1 ? "s" : ""}`,
+              offlineNodes.length > 0 &&
+                `${offlineNodes.length} node${offlineNodes.length > 1 ? "s" : ""} offline`,
+              unhealthyServices.length > 0 &&
+                `${unhealthyServices.length} service${unhealthyServices.length > 1 ? "s" : ""} degraded`,
+              data.active_alerts > 0 &&
+                `${data.active_alerts} active alert${data.active_alerts > 1 ? "s" : ""}`,
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -182,7 +186,10 @@ function BannerIssueRow({ label, detail, severity, href, onClick }: BannerIssueR
       <div className="flex items-center gap-2.5">
         <CircleIcon
           size={7}
-          className={cn("fill-current shrink-0", severity === "critical" ? "text-destructive" : "text-warning")}
+          className={cn(
+            "fill-current shrink-0",
+            severity === "critical" ? "text-destructive" : "text-warning",
+          )}
         />
         <span className="font-medium text-foreground">{label}</span>
       </div>
@@ -225,12 +232,18 @@ function NodeMachineCard({ node }: { node: NodeSummary }) {
             <ServerIcon
               size={15}
               className={cn(
-                isOnline ? "text-primary" : isOffline ? "text-destructive" : "text-muted-foreground",
+                isOnline
+                  ? "text-primary"
+                  : isOffline
+                    ? "text-destructive"
+                    : "text-muted-foreground",
               )}
             />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground leading-snug truncate">{node.name}</p>
+            <p className="text-sm font-semibold text-foreground leading-snug truncate">
+              {node.name}
+            </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {node.last_seen_at
                 ? isOnline
@@ -247,20 +260,10 @@ function NodeMachineCard({ node }: { node: NodeSummary }) {
       {hasMetrics ? (
         <div className="space-y-2.5 mb-4">
           {cpu !== null && (
-            <MetricBar
-              icon={<CpuIcon size={12} />}
-              label="CPU"
-              value={cpu}
-              variant="cpu"
-            />
+            <MetricBar icon={<CpuIcon size={12} />} label="CPU" value={cpu} variant="cpu" />
           )}
           {mem !== null && (
-            <MetricBar
-              icon={<MemoryStickIcon size={12} />}
-              label="Mem"
-              value={mem}
-              variant="mem"
-            />
+            <MetricBar icon={<MemoryStickIcon size={12} />} label="Mem" value={mem} variant="mem" />
           )}
           {disk !== null && (
             <MetricBar
@@ -311,7 +314,12 @@ function OverviewNodeGrid({ nodes }: { nodes: NodeSummary[] }) {
             {nodes.length} node{nodes.length !== 1 ? "s" : ""} registered
           </p>
         </div>
-        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => navigate("/nodes")}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={() => navigate("/nodes")}
+        >
           View all
           <ArrowRightIcon size={11} />
         </Button>
@@ -355,7 +363,12 @@ function OverviewServiceList({ services }: { services: Service[] }) {
             )}
           </p>
         </div>
-        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => navigate("/services")}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={() => navigate("/services")}
+        >
           View all
           <ArrowRightIcon size={11} />
         </Button>
@@ -374,7 +387,9 @@ function OverviewServiceList({ services }: { services: Service[] }) {
                 )}
               />
               <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground truncate leading-snug">{svc.name}</p>
+                <p className="text-sm font-medium text-foreground truncate leading-snug">
+                  {svc.name}
+                </p>
                 <p className="text-xs text-muted-foreground truncate">{svc.check_target}</p>
               </div>
             </div>
@@ -485,8 +500,8 @@ function OverviewEmptyState() {
       </div>
       <h3 className="text-base font-semibold text-foreground">Start monitoring</h3>
       <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
-        Add a server to run checks from infrastructure you control, or start monitoring a
-        service endpoint right away.
+        Add a server to run checks from infrastructure you control, or start monitoring a service
+        endpoint right away.
       </p>
       <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
         <Button
@@ -561,10 +576,18 @@ function ServiceRowSkeleton({ rows = 4 }: { rows?: number }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function OverviewPage() {
+  useMeta({
+    title: "Overview",
+    description: "Live infrastructure status",
+  });
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const navigate = useNavigate();
 
-  const { data, isLoading: overviewLoading, error } = useQuery({
+  const {
+    data,
+    isLoading: overviewLoading,
+    error,
+  } = useQuery({
     queryKey: ["overview", activeProjectId],
     queryFn: () => overviewApi.get(activeProjectId!),
     enabled: !!activeProjectId,
@@ -619,9 +642,7 @@ export function OverviewPage() {
           }
         />
 
-        {error && (
-          <p className="text-sm text-destructive">Failed to load overview data.</p>
-        )}
+        {error && <p className="text-sm text-destructive">Failed to load overview data.</p>}
 
         {/* ── 1. Stat cards ── */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -636,9 +657,7 @@ export function OverviewPage() {
             value={data?.nodes_online ?? 0}
             icon={WifiIcon}
             description={
-              (data?.nodes_offline ?? 0) > 0
-                ? `${data?.nodes_offline} offline`
-                : undefined
+              (data?.nodes_offline ?? 0) > 0 ? `${data?.nodes_offline} offline` : undefined
             }
             loading={isLoading}
           />
@@ -729,9 +748,7 @@ export function OverviewPage() {
             )}
 
             {/* ── 6. Recent events ── */}
-            {!overviewLoading && events?.length > 0 && (
-              <OverviewRecentEvents events={events} />
-            )}
+            {!overviewLoading && events?.length > 0 && <OverviewRecentEvents events={events} />}
           </>
         )}
       </div>

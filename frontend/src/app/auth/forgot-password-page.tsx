@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/form.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { authApi } from "@/data/auth.ts";
+import { useMeta } from "@/hooks/use-meta";
 
 const schema = z.object({
   email: z.string().trim().email("Enter a valid email"),
@@ -24,6 +25,11 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function ForgotPasswordPage() {
+  useMeta({
+    title: "Forgot Password",
+    description: "Request a password reset link for your account",
+  });
+
   const [submitted, setSubmitted] = useState(false);
   const forgotPassword = useMutation({
     mutationFn: (values: FormValues) => authApi.forgotPassword({ email: values.email.trim() }),
@@ -80,7 +86,10 @@ export function ForgotPasswordPage() {
 
       <p className="text-center text-sm text-muted-foreground">
         Remembered it?{" "}
-        <Link to="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+        <Link
+          to="/login"
+          className="font-medium text-foreground underline-offset-4 hover:underline"
+        >
           Sign in
         </Link>
       </p>

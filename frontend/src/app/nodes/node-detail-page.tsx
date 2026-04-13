@@ -29,6 +29,7 @@ import { CreateNodeDialog } from "./components/create-node-dialog.tsx";
 import type { Node } from "@/types/node.ts";
 import type { Service } from "@/types/service.ts";
 import type { Alert } from "@/types/alert.ts";
+import { useMeta } from "@/hooks/use-meta.ts";
 
 // ─── Gauge ────────────────────────────────────────────────────────────────────
 
@@ -263,6 +264,11 @@ export function NodeDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
 
   const nodeId = id ? parseInt(id, 10) : 0;
+
+  useMeta({
+    title: `Node #${nodeId}`,
+    description: `View details, metrics, services, and alerts for node #${nodeId}`,
+  });
 
   const {
     data: nodeData,

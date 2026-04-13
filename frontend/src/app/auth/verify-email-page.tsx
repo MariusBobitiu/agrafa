@@ -6,8 +6,13 @@ import { Button } from "@/components/ui/button.tsx";
 import { authApi } from "@/data/auth.ts";
 import { useAuth } from "@/hooks/use-auth.ts";
 import type { User } from "@/types/auth.ts";
+import { useMeta } from "@/hooks/use-meta";
 
 export function VerifyEmailPage() {
+  useMeta({
+    title: "Verify Email",
+    description: "Confirm your email address to access all features of Agrafa",
+  });
   const { isAuthenticated, refreshUser, user, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -68,7 +73,8 @@ export function VerifyEmailPage() {
           <Alert>
             <AlertTitle>Check your inbox</AlertTitle>
             <AlertDescription>
-              We sent a verification link to your email address. Open that link to unlock the rest of the app.
+              We sent a verification link to your email address. Open that link to unlock the rest
+              of the app.
             </AlertDescription>
           </Alert>
 
@@ -123,7 +129,9 @@ export function VerifyEmailPage() {
         <Alert variant="destructive">
           <AlertTitle>Verification failed</AlertTitle>
           <AlertDescription>
-            {confirm.error instanceof Error ? confirm.error.message : "This link is invalid or expired."}
+            {confirm.error instanceof Error
+              ? confirm.error.message
+              : "This link is invalid or expired."}
           </AlertDescription>
         </Alert>
       )}

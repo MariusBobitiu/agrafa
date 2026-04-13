@@ -10,11 +10,11 @@ import { ProjectSection } from "./components/project-section.tsx";
 import { MembersSection } from "./components/members-section.tsx";
 import { DangerZoneSection } from "./components/danger-zone-section.tsx";
 import { InstanceSection } from "./components/instance-section.tsx";
+import { useMeta } from "@/hooks/use-meta.ts";
 
 // ─── Tab nav styles ───────────────────────────────────────────────────────────
 
-const tabListClass =
-  "h-auto bg-transparent p-0 rounded-none w-full justify-start gap-1.5";
+const tabListClass = "h-auto bg-transparent p-0 rounded-none w-full justify-start gap-1.5";
 
 const tabTriggerClass =
   "rounded-lg px-3 py-1.5 text-sm font-medium " +
@@ -25,6 +25,10 @@ const tabTriggerClass =
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
+  useMeta({
+    title: "Settings",
+    description: "Configure project settings, manage team members, and set up notifications",
+  });
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const canDeleteProject = useCanDeleteProject(activeProjectId ?? 0);
 
@@ -34,14 +38,28 @@ export function SettingsPage() {
 
       <Tabs defaultValue="notifications">
         <TabsList className={tabListClass}>
-          <TabsTrigger value="notifications" className={tabTriggerClass}>Notifications</TabsTrigger>
-          <TabsTrigger value="alert-rules" className={tabTriggerClass}>Alert Rules</TabsTrigger>
-          <TabsTrigger value="project" className={tabTriggerClass}>Project</TabsTrigger>
-          <TabsTrigger value="members" className={tabTriggerClass}>Members</TabsTrigger>
-          <TabsTrigger value="integrations" className={tabTriggerClass}>Integrations</TabsTrigger>
-          <TabsTrigger value="instance" className={tabTriggerClass}>Instance</TabsTrigger>
+          <TabsTrigger value="notifications" className={tabTriggerClass}>
+            Notifications
+          </TabsTrigger>
+          <TabsTrigger value="alert-rules" className={tabTriggerClass}>
+            Alert Rules
+          </TabsTrigger>
+          <TabsTrigger value="project" className={tabTriggerClass}>
+            Project
+          </TabsTrigger>
+          <TabsTrigger value="members" className={tabTriggerClass}>
+            Members
+          </TabsTrigger>
+          <TabsTrigger value="integrations" className={tabTriggerClass}>
+            Integrations
+          </TabsTrigger>
+          <TabsTrigger value="instance" className={tabTriggerClass}>
+            Instance
+          </TabsTrigger>
           {canDeleteProject && (
-            <TabsTrigger value="danger-zone" className={tabTriggerClass}>Danger Zone</TabsTrigger>
+            <TabsTrigger value="danger-zone" className={tabTriggerClass}>
+              Danger Zone
+            </TabsTrigger>
           )}
         </TabsList>
 
@@ -68,7 +86,9 @@ export function SettingsPage() {
         {/* ── Integrations ── */}
         <TabsContent value="integrations" className="mt-6">
           <EmptyState
-            icon={({ size, className }) => <PuzzleIcon size={size} className={className as string} />}
+            icon={({ size, className }) => (
+              <PuzzleIcon size={size} className={className as string} />
+            )}
             title="Integrations coming soon"
             description="Integrations will be available in a future release."
           />

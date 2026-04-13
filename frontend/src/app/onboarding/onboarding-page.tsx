@@ -48,6 +48,7 @@ import type {
   ProjectInvitationRole,
 } from "@/types/project-invitation.ts";
 import type { Project } from "@/types/project.ts";
+import { useMeta } from "@/hooks/use-meta";
 
 const projectSchema = z.object({
   name: z.string().trim().min(1, "Project name is required").max(100),
@@ -122,6 +123,10 @@ function getInviteResultVariant(result: ProjectInvitationCreateResult) {
 }
 
 export function OnboardingPage() {
+  useMeta({
+    title: "Get Started with Agrafa",
+    description: "Set up your first project and invite your team to start monitoring with Agrafa",
+  });
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("project");

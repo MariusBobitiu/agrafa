@@ -10,8 +10,13 @@ import { useAuth } from "@/hooks/use-auth.ts";
 import { buildRedirectPath, setAuthRedirect } from "@/lib/auth-redirect.ts";
 import { formatDate } from "@/lib/utils.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
+import { useMeta } from "@/hooks/use-meta";
 
 export function InvitePage() {
+  useMeta({
+    title: "Project Invitation",
+    description: "Review and accept your project invitation to get started with Agrafa",
+  });
   const { isAuthenticated, user, logout, refreshUser } = useAuth();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token")?.trim() ?? "";
@@ -51,7 +56,9 @@ export function InvitePage() {
       return result;
     },
     onSuccess: (result) => {
-      toast.success(result.already_member ? "Project already linked to your account." : "Invitation accepted.");
+      toast.success(
+        result.already_member ? "Project already linked to your account." : "Invitation accepted.",
+      );
       navigate("/overview", { replace: true });
     },
   });
@@ -100,7 +107,9 @@ export function InvitePage() {
         <Alert variant="destructive">
           <AlertTitle>Invitation unavailable</AlertTitle>
           <AlertDescription>
-            {inviteQuery.error instanceof Error ? inviteQuery.error.message : "This invitation is invalid or expired."}
+            {inviteQuery.error instanceof Error
+              ? inviteQuery.error.message
+              : "This invitation is invalid or expired."}
           </AlertDescription>
         </Alert>
       )}
@@ -111,7 +120,9 @@ export function InvitePage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Project</p>
-                <h2 className="text-lg font-semibold">{invite.project_name || "Untitled project"}</h2>
+                <h2 className="text-lg font-semibold">
+                  {invite.project_name || "Untitled project"}
+                </h2>
               </div>
               <Badge className="capitalize">{invite.role}</Badge>
             </div>
@@ -132,7 +143,8 @@ export function InvitePage() {
             <Alert>
               <AlertTitle>Sign in to accept</AlertTitle>
               <AlertDescription>
-                Use the invited email address, and we&apos;ll bring you back to this invitation after authentication.
+                Use the invited email address, and we&apos;ll bring you back to this invitation
+                after authentication.
               </AlertDescription>
             </Alert>
           ) : !emailMatches ? (
@@ -177,7 +189,11 @@ export function InvitePage() {
                   {accept.isPending ? "Accepting..." : "Accept invitation"}
                 </Button>
                 {!emailMatches && (
-                  <Button variant="outline" onClick={() => void handleSwitchAccount()} className="w-full">
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleSwitchAccount()}
+                    className="w-full"
+                  >
                     Sign out
                   </Button>
                 )}

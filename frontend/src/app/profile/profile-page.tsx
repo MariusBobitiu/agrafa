@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/ui/page-header.tsx";
 import { authApi } from "@/data/auth.ts";
 import { useAuth } from "@/hooks/use-auth.ts";
 import { SessionsSection } from "@/app/settings/components/sessions-section.tsx";
+import { useMeta } from "@/hooks/use-meta";
 
 // ─── Change password schema ───────────────────────────────────────────────────
 
@@ -38,17 +39,17 @@ type PasswordValues = z.infer<typeof passwordSchema>;
 // ─── Shared section card shell ────────────────────────────────────────────────
 
 function SectionCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-border overflow-hidden">
-      {children}
-    </div>
-  );
+  return <div className="rounded-xl border border-border overflow-hidden">{children}</div>;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function ProfilePage() {
   const { user } = useAuth();
+  useMeta({
+    title: `${user?.name}'s Profile`,
+    description: "View and update your account information and security settings",
+  });
 
   const sendVerifyEmail = useMutation({
     mutationFn: () => authApi.sendVerifyEmail(),
@@ -78,7 +79,6 @@ export function ProfilePage() {
       <PageHeader title="Profile" />
 
       <div className="space-y-6">
-
         {/* ── Profile info section ── */}
         <SectionCard>
           <div className="px-6 py-5">
@@ -119,9 +119,7 @@ export function ProfilePage() {
         <SectionCard>
           <div className="px-6 py-5">
             <h2 className="text-sm font-semibold">Change password</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Update your account password.
-            </p>
+            <p className="mt-0.5 text-sm text-muted-foreground">Update your account password.</p>
           </div>
           <Separator />
           <div className="px-6 py-5">
@@ -181,7 +179,6 @@ export function ProfilePage() {
         <SectionCard>
           <SessionsSection />
         </SectionCard>
-
       </div>
     </div>
   );

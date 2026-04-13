@@ -25,6 +25,7 @@ import { useService, useDeleteService } from "@/hooks/use-services.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
 import { formatDate, formatRelativeTime, cn } from "@/lib/utils.ts";
 import type { Service, ServiceAlert, HealthCheckSummary } from "@/types/service.ts";
+import { useMeta } from "@/hooks/use-meta.ts";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -156,6 +157,13 @@ export function ServiceDetailPage() {
   const { data, isLoading, error } = useService(serviceId);
   const service = data?.service;
   const deleteService = useDeleteService(activeProjectId ?? 0);
+
+  useMeta({
+    title: service ? `${service.name} Details` : "Service Details",
+    description: service
+      ? `View recent health checks, active alerts, and configuration for ${service.name}`
+      : "View service details",
+  });
 
   function handleDelete() {
     deleteService.mutate(serviceId, {

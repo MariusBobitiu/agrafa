@@ -17,6 +17,7 @@ import { CreateServiceDialog } from "./components/create-service-dialog.tsx";
 import { AnimateIcon, PlusIcon, ActivityIcon } from "@/components/animate-ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
 import type { Service } from "@/types/service.ts";
+import { useMeta } from "@/hooks/use-meta.ts";
 
 // ─── Service row card ─────────────────────────────────────────────────────────
 
@@ -186,6 +187,10 @@ function ServiceRowSkeleton() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function ServicesPage() {
+  useMeta({
+    title: "Services",
+    description: "HTTP and TCP service health checks",
+  });
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const markServiceDraftResume = useServiceCreationStore((s) => s.markResume);
   const { data, isLoading, error } = useServices(activeProjectId ?? 0);

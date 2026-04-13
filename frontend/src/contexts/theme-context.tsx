@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 export type Theme = "light" | "dark" | "system";
 type ResolvedTheme = "light" | "dark";
@@ -50,6 +43,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     root.classList.remove("light", "dark");
     root.classList.add(resolvedTheme);
+
+    const colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
+    if (colorSchemeMeta) {
+      colorSchemeMeta.setAttribute("content", resolvedTheme);
+    } else {
+      const meta = document.createElement("meta");
+      meta.setAttribute("name", "color-scheme");
+      meta.setAttribute("content", resolvedTheme);
+      document.head.appendChild(meta);
+    }
   }, [resolvedTheme]);
 
   const setTheme = useCallback((next: Theme) => {

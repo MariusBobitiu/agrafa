@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input.tsx";
 import { useAuth } from "@/hooks/use-auth.ts";
 import { getRedirectCandidateFromState } from "@/lib/auth-redirect.ts";
+import { useMeta } from "@/hooks/use-meta";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -26,6 +27,11 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function RegisterPage() {
+  useMeta({
+    title: "Sign Up",
+    description: "Create a new account to access your dashboard and manage your projects",
+  });
+
   const { register } = useAuth();
   const location = useLocation();
   const [error, setError] = useState<string | null>(null);
@@ -50,9 +56,7 @@ export function RegisterPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Get started with Agrafa
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">Get started with Agrafa</p>
       </div>
 
       {error && (
@@ -102,11 +106,7 @@ export function RegisterPage() {
               </FormItem>
             )}
           />
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={form.formState.isSubmitting}
-          >
+          <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
             {form.formState.isSubmitting ? "Creating account..." : "Create account"}
           </Button>
         </form>
@@ -114,7 +114,10 @@ export function RegisterPage() {
 
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link to="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+        <Link
+          to="/login"
+          className="font-medium text-foreground underline-offset-4 hover:underline"
+        >
           Sign in
         </Link>
       </p>

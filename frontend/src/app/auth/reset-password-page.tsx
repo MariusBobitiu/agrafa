@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/form.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { authApi } from "@/data/auth.ts";
+import { useMeta } from "@/hooks/use-meta";
 
 const schema = z
   .object({
@@ -31,13 +32,16 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 export function ResetPasswordPage() {
+  useMeta({
+    title: "Reset Password",
+    description: "Set a new password for your account",
+  });
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token")?.trim() ?? "";
   const [error, setError] = useState<string | null>(null);
   const resetPassword = useMutation({
-    mutationFn: (values: FormValues) =>
-      authApi.resetPassword({ token, password: values.password }),
+    mutationFn: (values: FormValues) => authApi.resetPassword({ token, password: values.password }),
     onSuccess: () => {
       toast.success("Password updated. Sign in with your new password.");
       navigate("/login", { replace: true });
@@ -81,9 +85,7 @@ export function ResetPasswordPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Choose a new password</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Set a new password for your account.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">Set a new password for your account.</p>
       </div>
 
       {error && (

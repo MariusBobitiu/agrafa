@@ -24,6 +24,7 @@ import { CreateNodeDialog } from "./components/create-node-dialog.tsx";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
 import type { Node } from "@/types/node.ts";
 import { InlineMetric } from "@/components/inline-metric.tsx";
+import { useMeta } from "@/hooks/use-meta.ts";
 // ─── Node row card ────────────────────────────────────────────────────────────
 
 function NodeRowCard({
@@ -230,6 +231,10 @@ function NodesEmptyState({ onSetup }: { onSetup: () => void }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function NodesPage() {
+  useMeta({
+    title: "Nodes",
+    description: "Servers you control that can run checks for this project",
+  });
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const { data, isLoading, error } = useNodes(activeProjectId ?? 0);
   const deleteNode = useDeleteNode(activeProjectId ?? 0);
