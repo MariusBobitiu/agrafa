@@ -13,7 +13,7 @@ import (
 type alertRuleService interface {
 	Create(ctx context.Context, input types.CreateAlertRuleInput) (types.AlertRuleReadData, error)
 	GetByID(ctx context.Context, alertRuleID int64) (types.AlertRuleReadData, error)
-	SetEnabled(ctx context.Context, input types.UpdateAlertRuleInput) (types.AlertRuleReadData, error)
+	Update(ctx context.Context, input types.UpdateAlertRuleInput) (types.AlertRuleReadData, error)
 	Delete(ctx context.Context, alertRuleID int64) error
 }
 
@@ -104,7 +104,7 @@ func (c *AlertRuleController) Get(w http.ResponseWriter, r *http.Request) {
 // Update updates an alert rule.
 //
 // @Summary      Update alert rule
-// @Description  Updates the enabled state of an alert rule.
+// @Description  Updates the target, threshold, severity, and enabled state of an alert rule.
 // @Tags         alerts
 // @Accept       json
 // @Produce      json
@@ -128,14 +128,19 @@ func (c *AlertRuleController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if request.IsEnabled == nil {
-		utils.WriteError(w, http.StatusBadRequest, "is_enabled is required")
+	if request.NodeID == nil && request.ServiceID == nil && request.Severity == nil &&
+		request.ThresholdValue == nil && request.IsEnabled == nil {
+		utils.WriteError(w, http.StatusBadRequest, "at least one field must be provided")
 		return
 	}
 
-	rule, err := c.alertRuleService.SetEnabled(r.Context(), types.UpdateAlertRuleInput{
-		ID:        id,
-		IsEnabled: *request.IsEnabled,
+	rule, err := c.alertRuleService.Update(r.Context(), types.UpdateAlertRuleInput{
+		ID:             id,
+		NodeID:         request.NodeID,
+		ServiceID:      request.ServiceID,
+		Severity:       request.Severity,
+		ThresholdValue: request.ThresholdValue,
+		IsEnabled:      request.IsEnabled,
 	})
 	if err != nil {
 		if utils.WriteDomainError(w, err) {

@@ -222,21 +222,46 @@ func (q *Queries) ListEnabledAlertRules(ctx context.Context, arg ListEnabledAler
 	return items, nil
 }
 
-const updateAlertRuleEnabled = `-- name: UpdateAlertRuleEnabled :one
+const updateAlertRule = `-- name: UpdateAlertRule :one
 UPDATE app.alert_rules
-SET is_enabled = $2,
+SET node_id = CASE WHEN $2::boolean THEN $3 ELSE node_id END,
+    service_id = CASE WHEN $4::boolean THEN $5 ELSE service_id END,
+    severity = CASE WHEN $6::boolean THEN $7 ELSE severity END,
+    threshold_value = CASE WHEN $8::boolean THEN $9 ELSE threshold_value END,
+    is_enabled = CASE WHEN $10::boolean THEN $11 ELSE is_enabled END,
     updated_at = NOW()
 WHERE id = $1
 RETURNING id, project_id, node_id, service_id, rule_type, severity, metric_name, threshold_value, is_enabled, created_at, updated_at
 `
 
-type UpdateAlertRuleEnabledParams struct {
-	ID        int64 `json:"id"`
-	IsEnabled bool  `json:"is_enabled"`
+type UpdateAlertRuleParams struct {
+	ID             int64           `json:"id"`
+	Column2        bool            `json:"column_2"`
+	NodeID         sql.NullInt64   `json:"node_id"`
+	Column4        bool            `json:"column_4"`
+	ServiceID      sql.NullInt64   `json:"service_id"`
+	Column6        bool            `json:"column_6"`
+	Severity       string          `json:"severity"`
+	Column8        bool            `json:"column_8"`
+	ThresholdValue sql.NullFloat64 `json:"threshold_value"`
+	Column10       bool            `json:"column_10"`
+	IsEnabled      bool            `json:"is_enabled"`
 }
 
-func (q *Queries) UpdateAlertRuleEnabled(ctx context.Context, arg UpdateAlertRuleEnabledParams) (AppAlertRule, error) {
-	row := q.db.QueryRowContext(ctx, updateAlertRuleEnabled, arg.ID, arg.IsEnabled)
+func (q *Queries) UpdateAlertRule(ctx context.Context, arg UpdateAlertRuleParams) (AppAlertRule, error) {
+	row := q.db.QueryRowContext(ctx, updateAlertRule,
+		arg.ID,
+		arg.Column2,
+		arg.NodeID,
+		arg.Column4,
+		arg.ServiceID,
+		arg.Column6,
+		arg.Severity,
+		arg.Column8,
+		arg.ThresholdValue,
+		arg.Column10,
+		arg.IsEnabled,
+	)
 	var i AppAlertRule
 	err := row.Scan(
 		&i.ID,

@@ -23,9 +23,14 @@ func (r *AlertRuleRepository) GetByID(ctx context.Context, id int64) (generated.
 	return r.queries.GetAlertRuleByID(ctx, id)
 }
 
+func (r *AlertRuleRepository) Update(ctx context.Context, params generated.UpdateAlertRuleParams) (generated.AlertRule, error) {
+	return r.queries.UpdateAlertRule(ctx, params)
+}
+
 func (r *AlertRuleRepository) UpdateEnabled(ctx context.Context, id int64, isEnabled bool) (generated.AlertRule, error) {
-	return r.queries.UpdateAlertRuleEnabled(ctx, generated.UpdateAlertRuleEnabledParams{
+	return r.Update(ctx, generated.UpdateAlertRuleParams{
 		ID:        id,
+		Column10:  true,
 		IsEnabled: isEnabled,
 	})
 }

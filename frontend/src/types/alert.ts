@@ -44,6 +44,10 @@ export type AlertRuleCreateInput = {
   severity: Severity;
 };
 
-export type AlertRuleUpdateInput = Partial<Pick<AlertRuleCreateInput, "threshold_value">> & {
+export type AlertRuleUpdateInput = {
+  threshold_value?: number | null;
+  severity?: Severity;
   is_enabled?: boolean;
+  node_id?: number | null;
+  service_id?: number | null;
 };

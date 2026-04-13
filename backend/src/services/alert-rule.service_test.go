@@ -17,6 +17,7 @@ type fakeAlertRuleServiceAlertRuleRepo struct {
 	deleteRows      int64
 	deleteErr       error
 	lastCreateInput generated.CreateAlertRuleParams
+	lastUpdateInput generated.UpdateAlertRuleParams
 }
 
 func (r *fakeAlertRuleServiceAlertRuleRepo) Create(_ context.Context, params generated.CreateAlertRuleParams) (generated.AlertRule, error) {
@@ -41,8 +42,25 @@ func (r *fakeAlertRuleServiceAlertRuleRepo) GetByID(_ context.Context, _ int64) 
 	return r.rule, r.getErr
 }
 
-func (r *fakeAlertRuleServiceAlertRuleRepo) UpdateEnabled(_ context.Context, _ int64, _ bool) (generated.AlertRule, error) {
-	return generated.AlertRule{}, nil
+func (r *fakeAlertRuleServiceAlertRuleRepo) Update(_ context.Context, params generated.UpdateAlertRuleParams) (generated.AlertRule, error) {
+	r.lastUpdateInput = params
+	if params.Column2 {
+		r.rule.NodeID = params.NodeID
+	}
+	if params.Column4 {
+		r.rule.ServiceID = params.ServiceID
+	}
+	if params.Column6 {
+		r.rule.Severity = params.Severity
+	}
+	if params.Column8 {
+		r.rule.ThresholdValue = params.ThresholdValue
+	}
+	if params.Column10 {
+		r.rule.IsEnabled = params.IsEnabled
+	}
+	r.rule.UpdatedAt = time.Date(2026, time.April, 5, 12, 5, 0, 0, time.UTC)
+	return r.rule, nil
 }
 
 func (r *fakeAlertRuleServiceAlertRuleRepo) List(_ context.Context, _ *int64) ([]generated.AlertRule, error) {
@@ -181,6 +199,149 @@ func TestAlertRuleServiceCreateRejectsInvalidSeverity(t *testing.T) {
 	})
 	if !errors.Is(err, types.ErrInvalidAlertSeverity) {
 		t.Fatalf("Create() error = %v, want ErrInvalidAlertSeverity", err)
+	}
+}
+
+func TestAlertRuleServiceUpdatePersistsNodeThresholdSeverityAndEnabled(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeAlertRuleServiceAlertRuleRepo{
+		rule: generated.AlertRule{
+			ID:             11,
+			ProjectID:      1,
+			NodeID:         sql.NullInt64{Int64: 2, Valid: true},
+			RuleType:       types.AlertRuleTypeCPUAboveThreshold,
+			Severity:       types.AlertSeverityWarning,
+			MetricName:     sql.NullString{String: types.MetricNameCPUUsage, Valid: true},
+			ThresholdValue: sql.NullFloat64{Float64: 80, Valid: true},
+			IsEnabled:      true,
+			CreatedAt:      time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
+			UpdatedAt:      time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
+		},
+	}
+	metricRepo := &fakeAlertMetricRepo{
+		samples: map[string]generated.MetricSample{
+			metricKey(3, types.MetricNameCPUUsage): {
+				NodeID:      3,
+				MetricName:  types.MetricNameCPUUsage,
+				MetricValue: 95,
+				ObservedAt:  time.Date(2026, time.April, 5, 12, 4, 0, 0, time.UTC),
+			},
+		},
+	}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := NewAlertEvaluatorService(repo, instanceRepo, metricRepo, &fakeAlertEventRecorder{}, nil)
+	service := &AlertRuleService{
+		alertRuleRepo: repo,
+		projectRepo:   &fakeAlertRuleServiceProjectRepo{},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{
+			nodes: map[int64]generated.Node{
+				2: {ID: 2, ProjectID: 1, CurrentState: types.NodeStateOnline},
+				3: {ID: 3, ProjectID: 1, CurrentState: types.NodeStateOnline},
+			},
+		},
+		serviceRepo: &fakeAlertRuleServiceServiceRepo{},
+		evaluator:   evaluator,
+	}
+
+	nodeID := int64(3)
+	threshold := 90.0
+	severity := types.AlertSeverityCritical
+	enabled := false
+
+	rule, err := service.Update(context.Background(), types.UpdateAlertRuleInput{
+		ID:             11,
+		NodeID:         &nodeID,
+		ThresholdValue: &threshold,
+		Severity:       &severity,
+		IsEnabled:      &enabled,
+	})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if repo.lastUpdateInput.NodeID.Int64 != 3 {
+		t.Fatalf("updated node_id = %d, want 3", repo.lastUpdateInput.NodeID.Int64)
+	}
+	if repo.lastUpdateInput.ThresholdValue.Float64 != 90 {
+		t.Fatalf("updated threshold = %v, want 90", repo.lastUpdateInput.ThresholdValue.Float64)
+	}
+	if repo.lastUpdateInput.Severity != types.AlertSeverityCritical {
+		t.Fatalf("updated severity = %q, want %q", repo.lastUpdateInput.Severity, types.AlertSeverityCritical)
+	}
+	if repo.lastUpdateInput.IsEnabled {
+		t.Fatal("expected update to disable rule")
+	}
+	if rule.NodeID == nil || *rule.NodeID != 3 {
+		t.Fatalf("rule.NodeID = %#v, want 3", rule.NodeID)
+	}
+	if rule.ThresholdValue == nil || *rule.ThresholdValue != 90 {
+		t.Fatalf("rule.ThresholdValue = %#v, want 90", rule.ThresholdValue)
+	}
+	if rule.Severity != types.AlertSeverityCritical {
+		t.Fatalf("rule.Severity = %q, want %q", rule.Severity, types.AlertSeverityCritical)
+	}
+	if rule.IsEnabled {
+		t.Fatal("expected returned rule to be disabled")
+	}
+	if instanceRepo.createCalls != 0 {
+		t.Fatalf("expected disabled update not to evaluate current state, got %d alert creations", instanceRepo.createCalls)
+	}
+}
+
+func TestAlertRuleServiceUpdateEvaluatesCurrentStateForUpdatedNode(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeAlertRuleServiceAlertRuleRepo{
+		rule: generated.AlertRule{
+			ID:             11,
+			ProjectID:      1,
+			NodeID:         sql.NullInt64{Int64: 2, Valid: true},
+			RuleType:       types.AlertRuleTypeCPUAboveThreshold,
+			Severity:       types.AlertSeverityWarning,
+			MetricName:     sql.NullString{String: types.MetricNameCPUUsage, Valid: true},
+			ThresholdValue: sql.NullFloat64{Float64: 80, Valid: true},
+			IsEnabled:      true,
+			CreatedAt:      time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
+		},
+	}
+	metricRepo := &fakeAlertMetricRepo{
+		samples: map[string]generated.MetricSample{
+			metricKey(3, types.MetricNameCPUUsage): {
+				NodeID:      3,
+				MetricName:  types.MetricNameCPUUsage,
+				MetricValue: 91,
+				ObservedAt:  time.Date(2026, time.April, 5, 12, 4, 0, 0, time.UTC),
+			},
+		},
+	}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := NewAlertEvaluatorService(repo, instanceRepo, metricRepo, &fakeAlertEventRecorder{}, nil)
+	service := &AlertRuleService{
+		alertRuleRepo: repo,
+		projectRepo:   &fakeAlertRuleServiceProjectRepo{},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{
+			nodes: map[int64]generated.Node{
+				2: {ID: 2, ProjectID: 1, CurrentState: types.NodeStateOnline},
+				3: {ID: 3, ProjectID: 1, CurrentState: types.NodeStateOnline},
+			},
+		},
+		serviceRepo: &fakeAlertRuleServiceServiceRepo{},
+		evaluator:   evaluator,
+	}
+
+	nodeID := int64(3)
+
+	_, err := service.Update(context.Background(), types.UpdateAlertRuleInput{
+		ID:     11,
+		NodeID: &nodeID,
+	})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if instanceRepo.createCalls != 1 {
+		t.Fatalf("expected updated rule to be evaluated immediately, got %d alert creations", instanceRepo.createCalls)
 	}
 }
 

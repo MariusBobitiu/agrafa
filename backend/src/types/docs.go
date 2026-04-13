@@ -455,7 +455,11 @@ type AlertRuleCreateRequest struct {
 }
 
 type AlertRuleUpdateRequest struct {
-	IsEnabled *bool `json:"is_enabled" example:"false"`
+	NodeID         *int64   `json:"node_id,omitempty" example:"1"`
+	ServiceID      *int64   `json:"service_id,omitempty" example:"1"`
+	Severity       *string  `json:"severity,omitempty" example:"warning"`
+	ThresholdValue *float64 `json:"threshold_value,omitempty" example:"90"`
+	IsEnabled      *bool    `json:"is_enabled,omitempty" example:"false"`
 }
 
 type NotificationRecipientCreateItemRequest struct {

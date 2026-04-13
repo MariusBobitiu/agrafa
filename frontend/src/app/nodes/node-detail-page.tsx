@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   AlertTriangleIcon,
@@ -7,12 +8,14 @@ import {
   HardDriveIcon,
   MemoryStickIcon,
   ServerIcon,
+  TrashIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { ActivityIcon, UnplugIcon, WifiIcon } from "@/components/animate-ui/icons/index.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { StatusBadge } from "@/components/ui/status-badge.tsx";
-import { useNode } from "@/hooks/use-nodes.ts";
+import { useNode, useDeleteNode } from "@/hooks/use-nodes.ts";
 import { useServices } from "@/hooks/use-services.ts";
 import { useAlerts } from "@/hooks/use-alerts.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
@@ -20,6 +23,7 @@ import { formatRelativeTime, formatDate } from "@/lib/utils.ts";
 import { cn } from "@/lib/utils.ts";
 import { MetaItem } from "@/components/meta-item.tsx";
 import { SectionHeading } from "@/components/section-heading.tsx";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
 import type { Node } from "@/types/node.ts";
 import type { Service } from "@/types/service.ts";
 import type { Alert } from "@/types/alert.ts";
@@ -51,7 +55,7 @@ function MetricGauge({ label, value, icon, loading }: GaugeProps) {
   // going clockwise (which in SVG is positive direction).
   // In SVG coords: 0° = 3 o'clock, clockwise positive.
   const startDeg = 160; // bottom-left
-  const endDeg = 20;    // bottom-right (= 160 + 220 mod 360)
+  const endDeg = 20; // bottom-right (= 160 + 220 mod 360)
 
   function polarToXY(deg: number) {
     const rad = (deg * Math.PI) / 180;
@@ -106,7 +110,8 @@ function MetricGauge({ label, value, icon, loading }: GaugeProps) {
             <Skeleton className="h-7 w-16" />
           ) : value != null ? (
             <span className={cn("text-2xl font-bold tabular-nums leading-none", accent!.text)}>
-              {value.toFixed(1)}<span className="text-base font-normal opacity-70">%</span>
+              {value.toFixed(1)}
+              <span className="text-base font-normal opacity-70">%</span>
             </span>
           ) : (
             <span className="text-2xl font-bold text-muted-foreground/20">—</span>
@@ -117,7 +122,9 @@ function MetricGauge({ label, value, icon, loading }: GaugeProps) {
       {/* Label */}
       <div className="flex items-center gap-1.5">
         <span className="text-muted-foreground">{icon}</span>
-        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</span>
+        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          {label}
+        </span>
       </div>
     </div>
   );
@@ -127,10 +134,14 @@ function MetricGauge({ label, value, icon, loading }: GaugeProps) {
 
 function statusAccentClass(status: Service["status"]) {
   switch (status) {
-    case "healthy": return "bg-primary";
-    case "degraded": return "bg-warning";
-    case "unhealthy": return "bg-destructive";
-    default: return "bg-muted-foreground/30";
+    case "healthy":
+      return "bg-primary";
+    case "degraded":
+      return "bg-warning";
+    case "unhealthy":
+      return "bg-destructive";
+    default:
+      return "bg-muted-foreground/30";
   }
 }
 
@@ -222,10 +233,13 @@ function PageSkeleton() {
         </div>
         <div className="grid grid-cols-3 divide-x divide-border/60">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className={cn(
-              "flex flex-col items-center gap-3 py-4",
-              i === 0 ? "pr-8" : i === 1 ? "px-8" : "pl-8",
-            )}>
+            <div
+              key={i}
+              className={cn(
+                "flex flex-col items-center gap-3 py-4",
+                i === 0 ? "pr-8" : i === 1 ? "px-8" : "pl-8",
+              )}
+            >
               <Skeleton className="h-35 w-35 rounded-full" />
               <Skeleton className="h-3.5 w-14" />
             </div>
@@ -243,13 +257,33 @@ export function NodeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const activeProjectId = useUIStore((s) => s.activeProjectId);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const nodeId = id ? parseInt(id, 10) : 0;
 
-  const { data: nodeData, isLoading: nodeLoading, error: nodeError } = useNode(nodeId, {
+  const {
+    data: nodeData,
+    isLoading: nodeLoading,
+    error: nodeError,
+  } = useNode(nodeId, {
     enabled: nodeId > 0,
     refetchInterval: 15_000,
   });
+
+  const deleteNode = useDeleteNode(activeProjectId ?? 0);
+
+  function handleDelete() {
+    deleteNode.mutate(nodeId, {
+      onSuccess: () => {
+        toast.success("Node deleted");
+        navigate("/nodes");
+      },
+      onError: () => {
+        toast.error("Failed to delete node. Remove all services from this node first.");
+        setDeleteOpen(false);
+      },
+    });
+  }
 
   const { data: servicesData, isLoading: servicesLoading } = useServices(activeProjectId ?? 0);
   const { data: alertsData, isLoading: alertsLoading } = useAlerts(activeProjectId ?? 0);
@@ -298,10 +332,11 @@ export function NodeDetailPage() {
   return (
     <div className="px-6 py-6">
       <div className="mx-auto max-w-6xl space-y-7">
-
         {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Link to="/nodes" className="hover:text-foreground transition-colors">Nodes</Link>
+          <Link to="/nodes" className="hover:text-foreground transition-colors">
+            Nodes
+          </Link>
           <ChevronRightIcon size={13} />
           <span className="text-foreground font-medium truncate">{node.name}</span>
         </nav>
@@ -315,7 +350,13 @@ export function NodeDetailPage() {
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl mt-0.5 bg-muted">
                   <ServerIcon
                     size={20}
-                    className={isOnline ? "text-primary" : isOffline ? "text-destructive" : "text-muted-foreground"}
+                    className={
+                      isOnline
+                        ? "text-primary"
+                        : isOffline
+                          ? "text-destructive"
+                          : "text-muted-foreground"
+                    }
                   />
                 </div>
                 <div className="min-w-0">
@@ -328,9 +369,17 @@ export function NodeDetailPage() {
                 </div>
               </div>
 
-              {/* Status pill */}
-              <div className="shrink-0 sm:mt-0.5">
+              {/* Status + delete */}
+              <div className="flex items-center gap-2 shrink-0 sm:mt-0.5">
                 <StatusBadge status={node.current_state} />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground/40 hover:bg-destructive hover:text-foreground"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <TrashIcon size={14} />
+                </Button>
               </div>
             </div>
 
@@ -340,10 +389,7 @@ export function NodeDetailPage() {
                 label="Last seen"
                 value={node.last_seen_at ? formatRelativeTime(node.last_seen_at) : "Never"}
               />
-              <MetaItem
-                label="Services"
-                value={String(node.service_count)}
-              />
+              <MetaItem label="Services" value={String(node.service_count)} />
               {node.active_alert_count > 0 ? (
                 <MetaItem
                   label="Alerts"
@@ -471,9 +517,16 @@ export function NodeDetailPage() {
           <span>Updated {formatDate(node.updated_at)}</span>
           <span className="font-mono opacity-60">#{node.id}</span>
         </div>
-
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete node"
+        description="This will permanently delete the node and cannot be undone. The node must have no services assigned before it can be deleted."
+        onConfirm={handleDelete}
+        loading={deleteNode.isPending}
+      />
     </div>
   );
 }
-

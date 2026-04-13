@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -28,10 +29,10 @@ import {
 } from "@/components/ui/select.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
 import { cn } from "@/lib/utils.ts";
-import { useCreateAlertRule } from "@/hooks/use-alerts.ts";
+import { useCreateAlertRule, useUpdateAlertRule } from "@/hooks/use-alerts.ts";
 import { useNodes } from "@/hooks/use-nodes.ts";
 import { useServices } from "@/hooks/use-services.ts";
-import type { RuleType, Severity } from "@/types/alert.ts";
+import type { AlertRule, RuleType, Severity } from "@/types/alert.ts";
 
 // ─── Rule definitions ─────────────────────────────────────────────────────────
 
@@ -46,20 +47,6 @@ type RuleConfig = {
   thresholdPlaceholder?: string;
   defaultSeverity: Severity;
 };
-
-// function defaultSeverityForRule(ruleType: RuleType): Severity {
-// 	switch (ruleType) {
-// 		case "node_offline":
-// 		case "service_unhealthy":
-// 			return "critical";
-// 		case "cpu_above_threshold":
-// 		case "memory_above_threshold":
-// 		case "disk_above_threshold":
-// 			return "warning";
-// 		default:
-// 			return "warning";
-// 	}
-// }
 
 const RULE_TYPES: RuleConfig[] = [
   {
@@ -154,6 +141,18 @@ const DEFAULT_VALUES: FormValues = {
   isEnabled: true,
 };
 
+function ruleToFormValues(rule: AlertRule): FormValues {
+  return {
+    ruleType: rule.rule_type,
+    nodeId: rule.node_id != null ? rule.node_id.toString() : "__any__",
+    serviceId: rule.service_id != null ? rule.service_id.toString() : "__any__",
+    thresholdValue: rule.threshold_value != null ? rule.threshold_value.toString() : "",
+    consecutiveFailures: "3",
+    severity: rule.severity,
+    isEnabled: rule.is_enabled,
+  };
+}
+
 // ─── Style constants ──────────────────────────────────────────────────────────
 
 // Kills the lime focus ring; keeps border transition only
@@ -183,15 +182,26 @@ type Props = {
   projectId: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialRule?: AlertRule;
 };
 
-export function CreateAlertRuleDialog({ projectId, open, onOpenChange }: Props) {
+export function CreateAlertRuleDialog({ projectId, open, onOpenChange, initialRule }: Props) {
+  const isEditing = initialRule != null;
+
   const createRule = useCreateAlertRule(projectId);
+  const updateRule = useUpdateAlertRule(projectId);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: DEFAULT_VALUES,
   });
+
+  // Prefill form when opening in edit mode; reset to defaults for create.
+  useEffect(() => {
+    if (open) {
+      form.reset(isEditing ? ruleToFormValues(initialRule) : DEFAULT_VALUES);
+    }
+  }, [open, initialRule]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedRuleType = form.watch("ruleType");
   const rule = RULE_TYPES.find((r) => r.value === selectedRuleType);
@@ -209,30 +219,58 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange }: Props) 
   }
 
   async function onSubmit(values: FormValues) {
-    try {
-      await createRule.mutateAsync({
-        project_id: projectId,
-        rule_type: values.ruleType as RuleType,
-        node_id: values.nodeId && values.nodeId !== "__any__" ? Number(values.nodeId) : null,
-        service_id:
-          values.serviceId && values.serviceId !== "__any__" ? Number(values.serviceId) : null,
-        threshold_value: values.thresholdValue ? Number(values.thresholdValue) : null,
-        severity: values.severity,
-      });
-      toast.success("Alert rule created");
-      handleOpenChange(false);
-    } catch {
-      toast.error("Couldn't create the rule. Try again.");
+    const node_id = values.nodeId && values.nodeId !== "__any__" ? Number(values.nodeId) : null;
+    const service_id =
+      values.serviceId && values.serviceId !== "__any__" ? Number(values.serviceId) : null;
+
+    if (isEditing) {
+      try {
+        await updateRule.mutateAsync({
+          id: initialRule.id,
+          payload: {
+            severity: values.severity,
+            is_enabled: values.isEnabled,
+            node_id,
+            service_id,
+            threshold_value: values.thresholdValue ? Number(values.thresholdValue) : null,
+          },
+        });
+        toast.success("Alert rule updated");
+        handleOpenChange(false);
+      } catch {
+        toast.error("Couldn't update the rule. Try again.");
+      }
+    } else {
+      try {
+        await createRule.mutateAsync({
+          project_id: projectId,
+          rule_type: values.ruleType as RuleType,
+          node_id,
+          service_id,
+          threshold_value: values.thresholdValue ? Number(values.thresholdValue) : null,
+          severity: values.severity,
+        });
+        toast.success("Alert rule created");
+        handleOpenChange(false);
+      } catch {
+        toast.error("Couldn't create the rule. Try again.");
+      }
     }
   }
+
+  const isPending = isEditing ? updateRule.isPending : createRule.isPending;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg gap-0 p-0">
         <DialogHeader className="border-b border-border/60 px-5 pb-4 pt-5">
-          <DialogTitle className="text-base">Create alert rule</DialogTitle>
+          <DialogTitle className="text-base">
+            {isEditing ? "Edit alert rule" : "Create alert rule"}
+          </DialogTitle>
           <DialogDescription className="text-sm">
-            Define when Agrafa should flag an issue.
+            {isEditing
+              ? "Update the rule settings below."
+              : "Define when Agrafa should flag an issue."}
           </DialogDescription>
         </DialogHeader>
 
@@ -254,9 +292,12 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange }: Props) 
                         form.resetField("thresholdValue");
                       }}
                       value={field.value}
+                      disabled={isEditing}
                     >
                       <FormControl>
-                        <SelectTrigger className={quietTrigger}>
+                        <SelectTrigger
+                          className={cn(quietTrigger, isEditing && "opacity-60 cursor-not-allowed")}
+                        >
                           <SelectValue placeholder="Choose what to monitor…" />
                         </SelectTrigger>
                       </FormControl>
@@ -290,16 +331,17 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange }: Props) 
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className={quietTrigger}>
-                              <SelectValue placeholder="Any node" />
+                              <SelectValue placeholder="Select a node" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem
+                            {/* TODO: Uncomment when "Any node" option is supported */}
+                            {/* <SelectItem
                               value="__any__"
                               className={cn(quietItem, "text-muted-foreground")}
                             >
-                              Any node
-                            </SelectItem>
+                              Any node */}
+                            {/* </SelectItem> */}
                             {nodes.map((node) => (
                               <SelectItem
                                 key={node.id}
@@ -335,16 +377,17 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange }: Props) 
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className={quietTrigger}>
-                              <SelectValue placeholder="Any service" />
+                              <SelectValue placeholder="Select a service" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem
+                            {/* TODO: Uncomment when "Any service" option is supported */}
+                            {/* <SelectItem
                               value="__any__"
                               className={cn(quietItem, "text-muted-foreground")}
                             >
                               Any service
-                            </SelectItem>
+                            </SelectItem> */}
                             {services.map((service) => (
                               <SelectItem
                                 key={service.id}
@@ -396,8 +439,8 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange }: Props) 
                 />
               )}
 
-              {/* Consecutive failures */}
-              {rule?.conditionType === "failures" && (
+              {/* Consecutive failures — create only (not updatable via API) */}
+              {!isEditing && rule?.conditionType === "failures" && (
                 <FormField
                   control={form.control}
                   name="consecutiveFailures"
@@ -467,7 +510,11 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange }: Props) 
                       <div className="flex items-center justify-between gap-4">
                         <FormLabel className="mb-0 cursor-pointer text-sm font-medium leading-5">
                           Enable rule
-                          <Hint>Start monitoring immediately after creation.</Hint>
+                          <Hint>
+                            {isEditing
+                              ? "Whether the rule should actively monitor."
+                              : "Start monitoring immediately after creation."}
+                          </Hint>
                         </FormLabel>
 
                         <FormControl>
@@ -490,8 +537,14 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange }: Props) 
               >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={createRule.isPending || !selectedRuleType}>
-                {createRule.isPending ? "Creating…" : "Create rule"}
+              <Button type="submit" size="sm" disabled={isPending || !selectedRuleType}>
+                {isPending
+                  ? isEditing
+                    ? "Saving…"
+                    : "Creating…"
+                  : isEditing
+                    ? "Save changes"
+                    : "Create rule"}
               </Button>
             </div>
           </form>

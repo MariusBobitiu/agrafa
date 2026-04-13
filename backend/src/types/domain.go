@@ -127,8 +127,12 @@ type CreateAlertRuleInput struct {
 }
 
 type UpdateAlertRuleInput struct {
-	ID        int64
-	IsEnabled bool
+	ID             int64
+	NodeID         *int64
+	ServiceID      *int64
+	Severity       *string
+	ThresholdValue *float64
+	IsEnabled      *bool
 }
 
 type UpdateProjectInput struct {

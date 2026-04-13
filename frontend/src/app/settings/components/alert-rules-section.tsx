@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PlusIcon, TrashIcon } from "lucide-react";
+import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button.tsx";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
@@ -48,11 +48,13 @@ function AlertRuleRow({
   rule,
   onToggle,
   onDelete,
+  onEdit,
   canWrite,
 }: {
   rule: AlertRule;
   onToggle: (id: number, enabled: boolean) => void;
   onDelete: (id: number) => void;
+  onEdit: (rule: AlertRule) => void;
   canWrite: boolean;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -71,7 +73,9 @@ function AlertRuleRow({
               {rule.threshold_value !== null && ` · threshold > ${rule.threshold_value}%`}
             </span>
             {rule.severity && (
-              <span className={`inline-flex items-center rounded border px-1.5 py-0 text-[10px] font-medium leading-4 capitalize ${severityClasses[rule.severity]}`}>
+              <span
+                className={`inline-flex items-center rounded border px-1.5 py-0 text-[10px] font-medium leading-4 capitalize ${severityClasses[rule.severity]}`}
+              >
                 {rule.severity}
               </span>
             )}
@@ -86,14 +90,24 @@ function AlertRuleRow({
             disabled={!canWrite}
           />
           {canWrite && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground/50 hover:text-destructive"
-              onClick={() => setDeleteOpen(true)}
-            >
-              <TrashIcon size={14} />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground/50 hover:bg-muted hover:text-foreground"
+                onClick={() => onEdit(rule)}
+              >
+                <PencilIcon size={13} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground/50 hover:bg-destructive hover:text-foreground"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <TrashIcon size={14} />
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -116,6 +130,7 @@ function AlertRuleRow({
 
 export function AlertRulesSection({ projectId }: { projectId: number }) {
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
   const canWrite = useCanWrite(projectId);
 
   const { data, isLoading } = useAlertRules(projectId);
@@ -130,6 +145,13 @@ export function AlertRulesSection({ projectId }: { projectId: number }) {
     remove.mutate(id, {
       onSuccess: () => toast.success("Rule deleted"),
     });
+  }
+
+  function handleDialogOpenChange(open: boolean) {
+    if (!open) {
+      setCreateOpen(false);
+      setEditingRule(null);
+    }
   }
 
   const rules = data?.alert_rules ?? [];
@@ -172,6 +194,7 @@ export function AlertRulesSection({ projectId }: { projectId: number }) {
               rule={rule}
               onToggle={handleToggle}
               onDelete={handleDelete}
+              onEdit={setEditingRule}
               canWrite={canWrite}
             />
           ))}
@@ -180,8 +203,9 @@ export function AlertRulesSection({ projectId }: { projectId: number }) {
 
       <CreateAlertRuleDialog
         projectId={projectId}
-        open={createOpen}
-        onOpenChange={setCreateOpen}
+        open={createOpen || editingRule !== null}
+        onOpenChange={handleDialogOpenChange}
+        initialRule={editingRule ?? undefined}
       />
     </div>
   );

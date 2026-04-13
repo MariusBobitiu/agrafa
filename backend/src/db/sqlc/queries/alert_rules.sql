@@ -42,9 +42,13 @@ WHERE is_enabled = TRUE
   AND (NOT $6::boolean OR metric_name = $7)
 ORDER BY id DESC;
 
--- name: UpdateAlertRuleEnabled :one
+-- name: UpdateAlertRule :one
 UPDATE app.alert_rules
-SET is_enabled = $2,
+SET node_id = CASE WHEN $2::boolean THEN $3 ELSE node_id END,
+    service_id = CASE WHEN $4::boolean THEN $5 ELSE service_id END,
+    severity = CASE WHEN $6::boolean THEN $7 ELSE severity END,
+    threshold_value = CASE WHEN $8::boolean THEN $9 ELSE threshold_value END,
+    is_enabled = CASE WHEN $10::boolean THEN $11 ELSE is_enabled END,
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;
