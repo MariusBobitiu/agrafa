@@ -18,6 +18,7 @@ import { ServicesPage } from "@/app/services/services-page.tsx";
 import { ServiceDetailPage } from "@/app/services/service-detail-page.tsx";
 import { AlertsPage } from "@/app/alerts/alerts-page.tsx";
 import { SettingsPage } from "@/app/settings/settings-page.tsx";
+import { InstanceSettingsPage } from "@/app/instance-settings/instance-settings-page.tsx";
 import { ProfilePage } from "@/app/profile/profile-page.tsx";
 import { InvitePage } from "@/app/invite/invite-page.tsx";
 import { NotFoundPage } from "@/app/not-found/not-found-page.tsx";
@@ -83,6 +84,7 @@ export const router = createBrowserRouter([
               { path: "/alerts", element: <AlertsPage /> },
               { path: "/profile", element: <ProfilePage /> },
               { path: "/settings", element: <SettingsPage /> },
+              { path: "/instance-settings", element: <InstanceSettingsPage /> },
             ],
           },
         ],

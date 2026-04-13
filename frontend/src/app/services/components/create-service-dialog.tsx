@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { UnplugIcon } from "@/components/animate-ui/icons";
+import { CircuitBoardIcon } from "@/components/animate-ui/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/lib/utils.ts";
@@ -409,7 +409,7 @@ export function CreateServiceDialog({
                       </div>
                     ) : nodesQuery.isError ? (
                       <Alert variant="destructive">
-                        <UnplugIcon size={16} />
+                        <CircuitBoardIcon size={16} />
                         <AlertTitle>Couldn't load your servers</AlertTitle>
                         <AlertDescription className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <span>Try again to choose where this check should run.</span>
@@ -425,7 +425,7 @@ export function CreateServiceDialog({
                       </Alert>
                     ) : hasNoAgentNodes ? (
                       <Alert>
-                        <UnplugIcon size={16} />
+                        <CircuitBoardIcon size={16} />
                         <AlertTitle>No servers available yet</AlertTitle>
                         <AlertDescription className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <span>

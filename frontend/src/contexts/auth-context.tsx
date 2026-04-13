@@ -76,10 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      navigate(
-        redirectTo,
-        { replace: true },
-      );
+      navigate(redirectTo, { replace: true });
     },
     [navigate, refreshUser],
   );
@@ -99,10 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      navigate(
-        redirectTo,
-        { replace: true },
-      );
+      navigate(redirectTo, { replace: true });
     },
     [navigate, refreshUser],
   );
@@ -114,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearAuthRedirect();
       queryClient.clear();
       setAuthenticated(false);
-      navigate("/login");
+      navigate("/sign-in", { replace: true });
     }
   }, [queryClient, setAuthenticated, navigate]);
 

@@ -19,14 +19,10 @@ export function RequireAuth() {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/sign-in" state={{ from: location }} replace />;
   }
 
-  if (
-    user &&
-    !user.email_verified &&
-    location.pathname !== "/verify-email"
-  ) {
+  if (user && !user.email_verified && location.pathname !== "/verify-email") {
     return <Navigate to="/verify-email" replace />;
   }
 

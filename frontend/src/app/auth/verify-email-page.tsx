@@ -23,7 +23,7 @@ export function VerifyEmailPage() {
     ? user?.onboarding_completed
       ? "/overview"
       : "/onboarding"
-    : "/login";
+    : "/sign-in";
 
   const confirm = useQuery({
     queryKey: ["auth", "verify-email", token],
@@ -162,7 +162,7 @@ export function VerifyEmailPage() {
 
         {confirm.isError && !isAuthenticated && (
           <Button asChild variant="outline" className="w-full">
-            <Link to="/login">Back to sign in</Link>
+            <Link to="/sign-in">Back to sign in</Link>
           </Button>
         )}
       </div>

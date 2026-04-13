@@ -44,7 +44,7 @@ export function ResetPasswordPage() {
     mutationFn: (values: FormValues) => authApi.resetPassword({ token, password: values.password }),
     onSuccess: () => {
       toast.success("Password updated. Sign in with your new password.");
-      navigate("/login", { replace: true });
+      navigate("/sign-in", { replace: true });
     },
   });
 

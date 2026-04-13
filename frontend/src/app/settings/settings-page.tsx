@@ -1,5 +1,3 @@
-import { PuzzleIcon } from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { PageHeader } from "@/components/ui/page-header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { useUIStore } from "@/stores/ui-store.ts";
@@ -9,7 +7,6 @@ import { AlertRulesSection } from "./components/alert-rules-section.tsx";
 import { ProjectSection } from "./components/project-section.tsx";
 import { MembersSection } from "./components/members-section.tsx";
 import { DangerZoneSection } from "./components/danger-zone-section.tsx";
-import { InstanceSection } from "./components/instance-section.tsx";
 import { useMeta } from "@/hooks/use-meta.ts";
 
 // ─── Tab nav styles ───────────────────────────────────────────────────────────
@@ -34,7 +31,10 @@ export function SettingsPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
-      <PageHeader title="Settings" />
+      <PageHeader
+        title="Settings"
+        description="Project-scoped configuration for the active project"
+      />
 
       <Tabs defaultValue="notifications">
         <TabsList className={tabListClass}>
@@ -44,17 +44,11 @@ export function SettingsPage() {
           <TabsTrigger value="alert-rules" className={tabTriggerClass}>
             Alert Rules
           </TabsTrigger>
-          <TabsTrigger value="project" className={tabTriggerClass}>
-            Project
-          </TabsTrigger>
           <TabsTrigger value="members" className={tabTriggerClass}>
             Members
           </TabsTrigger>
-          <TabsTrigger value="integrations" className={tabTriggerClass}>
-            Integrations
-          </TabsTrigger>
-          <TabsTrigger value="instance" className={tabTriggerClass}>
-            Instance
+          <TabsTrigger value="project" className={tabTriggerClass}>
+            Project
           </TabsTrigger>
           {canDeleteProject && (
             <TabsTrigger value="danger-zone" className={tabTriggerClass}>
@@ -73,30 +67,14 @@ export function SettingsPage() {
           {activeProjectId && <AlertRulesSection projectId={activeProjectId} />}
         </TabsContent>
 
-        {/* ── Project ── */}
-        <TabsContent value="project" className="mt-6">
-          {activeProjectId && <ProjectSection projectId={activeProjectId} />}
-        </TabsContent>
-
         {/* ── Members ── */}
         <TabsContent value="members" className="mt-6">
           {activeProjectId && <MembersSection projectId={activeProjectId} />}
         </TabsContent>
 
-        {/* ── Integrations ── */}
-        <TabsContent value="integrations" className="mt-6">
-          <EmptyState
-            icon={({ size, className }) => (
-              <PuzzleIcon size={size} className={className as string} />
-            )}
-            title="Integrations coming soon"
-            description="Integrations will be available in a future release."
-          />
-        </TabsContent>
-
-        {/* ── Instance ── */}
-        <TabsContent value="instance" className="mt-6">
-          <InstanceSection />
+        {/* ── Project ── */}
+        <TabsContent value="project" className="mt-6">
+          {activeProjectId && <ProjectSection projectId={activeProjectId} />}
         </TabsContent>
 
         {/* ── Danger Zone ── */}

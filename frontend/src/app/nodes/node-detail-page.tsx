@@ -12,7 +12,7 @@ import {
   TrashIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { ActivityIcon, UnplugIcon, WifiIcon } from "@/components/animate-ui/icons/index.ts";
+import { ActivityIcon, CircuitBoardIcon, WifiIcon } from "@/components/animate-ui/icons/index.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { StatusBadge } from "@/components/ui/status-badge.tsx";
@@ -326,7 +326,7 @@ export function NodeDetailPage() {
           Nodes
         </Button>
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <UnplugIcon size={28} className="mb-3 text-muted-foreground" />
+          <CircuitBoardIcon size={28} className="mb-3 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             {nodeError ? "Failed to load node." : "Node not found."}
           </p>

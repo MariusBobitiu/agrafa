@@ -63,7 +63,7 @@ export function InvitePage() {
     },
   });
 
-  function handleAuthRedirect(path: "/login" | "/register") {
+  function handleAuthRedirect(path: "/sign-in" | "/sign-up") {
     setAuthRedirect(buildRedirectPath(location));
     navigate(path, { replace: true });
   }
@@ -168,12 +168,12 @@ export function InvitePage() {
           <div className="flex flex-col gap-3">
             {!isAuthenticated ? (
               <>
-                <Button onClick={() => handleAuthRedirect("/login")} className="w-full">
+                <Button onClick={() => handleAuthRedirect("/sign-in")} className="w-full">
                   Sign in to accept
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => handleAuthRedirect("/register")}
+                  onClick={() => handleAuthRedirect("/sign-up")}
                   className="w-full"
                 >
                   Create account

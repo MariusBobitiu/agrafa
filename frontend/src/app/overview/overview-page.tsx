@@ -17,7 +17,7 @@ import {
 import {
   ActivityIcon,
   BellIcon,
-  UnplugIcon,
+  CircuitBoardIcon,
   WifiIcon,
 } from "@/components/animate-ui/icons/index.ts";
 import { Button } from "@/components/ui/button.tsx";
@@ -614,7 +614,7 @@ export function OverviewPage() {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <div className="text-center">
-          <UnplugIcon size={32} className="mx-auto mb-3 text-muted-foreground" />
+          <CircuitBoardIcon size={32} className="mx-auto mb-3 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Select a project to view your overview.</p>
         </div>
       </div>
@@ -649,7 +649,7 @@ export function OverviewPage() {
           <StatCard
             title="Total Nodes"
             value={data?.total_nodes ?? 0}
-            icon={UnplugIcon}
+            icon={CircuitBoardIcon}
             loading={isLoading}
           />
           <StatCard
