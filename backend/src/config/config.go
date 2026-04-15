@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +15,7 @@ type Config struct {
 	Port                    string
 	Environment             string
 	AppBaseURL              string
+	AppAllowedOrigins       []string
 	AppSecret               string
 	NodeHeartbeatTTL        time.Duration
 	NodeExpiryCheckInterval time.Duration
@@ -42,6 +45,11 @@ func Load() (Config, error) {
 	}
 
 	appBaseURL, err := envString(SettingKeyAppBaseURL)
+	if err != nil {
+		return Config{}, err
+	}
+
+	appAllowedOrigins, err := envOptionalString(SettingKeyAppAllowedOrigins)
 	if err != nil {
 		return Config{}, err
 	}
@@ -81,11 +89,18 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	normalizedAppBaseURL := trimTrailingSlash(appBaseURL)
+	allowedOrigins, err := normalizeAllowedOrigins(normalizedAppBaseURL, appAllowedOrigins)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		PostgresURI:             postgresURI,
 		Port:                    port,
 		Environment:             environment,
-		AppBaseURL:              trimTrailingSlash(appBaseURL),
+		AppBaseURL:              normalizedAppBaseURL,
+		AppAllowedOrigins:       allowedOrigins,
 		AppSecret:               appSecret,
 		NodeHeartbeatTTL:        time.Duration(heartbeatTTLSeconds) * time.Second,
 		NodeExpiryCheckInterval: time.Duration(expiryIntervalSeconds) * time.Second,
@@ -115,6 +130,61 @@ func envInt(key SettingKey) (int, error) {
 	return strconv.Atoi(resolved.Value)
 }
 
+func envOptionalString(key SettingKey) (string, error) {
+	resolved, err := ResolveEnvValueFromOS(key)
+	if err != nil {
+		return "", err
+	}
+	if !resolved.HasValue {
+		return "", nil
+	}
+
+	return resolved.Value, nil
+}
+
 func trimTrailingSlash(value string) string {
 	return strings.TrimRight(value, "/")
+}
+
+func normalizeAllowedOrigins(appBaseURL string, rawAllowedOrigins string) ([]string, error) {
+	values := []string{appBaseURL}
+	if rawAllowedOrigins != "" {
+		values = append(values, strings.Split(rawAllowedOrigins, ",")...)
+	}
+
+	normalized := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		origin, err := normalizeOrigin(value)
+		if err != nil {
+			return nil, err
+		}
+		if origin == "" {
+			continue
+		}
+		if _, ok := seen[origin]; ok {
+			continue
+		}
+		seen[origin] = struct{}{}
+		normalized = append(normalized, origin)
+	}
+
+	return normalized, nil
+}
+
+func normalizeOrigin(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return "", fmt.Errorf("invalid origin %q: %w", value, err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("invalid origin %q", value)
+	}
+
+	return parsed.Scheme + "://" + parsed.Host, nil
 }

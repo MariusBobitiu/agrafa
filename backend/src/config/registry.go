@@ -24,6 +24,7 @@ const (
 	SettingKeyAppEnv                         SettingKey = "app.env"
 	SettingKeyPort                           SettingKey = "app.port"
 	SettingKeyAppBaseURL                     SettingKey = "app.base_url"
+	SettingKeyAppAllowedOrigins              SettingKey = "app.allowed_origins"
 	SettingKeyAppSecret                      SettingKey = "app.secret"
 	SettingKeyNodeHeartbeatTTLSeconds        SettingKey = "node.heartbeat_ttl_seconds"
 	SettingKeyNodeExpiryCheckIntervalSeconds SettingKey = "node.expiry_check_interval_seconds"
@@ -108,6 +109,15 @@ var registry = map[SettingKey]SettingDefinition{
 		DefaultValue: stringSetting("http://localhost:3000"),
 		IsEnvOnly:    true,
 		EnvVars:      []string{"APP_BASE_URL"},
+	},
+	SettingKeyAppAllowedOrigins: {
+		Key:         SettingKeyAppAllowedOrigins,
+		Group:       "app",
+		Label:       "Allowed Origins",
+		Description: "Comma-separated browser origins allowed to call the API via CORS.",
+		Type:        SettingTypeString,
+		IsEnvOnly:   true,
+		EnvVars:     []string{"APP_ALLOWED_ORIGINS"},
 	},
 	SettingKeyAppSecret: {
 		Key:         SettingKeyAppSecret,

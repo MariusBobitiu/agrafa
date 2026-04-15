@@ -82,6 +82,10 @@ func TestLoadUsesSinglePostgresURIAndDefaults(t *testing.T) {
 		t.Fatalf("AppBaseURL = %q, want http://localhost:3000", cfg.AppBaseURL)
 	}
 
+	if len(cfg.AppAllowedOrigins) != 1 || cfg.AppAllowedOrigins[0] != "http://localhost:3000" {
+		t.Fatalf("AppAllowedOrigins = %#v, want [http://localhost:3000]", cfg.AppAllowedOrigins)
+	}
+
 	if cfg.AppSecret != "test-secret" {
 		t.Fatalf("AppSecret = %q", cfg.AppSecret)
 	}
@@ -96,6 +100,39 @@ func TestLoadUsesSinglePostgresURIAndDefaults(t *testing.T) {
 
 	if cfg.SessionCookieSecure {
 		t.Fatal("SessionCookieSecure = true, want false by default")
+	}
+}
+
+func TestLoadNormalizesAllowedOrigins(t *testing.T) {
+	t.Setenv("POSTGRES_URI", "postgres://user:pass@localhost:5432/agrafa?sslmode=disable")
+	t.Setenv("APP_SECRET", "test-secret")
+	t.Setenv("APP_BASE_URL", "http://localhost:3000/app")
+	t.Setenv("APP_ALLOWED_ORIGINS", "http://localhost:5173, https://app.example.com/dashboard, http://localhost:3000")
+	t.Setenv("PORT", "")
+	t.Setenv("NODE_HEARTBEAT_TTL_SECONDS", "")
+	t.Setenv("NODE_EXPIRY_CHECK_INTERVAL_SECONDS", "")
+	t.Setenv("SESSION_TTL_DAYS", "")
+	t.Setenv("SESSION_REMEMBER_TTL_DAYS", "")
+
+	withWorkingDirectory(t, t.TempDir())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	want := []string{
+		"http://localhost:3000",
+		"http://localhost:5173",
+		"https://app.example.com",
+	}
+	if len(cfg.AppAllowedOrigins) != len(want) {
+		t.Fatalf("AppAllowedOrigins length = %d, want %d (%#v)", len(cfg.AppAllowedOrigins), len(want), cfg.AppAllowedOrigins)
+	}
+	for i := range want {
+		if cfg.AppAllowedOrigins[i] != want[i] {
+			t.Fatalf("AppAllowedOrigins[%d] = %q, want %q", i, cfg.AppAllowedOrigins[i], want[i])
+		}
 	}
 }
 

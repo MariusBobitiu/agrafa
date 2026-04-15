@@ -139,7 +139,7 @@ func main() {
 	notificationDeliveryController := controllers.NewNotificationDeliveryController(notificationDeliveryService)
 	docsController := controllers.NewDocsController()
 
-	router := routes.NewRouter(authController, agentController, instanceSettingController, readController, projectController, projectMemberController, projectInvitationController, nodeController, serviceController, alertRuleController, notificationRecipientController, notificationDeliveryController, docsController, authService, authorizationService, sessionService, agentAuthService, cfg.AppBaseURL)
+	router := routes.NewRouter(authController, agentController, instanceSettingController, readController, projectController, projectMemberController, projectInvitationController, nodeController, serviceController, alertRuleController, notificationRecipientController, notificationDeliveryController, docsController, authService, authorizationService, sessionService, agentAuthService, cfg.AppAllowedOrigins)
 
 	expiryJob := jobs.NewNodeExpiryJob(nodeRepo, nodeStateService, cfg.NodeHeartbeatTTL, cfg.NodeExpiryCheckInterval)
 	managedServiceCheckJob := jobs.NewManagedServiceCheckJob(serviceStateService, nodeStateService, heartbeatService, healthIngestionService, cfg.ManagedCheckInterval, cfg.ManagedCheckTimeout)
