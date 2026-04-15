@@ -16,7 +16,7 @@ services:
       retries: 5
 
   backend:
-    image: ghcr.io/${GHCR_OWNER}/agrafa-backend:${AGRAFA_BACKEND_TAG:-latest}
+    image: ghcr.io/mariusbobitiu/agrafa-backend:latest
     container_name: agrafa-backend
     restart: unless-stopped
     depends_on:
@@ -44,7 +44,7 @@ services:
       retries: 5
 
   frontend:
-    image: ghcr.io/${GHCR_OWNER}/agrafa-frontend:${AGRAFA_FRONTEND_TAG:-latest}
+    image: ghcr.io/mariusbobitiu/agrafa-frontend:latest
     container_name: agrafa-frontend
     restart: unless-stopped
     depends_on:
