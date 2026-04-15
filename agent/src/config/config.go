@@ -57,7 +57,7 @@ func Load() (types.Config, error) {
 		return types.Config{}, fmt.Errorf("%s is required", agentTokenEnvKey)
 	}
 
-	nodeID, err := parseRequiredInt64(env, nodeIDEnvKey)
+	nodeID, err := parseOptionalInt64(env, nodeIDEnvKey)
 	if err != nil {
 		return types.Config{}, err
 	}
@@ -232,10 +232,10 @@ func validateHealthChecks(checks []types.HealthCheck) error {
 	return nil
 }
 
-func parseRequiredInt64(env map[string]string, key string) (int64, error) {
+func parseOptionalInt64(env map[string]string, key string) (int64, error) {
 	rawValue := strings.TrimSpace(env[key])
 	if rawValue == "" {
-		return 0, fmt.Errorf("%s is required", key)
+		return 0, nil
 	}
 
 	value, err := strconv.ParseInt(rawValue, 10, 64)

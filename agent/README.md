@@ -16,9 +16,14 @@ Required:
 
 - `AGRAFA_API_BASE_URL`
 - `AGRAFA_AGENT_TOKEN`
+
+The agent sends `AGRAFA_AGENT_TOKEN` as the `X-Agent-Token` header on every request to the backend.
+
+Optional compatibility value:
+
 - `AGRAFA_NODE_ID`
 
-The agent sends `AGRAFA_AGENT_TOKEN` as the `X-Agent-Token` header on every request to the backend. `AGRAFA_NODE_ID` can still be present in heartbeat and metrics payloads for compatibility, but the backend authenticates the node from the token.
+`AGRAFA_NODE_ID` is no longer required for startup. If omitted, the agent will learn the node ID from `/v1/agent/config` after authenticating with the token. If present, it is used as an initial compatibility value for heartbeat, metrics, and shutdown payloads until backend config is fetched.
 
 Common optional values:
 
@@ -82,7 +87,6 @@ docker run --rm \
   --pid=host \
   -e AGRAFA_API_BASE_URL=https://your-backend.example.com/v1 \
   -e AGRAFA_AGENT_TOKEN=your-agent-token \
-  -e AGRAFA_NODE_ID=123 \
   -e HOST_PROC=/host/proc \
   -e HOST_SYS=/host/sys \
   -e HOST_ETC=/host/etc \
