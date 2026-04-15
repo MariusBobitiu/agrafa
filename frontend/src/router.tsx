@@ -76,6 +76,7 @@ export const router = createBrowserRouter([
             element: <AppLayout />,
             errorElement: <RouteErrorBoundary />,
             children: [
+              { path: "/", element: <OverviewPage /> },
               { path: "/overview", element: <OverviewPage /> },
               { path: "/nodes", element: <NodesPage /> },
               { path: "/nodes/:id", element: <NodeDetailPage /> },

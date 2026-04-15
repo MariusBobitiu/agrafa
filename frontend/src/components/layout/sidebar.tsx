@@ -32,6 +32,7 @@ export function Sidebar() {
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
   function isRouteActive(to: string) {
+    if (to === "/overview" && location.pathname === "/") return true;
     return location.pathname === to || location.pathname.startsWith(`${to}/`);
   }
 
