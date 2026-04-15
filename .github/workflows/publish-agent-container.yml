@@ -5,6 +5,7 @@ on:
   push:
     tags:
       - "agent-v*.*.*"
+      - "agent-v*.*.*-*"
 
 permissions:
   contents: read

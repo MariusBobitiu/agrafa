@@ -5,6 +5,8 @@ on:
     tags:
       - "v*.*.*"
       - "agent-v*.*.*"
+      - "v*.*.*-*"
+      - "agent-v*.*.*-*"
 
 permissions:
   contents: read
