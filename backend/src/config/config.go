@@ -95,6 +95,11 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	sessionCookieSecure, err := shouldUseSecureSessionCookies(normalizedAppBaseURL)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		PostgresURI:             postgresURI,
 		Port:                    port,
@@ -108,7 +113,7 @@ func Load() (Config, error) {
 		ManagedCheckTimeout:     time.Duration(managedCheckTimeoutSeconds) * time.Second,
 		SessionTTL:              time.Duration(sessionTTLDays) * 24 * time.Hour,
 		SessionRememberTTL:      time.Duration(sessionRememberTTLDays) * 24 * time.Hour,
-		SessionCookieSecure:     strings.EqualFold(environment, "production"),
+		SessionCookieSecure:     sessionCookieSecure,
 	}, nil
 }
 
@@ -187,4 +192,16 @@ func normalizeOrigin(value string) (string, error) {
 	}
 
 	return parsed.Scheme + "://" + parsed.Host, nil
+}
+
+func shouldUseSecureSessionCookies(appBaseURL string) (bool, error) {
+	parsed, err := url.Parse(appBaseURL)
+	if err != nil {
+		return false, fmt.Errorf("invalid APP_BASE_URL %q: %w", appBaseURL, err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return false, fmt.Errorf("invalid APP_BASE_URL %q", appBaseURL)
+	}
+
+	return strings.EqualFold(parsed.Scheme, "https"), nil
 }

@@ -136,6 +136,52 @@ func TestLoadNormalizesAllowedOrigins(t *testing.T) {
 	}
 }
 
+func TestLoadUsesInsecureSessionCookiesForHTTPBaseURL(t *testing.T) {
+	t.Setenv("POSTGRES_URI", "postgres://user:pass@localhost:5432/agrafa?sslmode=disable")
+	t.Setenv("APP_SECRET", "test-secret")
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("APP_BASE_URL", "http://192.168.1.20:8080")
+	t.Setenv("PORT", "")
+	t.Setenv("NODE_HEARTBEAT_TTL_SECONDS", "")
+	t.Setenv("NODE_EXPIRY_CHECK_INTERVAL_SECONDS", "")
+	t.Setenv("SESSION_TTL_DAYS", "")
+	t.Setenv("SESSION_REMEMBER_TTL_DAYS", "")
+
+	withWorkingDirectory(t, t.TempDir())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.SessionCookieSecure {
+		t.Fatal("SessionCookieSecure = true, want false for http APP_BASE_URL")
+	}
+}
+
+func TestLoadUsesSecureSessionCookiesForHTTPSBaseURL(t *testing.T) {
+	t.Setenv("POSTGRES_URI", "postgres://user:pass@localhost:5432/agrafa?sslmode=disable")
+	t.Setenv("APP_SECRET", "test-secret")
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("APP_BASE_URL", "https://app.example.com")
+	t.Setenv("PORT", "")
+	t.Setenv("NODE_HEARTBEAT_TTL_SECONDS", "")
+	t.Setenv("NODE_EXPIRY_CHECK_INTERVAL_SECONDS", "")
+	t.Setenv("SESSION_TTL_DAYS", "")
+	t.Setenv("SESSION_REMEMBER_TTL_DAYS", "")
+
+	withWorkingDirectory(t, t.TempDir())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.SessionCookieSecure {
+		t.Fatal("SessionCookieSecure = false, want true for https APP_BASE_URL")
+	}
+}
+
 func withWorkingDirectory(t *testing.T, dir string) {
 	t.Helper()
 
