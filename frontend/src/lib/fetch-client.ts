@@ -1,17 +1,15 @@
 const BASE_URL = import.meta.env["VITE_API_URL"] ?? "";
 
 export function getApiBaseUrl() {
-  const normalizedBaseUrl = BASE_URL.replace(/\/$/, "");
-
-  if (normalizedBaseUrl) {
-    return normalizedBaseUrl;
-  }
-
   if (typeof window === "undefined") {
-    return "";
+    return BASE_URL || "";
   }
 
-  return window.location.origin.replace(/\/$/, "");
+  if (!BASE_URL) {
+    return window.location.origin;
+  }
+
+  return new URL(BASE_URL, window.location.origin).toString().replace(/\/$/, "");
 }
 
 export function getAgentApiBaseUrl() {
