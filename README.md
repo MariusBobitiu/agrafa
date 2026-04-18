@@ -90,6 +90,24 @@ The frontend uses `VITE_API_URL` from `frontend/.env` and proxies `/v1` requests
 
 ## Self-Hosting MVP
 
+### Zero-Question Install
+
+The simplest self-hosted install is the dedicated `install/` path. It is fully non-interactive and brings Agrafa up on the server IP without domain setup, TLS, or Traefik.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/<owner>/agrafa/main/install/install.sh | bash
+```
+
+Result:
+
+- Frontend: `http://server_ip:8080`
+- Backend API: `http://server_ip:8081`
+- Agent API base URL: `http://server_ip:8081`
+
+The installer generates `.env`, randomizes `POSTGRES_PASSWORD` and `APP_SECRET`, detects the public IP when possible, and starts the stack with `docker compose up -d`.
+
+If you want a domain, TLS, or a single public entrypoint later, place your own reverse proxy in front after installation.
+
 This repo includes two Compose setups for `postgres`, `backend`, and `frontend`:
 
 - `docker-compose.yml` pulls released backend and frontend images from GitHub Container Registry.

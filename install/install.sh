@@ -4,8 +4,11 @@ set -euo pipefail
 
 APP_NAME="agrafa"
 INSTALL_DIR="${APP_NAME}"
-REPO_OWNER="MariusBobitiu"
+REPO_OWNER="mariusbobitiu"
 RAW_BASE="https://raw.githubusercontent.com/${REPO_OWNER}/agrafa/main/install"
+DEFAULT_PUBLIC_IP="127.0.0.1"
+FRONTEND_PORT="8080"
+BACKEND_PORT="8081"
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -23,16 +26,26 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Agrafa installer"
-echo
+detect_public_ip() {
+  local ip=""
+  local url
 
-read -rp "Install directory [agrafa]: " input_install_dir
-if [ -n "${input_install_dir:-}" ]; then
-  INSTALL_DIR="$input_install_dir"
-fi
+  for url in \
+    "https://icanhazip.com" \
+    "https://api.ipify.org" \
+    "https://ifconfig.me"
+  do
+    ip="$(curl -fsSL --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]' || true)"
+    if [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+      printf '%s\n' "$ip"
+      return 0
+    fi
+  done
 
-read -rp "GitHub Container Registry owner/user [${REPO_OWNER}]: " input_ghcr_owner
-GHCR_OWNER="${input_ghcr_owner:-$REPO_OWNER}"
+  hostname -I 2>/dev/null | awk '{print $1}' || true
+}
+
+GHCR_OWNER="${GHCR_OWNER:-$REPO_OWNER}"
 
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
@@ -41,41 +54,13 @@ POSTGRES_DB="agrafa"
 POSTGRES_USER="agrafa"
 POSTGRES_PASSWORD="$(openssl rand -base64 24 | tr -d '\n' | tr '/+' 'ab' | cut -c1-24)"
 APP_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
-
-read -rp "Do you want to use a domain with HTTPS? [y/N]: " HAS_DOMAIN
-HAS_DOMAIN="${HAS_DOMAIN:-N}"
-
-SERVER_IP="$(curl -fsSL https://icanhazip.com 2>/dev/null | tr -d '\n' || true)"
-
-if [[ "$HAS_DOMAIN" =~ ^[Yy]$ ]]; then
-  read -rp "Domain (e.g. agrafa.example.com): " DOMAIN
-  if [ -z "${DOMAIN:-}" ]; then
-    echo "Domain is required."
-    exit 1
-  fi
-
-  read -rp "Email for Let's Encrypt: " LETSENCRYPT_EMAIL
-  if [ -z "${LETSENCRYPT_EMAIL:-}" ]; then
-    echo "Let's Encrypt email is required."
-    exit 1
-  fi
-
-  TRAEFIK_ENABLED="true"
-  APP_BASE_URL="https://${DOMAIN}"
-  APP_ALLOWED_ORIGINS="https://${DOMAIN}"
-  FRONTEND_HOST_PORT=8080
-  BACKEND_HOST_PORT=8081
-  COMPOSE_PROFILES="domain"
-else
-  TRAEFIK_ENABLED="false"
-  DOMAIN="localhost"
-  LETSENCRYPT_EMAIL=""
-  APP_BASE_URL="http://${SERVER_IP:-localhost}:8080"
-  APP_ALLOWED_ORIGINS="${APP_BASE_URL}"
-  FRONTEND_HOST_PORT=8080
-  BACKEND_HOST_PORT=8081
-  COMPOSE_PROFILES=""
+SERVER_IP="$(detect_public_ip | tr -d '[:space:]')"
+if [ -z "${SERVER_IP:-}" ]; then
+  SERVER_IP="$DEFAULT_PUBLIC_IP"
 fi
+
+APP_BASE_URL="http://${SERVER_IP}:${FRONTEND_PORT}"
+APP_ALLOWED_ORIGINS="${APP_BASE_URL}"
 
 curl -fsSL "${RAW_BASE}/docker-compose.yml" -o docker-compose.yml
 
@@ -103,12 +88,8 @@ MANAGED_SERVICE_CHECK_TIMEOUT_SECONDS=10
 SESSION_TTL_DAYS=7
 SESSION_REMEMBER_TTL_DAYS=30
 
-TRAEFIK_ENABLED=${TRAEFIK_ENABLED}
-DOMAIN=${DOMAIN}
-LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
-FRONTEND_HOST_PORT=${FRONTEND_HOST_PORT}
-BACKEND_HOST_PORT=${BACKEND_HOST_PORT}
-COMPOSE_PROFILES=${COMPOSE_PROFILES}
+FRONTEND_HOST_PORT=${FRONTEND_PORT}
+BACKEND_HOST_PORT=${BACKEND_PORT}
 
 EMAIL_ENABLED=false
 EMAIL_PROVIDER=resend
@@ -116,24 +97,9 @@ EMAIL_RESEND_API_KEY=
 EMAIL_RESEND_DOMAIN=
 EOF
 
-echo
-echo "Starting Agrafa..."
+docker compose up -d
 
-if [ -n "${COMPOSE_PROFILES}" ]; then
-  docker compose --profile "${COMPOSE_PROFILES}" up -d
-else
-  docker compose up -d
-fi
-
-echo
 echo "Agrafa installed."
-
-if [[ "$HAS_DOMAIN" =~ ^[Yy]$ ]]; then
-  echo "Frontend: https://${DOMAIN}"
-  echo "Backend/API: https://${DOMAIN}/api"
-  echo "Agent API base URL: https://${DOMAIN}/api"
-else
-  echo "Frontend: ${APP_BASE_URL}"
-  echo "Backend/API: http://${SERVER_IP:-localhost}:8081"
-  echo "Agent API base URL: http://${SERVER_IP:-localhost}:8081"
-fi
+echo "Frontend: ${APP_BASE_URL}"
+echo "Backend/API: http://${SERVER_IP}:${BACKEND_PORT}"
+echo "Agent API base URL: http://${SERVER_IP}:${BACKEND_PORT}"

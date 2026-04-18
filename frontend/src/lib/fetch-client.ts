@@ -1,15 +1,17 @@
 const BASE_URL = import.meta.env["VITE_API_URL"] ?? "";
 
 export function getApiBaseUrl() {
+  const normalizedBaseUrl = BASE_URL.replace(/\/$/, "");
+
+  if (normalizedBaseUrl) {
+    return normalizedBaseUrl;
+  }
+
   if (typeof window === "undefined") {
-    return BASE_URL;
+    return "";
   }
 
-  if (!BASE_URL) {
-    return window.location.origin;
-  }
-
-  return new URL(BASE_URL, window.location.origin).toString().replace(/\/$/, "");
+  return window.location.origin.replace(/\/$/, "");
 }
 
 export function getAgentApiBaseUrl() {
@@ -48,7 +50,8 @@ function getServerErrorMessage(status: number, fallback: string) {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const url = `${BASE_URL}/v1${path}`;
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}/v1${path}`;
 
   let res: Response;
   try {
