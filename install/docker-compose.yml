@@ -1,0 +1,99 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: agrafa-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/${GHCR_OWNER}/agrafa-backend:latest
+    container_name: agrafa-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        psql "$POSTGRES_URI" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS \"${POSTGRES_MIGRATIONS_SCHEMA}\""
+        case "$POSTGRES_URI" in
+          *\?*) POSTGRES_MIGRATIONS_URI="${POSTGRES_URI}&x-migrations-table=%22${POSTGRES_MIGRATIONS_SCHEMA}%22.%22${POSTGRES_MIGRATIONS_TABLE}%22&x-migrations-table-quoted=true" ;;
+          *) POSTGRES_MIGRATIONS_URI="${POSTGRES_URI}?x-migrations-table=%22${POSTGRES_MIGRATIONS_SCHEMA}%22.%22${POSTGRES_MIGRATIONS_TABLE}%22&x-migrations-table-quoted=true" ;;
+        esac
+        migrate -path /app/src/db/migrations/app -database "$POSTGRES_MIGRATIONS_URI" up
+        exec agrafa-backend
+    expose:
+      - "8080"
+    ports:
+      - "${BACKEND_HOST_PORT:-8081}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/v1/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    labels:
+      - traefik.enable=${TRAEFIK_ENABLED}
+      - traefik.http.routers.agrafa-api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)
+      - traefik.http.routers.agrafa-api.entrypoints=websecure
+      - traefik.http.routers.agrafa-api.tls=true
+      - traefik.http.routers.agrafa-api.tls.certresolver=letsencrypt
+      - traefik.http.middlewares.agrafa-strip-api.stripprefix.prefixes=/api
+      - traefik.http.routers.agrafa-api.middlewares=agrafa-strip-api
+      - traefik.http.services.agrafa-api.loadbalancer.server.port=8080
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER}/agrafa-frontend:latest
+    container_name: agrafa-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "80"
+    ports:
+      - "${FRONTEND_HOST_PORT:-8080}:80"
+    labels:
+      - traefik.enable=${TRAEFIK_ENABLED}
+      - traefik.http.routers.agrafa-frontend.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.agrafa-frontend.entrypoints=websecure
+      - traefik.http.routers.agrafa-frontend.tls=true
+      - traefik.http.routers.agrafa-frontend.tls.certresolver=letsencrypt
+      - traefik.http.services.agrafa-frontend.loadbalancer.server.port=80
+
+  traefik:
+    profiles: ["domain"]
+    image: traefik:v3.1
+    container_name: agrafa-traefik
+    restart: unless-stopped
+    command:
+      - --api.dashboard=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-letsencrypt:/letsencrypt
+
+volumes:
+  postgres-data:
+  traefik-letsencrypt:
