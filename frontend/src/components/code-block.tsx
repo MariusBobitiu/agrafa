@@ -23,11 +23,7 @@ export function CodeBlock({ label, value }: CodeBlockProps) {
           variant="secondary"
           size="sm"
           className="absolute right-2 top-2"
-          onCopiedChange={(copied) => {
-            if (copied) {
-              toast.success("Command copied");
-            }
-          }}
+          aria-label="Copy command"
           onCopyError={() => {
             toast.error("Couldn't copy the command. Copy it manually.");
           }}

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { Alert, AlertDescription } from "@/components/ui/alert.tsx";
 import {
   Dialog,
   DialogContent,
@@ -367,6 +368,14 @@ export function MembersSection({ projectId }: { projectId: number }) {
 
   return (
     <div className="space-y-6">
+      {canManage && !canInviteMembers && (
+        <Alert>
+          <AlertDescription>
+            Team invites are unavailable until email delivery is configured in Instance Settings.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Members card */}
       <div className="rounded-xl border border-border overflow-hidden">
         <div className="flex items-center justify-between px-6 py-5">

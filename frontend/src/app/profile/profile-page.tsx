@@ -76,7 +76,10 @@ export function ProfilePage() {
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
-      <PageHeader title="Profile" />
+      <PageHeader
+        title="Profile"
+        description="User-specific account settings and active sessions"
+      />
 
       <div className="space-y-6">
         {/* ── Profile info section ── */}

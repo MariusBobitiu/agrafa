@@ -5,8 +5,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.t
 import { InstanceSection } from "@/app/settings/components/instance-section.tsx";
 import { useMeta } from "@/hooks/use-meta.ts";
 
-// ─── Tab nav styles ───────────────────────────────────────────────────────────
-
 const tabListClass = "h-auto bg-transparent p-0 rounded-none w-full justify-start gap-1.5";
 
 const tabTriggerClass =
@@ -40,19 +38,17 @@ export function InstanceSettingsPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Instance ── */}
         <TabsContent value="instance" className="mt-6">
           <InstanceSection />
         </TabsContent>
 
-        {/* ── Integrations ── */}
         <TabsContent value="integrations" className="mt-6">
           <EmptyState
             icon={({ size, className }) => (
               <PuzzleIcon size={size} className={className as string} />
             )}
             title="Integrations coming soon"
-            description="Webhook and third-party integrations will be available in a future release."
+            description="Webhook and third-party integrations will appear here in a future release."
           />
         </TabsContent>
       </Tabs>

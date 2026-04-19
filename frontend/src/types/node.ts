@@ -5,7 +5,7 @@ export type NodeState = "online" | "offline" | "unknown";
 export type MetricValue = {
   value: number;
   unit: string;
-  observedAt: string;
+  observed_at: string;
 };
 
 export type Node = {

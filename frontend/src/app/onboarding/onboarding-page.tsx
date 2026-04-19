@@ -245,7 +245,7 @@ export function OnboardingPage() {
   const stepTitle =
     step === "project"
       ? hasExistingProject
-        ? "Name your first project"
+        ? "Name your project"
         : `Welcome, ${user?.name.split(" ")[0]}`
       : currentStep.title;
 
@@ -436,11 +436,13 @@ export function OnboardingPage() {
                       <p className="mt-1 text-base font-medium">{project?.name}</p>
                     </div>
                     <div className="rounded-lg border border-border p-4">
-                      <p className="text-sm text-muted-foreground">Invites</p>
+                      <p className="text-sm text-muted-foreground">Team invites</p>
                       <p className="mt-1 text-base font-medium">
-                        {inviteResults.length === 0
-                          ? "No invites sent"
-                          : `${createdInviteCount} sent${failedInviteCount > 0 ? `, ${failedInviteCount} need attention` : ""}`}
+                        {!isEmailDeliveryAvailable
+                          ? "Unavailable on this instance"
+                          : inviteResults.length === 0
+                            ? "No invites sent"
+                            : `${createdInviteCount} sent${failedInviteCount > 0 ? `, ${failedInviteCount} need attention` : ""}`}
                       </p>
                     </div>
                   </div>
@@ -476,9 +478,13 @@ export function OnboardingPage() {
                     </div>
                   ) : (
                     <Alert>
-                      <AlertTitle>No invites sent</AlertTitle>
+                      <AlertTitle>
+                        {isEmailDeliveryAvailable ? "No invites sent" : "Team invites unavailable"}
+                      </AlertTitle>
                       <AlertDescription>
-                        You can invite teammates later from your project settings.
+                        {isEmailDeliveryAvailable
+                          ? "You can invite teammates later from your project settings."
+                          : "Configure email delivery in Instance Settings to invite teammates later."}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -494,7 +500,7 @@ export function OnboardingPage() {
                       onClick={() => void handleCompleteOnboarding()}
                       disabled={completeOnboarding.isPending}
                     >
-                      {completeOnboarding.isPending ? "Finishing..." : "Complete onboarding"}
+                      {completeOnboarding.isPending ? "Finishing..." : "Finish setup"}
                     </Button>
                   </div>
                 </div>

@@ -96,12 +96,23 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
     warning: "Warning",
     info: "Info",
   };
+  const emptyStateDescription = !isEmailDeliveryAvailable
+    ? "Email delivery is disabled for this instance."
+    : !canWrite
+      ? "You need project write access to manage recipients."
+      : "Add an email address below to start receiving alert notifications.";
+  const emptyStateTitle = !isEmailDeliveryAvailable
+    ? "Email notifications unavailable"
+    : "No recipients yet";
 
   return (
     <div className="space-y-6">
       {!isEmailDeliveryAvailable && (
         <Alert>
-          <AlertDescription>Email delivery is not configured on this instance.</AlertDescription>
+          <AlertDescription>
+            Email notifications are unavailable until email delivery is configured in Instance
+            Settings.
+          </AlertDescription>
         </Alert>
       )}
 
@@ -133,10 +144,8 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
                 <div className="flex size-10 items-center justify-center rounded-full bg-muted">
                   <MailIcon size={16} className="text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium text-foreground">No recipients yet</p>
-                <p className="text-xs text-muted-foreground max-w-xs">
-                  Add an email address below to start receiving alert notifications.
-                </p>
+                <p className="text-sm font-medium text-foreground">{emptyStateTitle}</p>
+                <p className="text-xs text-muted-foreground max-w-xs">{emptyStateDescription}</p>
               </div>
             ) : (
               <div className="divide-y divide-border">

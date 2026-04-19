@@ -77,8 +77,8 @@ const EXECUTION_LOCATION_OPTIONS: Array<{
   },
   {
     value: "agent",
-    title: "My own server",
-    description: "Run checks from a machine you control",
+    title: "A project node",
+    description: "Run checks from a node you control",
   },
 ];
 
@@ -332,7 +332,7 @@ export function CreateServiceDialog({
                   <FormItem>
                     <FormLabel>Where should checks run from?</FormLabel>
                     <FormDescription>
-                      Choose whether Agrafa runs the check itself or through a server you manage.
+                      Choose whether Agrafa runs the check itself or through a node you manage.
                     </FormDescription>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {EXECUTION_LOCATION_OPTIONS.map((option) => {
@@ -399,18 +399,18 @@ export function CreateServiceDialog({
                 name="nodeId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Select server</FormLabel>
+                    <FormLabel>Select node</FormLabel>
                     <FormDescription>
-                      Pick the server that should run this check for this project.
+                      Pick the node that should run this check for this project.
                     </FormDescription>
                     {nodesQuery.isLoading ? (
                       <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                        Loading your available servers...
+                        Loading your available nodes...
                       </div>
                     ) : nodesQuery.isError ? (
                       <Alert variant="destructive">
                         <CircuitBoardIcon size={16} />
-                        <AlertTitle>Couldn't load your servers</AlertTitle>
+                        <AlertTitle>Couldn't load your nodes</AlertTitle>
                         <AlertDescription className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <span>Try again to choose where this check should run.</span>
                           <Button
@@ -426,10 +426,10 @@ export function CreateServiceDialog({
                     ) : hasNoAgentNodes ? (
                       <Alert>
                         <CircuitBoardIcon size={16} />
-                        <AlertTitle>No servers available yet</AlertTitle>
+                        <AlertTitle>No nodes available yet</AlertTitle>
                         <AlertDescription className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <span>
-                            Set up a node first so Agrafa has a machine to run this check from.
+                            Set up a node first so Agrafa has somewhere to run this check from.
                           </span>
                           <Button
                             type="button"
@@ -446,7 +446,7 @@ export function CreateServiceDialog({
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select a server" />
+                              <SelectValue placeholder="Select a node" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -458,8 +458,8 @@ export function CreateServiceDialog({
                           </SelectContent>
                         </Select>
                         <FormDescription>
-                          {agentNodes.length} available{" "}
-                          {agentNodes.length === 1 ? "server" : "servers"} in this project
+                          {agentNodes.length} available {agentNodes.length === 1 ? "node" : "nodes"}{" "}
+                          in this project
                         </FormDescription>
                       </>
                     )}

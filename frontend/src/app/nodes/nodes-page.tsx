@@ -218,7 +218,7 @@ function NodesEmptyState({ onSetup }: { onSetup: () => void }) {
       </div>
       <h3 className="text-sm font-semibold text-foreground">No nodes yet</h3>
       <p className="mt-1.5 text-sm text-muted-foreground max-w-xs mx-auto">
-        Set up your first server so Agrafa can run checks from infrastructure you control.
+        Set up your first node so Agrafa can run checks from infrastructure you control.
       </p>
       <Button size="sm" className="mt-5 gap-1.5" onClick={onSetup}>
         <PlusIcon size={13} />
@@ -233,7 +233,7 @@ function NodesEmptyState({ onSetup }: { onSetup: () => void }) {
 export function NodesPage() {
   useMeta({
     title: "Nodes",
-    description: "Servers you control that can run checks for this project",
+    description: "Nodes you control that can run checks for this project",
   });
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const { data, isLoading, error } = useNodes(activeProjectId ?? 0);
@@ -264,7 +264,7 @@ export function NodesPage() {
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <PageHeader
         title="Nodes"
-        description="Servers you control that can run checks for this project"
+        description="Nodes you control that can run checks for this project"
         actions={
           <AnimateIcon asChild animateOnHover>
             <Button

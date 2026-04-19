@@ -488,11 +488,7 @@ export function CreateNodeDialog({
                           variant="ghost"
                           size="xs"
                           className="absolute right-2 top-1/2 -translate-y-1/2"
-                          onCopiedChange={(copied) => {
-                            if (copied) {
-                              toast.success("Token copied to clipboard");
-                            }
-                          }}
+                          aria-label="Copy agent token"
                           onCopyError={() => {
                             toast.error("Couldn't copy the token. Copy it manually.");
                           }}
@@ -578,7 +574,12 @@ export function CreateNodeDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {launchedFromService ? "Back to service" : "Close"}
               </Button>
-              <Button type="button" className="min-w-32" onClick={handleAdvanceToHeartbeat}>
+              <Button
+                type="button"
+                className="min-w-32"
+                onClick={handleAdvanceToHeartbeat}
+                disabled={!installCommand}
+              >
                 Continue
               </Button>
             </div>

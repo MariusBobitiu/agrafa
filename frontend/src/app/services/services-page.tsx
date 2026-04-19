@@ -280,7 +280,7 @@ export function ServicesPage() {
         <EmptyState
           icon={ActivityIcon}
           title="No services yet"
-          description="Monitor a service from this instance or your own server."
+          description="Monitor a service from this instance or a project node."
           action={{ label: "Monitor a service", onClick: () => setCreateOpen(true) }}
         />
       ) : (

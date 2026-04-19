@@ -264,11 +264,6 @@ export function NodeDetailPage() {
 
   const nodeId = id ? parseInt(id, 10) : 0;
 
-  useMeta({
-    title: `Node #${nodeId}`,
-    description: `View details, metrics, services, and alerts for node #${nodeId}`,
-  });
-
   const {
     data: nodeData,
     isLoading: nodeLoading,
@@ -301,6 +296,13 @@ export function NodeDetailPage() {
   const node: Node | undefined = nodeData?.node;
   const nodeServices = (servicesData?.services ?? []).filter((s) => s.node_id === nodeId);
   const nodeAlerts = node?.active_alerts ?? [];
+
+  useMeta({
+    title: node ? `${node.name} Details` : `Node #${nodeId}`,
+    description: node
+      ? `View details, metrics, services, and alerts for ${node.name}`
+      : `View details, metrics, services, and alerts for node #${nodeId}`,
+  });
 
   if (isNaN(nodeId) || nodeId <= 0) {
     return (
@@ -428,9 +430,9 @@ export function NodeDetailPage() {
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               System Metrics
             </h2>
-            {node.latest_cpu?.observedAt && (
+            {node.latest_cpu?.observed_at && (
               <span className="text-xs text-muted-foreground tabular-nums">
-                {formatRelativeTime(node.latest_cpu.observedAt)}
+                {formatRelativeTime(node.latest_cpu.observed_at)}
               </span>
             )}
           </div>

@@ -109,13 +109,13 @@ export function Sidebar() {
                     initial={{ opacity: 0 }}
                     className="truncate"
                   >
-                    Instance
+                    Instance Settings
                   </motion.span>
                 )}
               </Link>
             </AnimateIcon>
           </TooltipTrigger>
-          {!sidebarOpen && <TooltipContent side="right">Instance</TooltipContent>}
+          {!sidebarOpen && <TooltipContent side="right">Instance Settings</TooltipContent>}
         </Tooltip>
       </div>
 

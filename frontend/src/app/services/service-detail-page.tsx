@@ -52,6 +52,10 @@ function stateLabel(service: Service): string {
   return "Failing";
 }
 
+function executionModeLabel(mode: Service["execution_mode"]) {
+  return mode === "agent" ? "Project node" : "This instance";
+}
+
 function checkRowMessage(check: HealthCheckSummary): string {
   if (check.is_success) return "Service responded normally";
   if (!check.message) return "Check failed";
@@ -453,14 +457,14 @@ export function ServiceDetailPage() {
         <section>
           <SectionHeading
             icon={<NetworkIcon size={13} />}
-            label="Service Configuration"
+            label="Configuration"
             action={
               hasAgentBackedNode ? (
                 <Link
                   to={`/nodes/${service.node_id}`}
                   className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  View node #{service.node_id}
+                  View node
                   <ChevronRightIcon size={12} />
                 </Link>
               ) : undefined
@@ -468,10 +472,8 @@ export function ServiceDetailPage() {
           />
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             <MetaItem label="Check type" value={service.check_type.toUpperCase()} />
-            <MetaItem label="Execution mode" value={service.execution_mode} />
-            {hasAgentBackedNode ? (
-              <MetaItem label="Node ID" value={String(service.node_id)} />
-            ) : null}
+            <MetaItem label="Runs from" value={executionModeLabel(service.execution_mode)} />
+            {hasAgentBackedNode ? <MetaItem label="Node" value={`#${service.node_id}`} /> : null}
             <MetaItem label="Service ID" value={String(service.id)} />
             <MetaItem label="Updated" value={formatDate(service.updated_at)} />
           </div>
