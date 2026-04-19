@@ -3,54 +3,119 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agrafa Alert Triggered</title>
+  <title>Agrafa Alert Active</title>
 </head>
-<body style="margin:0; padding:24px; background:#f5f7fb; color:#0f172a; font-family:Arial, Helvetica, sans-serif;">
+<body style="margin:0; padding:24px; background:#141414; color:#f4f4f4; font-family:'Public Sans', Arial, Helvetica, sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" style="max-width:640px; background:#ffffff; border-radius:16px; overflow:hidden; border:1px solid #dbe3f0;">
+        <table role="presentation" width="100%" style="max-width:600px;">
+
+          <!-- Header: logo + wordmark -->
           <tr>
-            <td style="padding:24px; background:#b91c1c; color:#ffffff;">
-              <div style="font-size:12px; letter-spacing:0.08em; text-transform:uppercase; opacity:0.85;">Agrafa Alerts</div>
-              <h1 style="margin:12px 0 0; font-size:28px; line-height:1.2;">Alert triggered</h1>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:24px;">
-              <p style="margin:0 0 16px; font-size:16px; line-height:1.6;">
-                {{ if .ProjectName }}Project <strong>{{ .ProjectName }}</strong>{{ else }}Project <strong>#{{ .ProjectID }}</strong>{{ end }}
-                has a new active alert.
-              </p>
-              <div style="margin:0 0 20px; padding:16px; background:#fff5f5; border:1px solid #fecaca; border-radius:12px;">
-                <div style="font-size:13px; color:#7f1d1d; text-transform:uppercase; letter-spacing:0.08em;">Title</div>
-                <div style="margin-top:8px; font-size:22px; font-weight:700;">{{ .AlertTitle }}</div>
-                <p style="margin:12px 0 0; font-size:15px; line-height:1.6;">{{ .AlertMessage }}</p>
-              </div>
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+            <td style="padding:0 0 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0; width:180px; color:#475569;">Rule type</td>
-                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0;">{{ .RuleType }}</td>
-                </tr>
-                <tr>
-                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0; color:#475569;">Status</td>
-                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0;">{{ .Status }}</td>
-                </tr>
-                <tr>
-                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0; color:#475569;">Node ID</td>
-                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0;">{{ if .NodeID }}{{ .NodeID }}{{ else }}n/a{{ end }}</td>
-                </tr>
-                <tr>
-                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0; color:#475569;">Service ID</td>
-                  <td style="padding:10px 0; border-bottom:1px solid #e2e8f0;">{{ if .ServiceID }}{{ .ServiceID }}{{ else }}n/a{{ end }}</td>
-                </tr>
-                <tr>
-                  <td style="padding:10px 0; color:#475569;">Triggered at</td>
-                  <td style="padding:10px 0;">{{ formatTime .TriggeredAt }}</td>
+                  <td style="vertical-align:middle; padding-right:8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 48 46" fill="none"><path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/></svg>
+                  </td>
+                  <td style="vertical-align:middle; font-size:15px; font-weight:700; letter-spacing:0.01em; color:#f4f4f4;">Agrafa</td>
                 </tr>
               </table>
             </td>
           </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#1f1f1f; border-radius:0 0 10px 10px; overflow:hidden;">
+
+              <!-- Alert type accent bar -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="height:3px; background:#e5533a; font-size:0; line-height:0;">&nbsp;</td>
+                </tr>
+              </table>
+
+              <!-- Card body -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="padding:24px 28px 20px;">
+
+                    <!-- Section label -->
+                    <div style="font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:#777777; margin-bottom:12px;">Alert</div>
+
+                    <!-- Status badge + title row -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin-bottom:8px;">
+                      <tr>
+                        <td style="vertical-align:middle; padding-right:10px;">
+                          <span style="display:inline-block; padding:3px 9px; border-radius:999px; background:rgba(229,83,58,0.15); color:#e5533a; font-size:11px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase;">Active</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <h1 style="margin:0 0 6px; font-size:22px; line-height:1.25; font-weight:700; color:#f4f4f4;">{{ .AlertTitle }}</h1>
+                    <p style="margin:0; font-size:14px; line-height:1.6; color:#888888;">
+                      {{ if .ProjectName }}{{ .ProjectName }}{{ else }}Project #{{ .ProjectID }}{{ end }} &mdash; new active alert
+                    </p>
+
+                  </td>
+                </tr>
+
+                <!-- Divider -->
+                <tr><td style="height:1px; background:rgba(255,255,255,0.07); font-size:0; line-height:0;"></td></tr>
+
+                <!-- Summary box -->
+                <tr>
+                  <td style="padding:20px 28px;">
+                    <div style="padding:16px 18px; background:rgba(229,83,58,0.07); border:1px solid rgba(229,83,58,0.2); border-radius:8px;">
+                      <div style="font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:#e5533a; margin-bottom:8px;">Summary</div>
+                      <p style="margin:0; font-size:14px; line-height:1.7; color:#cccccc;">{{ .AlertMessage }}</p>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Divider -->
+                <tr><td style="height:1px; background:rgba(255,255,255,0.07); font-size:0; line-height:0;"></td></tr>
+
+                <!-- Detail rows -->
+                <tr>
+                  <td style="padding:4px 28px 20px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); width:140px; font-size:13px; color:#666666;">Rule</td>
+                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{ .RuleType }}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; color:#666666;">Status</td>
+                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{ .Status }}</td>
+                      </tr>
+                      {{ if .NodeID }}<tr>
+                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; color:#666666;">Node ID</td>
+                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{ .NodeID }}</td>
+                      </tr>{{ end }}
+                      {{ if .ServiceID }}<tr>
+                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; color:#666666;">Service ID</td>
+                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{ .ServiceID }}</td>
+                      </tr>{{ end }}
+                      <tr>
+                        <td style="padding:12px 0; font-size:13px; color:#666666;">Triggered at</td>
+                        <td style="padding:12px 0; font-size:13px; font-weight:600; color:#e0e0e0;">{{ formatTime .TriggeredAt }}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 4px 0; font-size:12px; color:#444444; text-align:center;">
+              Agrafa &mdash; Infrastructure monitoring
+            </td>
+          </tr>
+
         </table>
       </td>
     </tr>

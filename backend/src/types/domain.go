@@ -397,6 +397,8 @@ type ServiceReadData struct {
 	ConsecutiveFailures int32                   `json:"consecutive_failures"`
 	ActiveAlertCount    int64                   `json:"active_alert_count"`
 	LatestHealthCheck   *HealthCheckSummaryData `json:"latest_health_check"`
+	CreatedAt           time.Time               `json:"created_at"`
+	UpdatedAt           time.Time               `json:"updated_at"`
 }
 
 type ServiceActiveAlertData struct {
@@ -423,6 +425,8 @@ type ServiceDetailData struct {
 	ActiveAlertCount    int64                    `json:"active_alert_count"`
 	ActiveAlerts        []ServiceActiveAlertData `json:"active_alerts"`
 	LatestHealthCheck   *HealthCheckSummaryData  `json:"latest_health_check"`
+	CreatedAt           time.Time                `json:"created_at"`
+	UpdatedAt           time.Time                `json:"updated_at"`
 }
 
 type ServiceListFilters struct {

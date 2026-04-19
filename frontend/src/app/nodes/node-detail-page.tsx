@@ -19,9 +19,10 @@ import { StatusBadge } from "@/components/ui/status-badge.tsx";
 import { useNode, useDeleteNode, useNodeDetailStream } from "@/hooks/use-nodes.ts";
 import { useServices } from "@/hooks/use-services.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
-import { formatRelativeTime, formatDate } from "@/lib/utils.ts";
+import { formatDate } from "@/lib/utils.ts";
 import { cn } from "@/lib/utils.ts";
 import { MetaItem } from "@/components/meta-item.tsx";
+import { RelativeTime } from "@/components/relative-time.tsx";
 import { SectionHeading } from "@/components/section-heading.tsx";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
 import { CreateNodeDialog } from "./components/create-node-dialog.tsx";
@@ -207,7 +208,7 @@ function NodeAlertList({ alerts }: { alerts: Alert[] }) {
           </div>
           <div className="flex flex-col items-end gap-1 ml-2 shrink-0">
             <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {formatRelativeTime(alert.triggered_at)}
+              <RelativeTime value={alert.triggered_at} />
             </span>
             <StatusBadge status={alert.status} />
           </div>
@@ -405,7 +406,7 @@ export function NodeDetailPage() {
             <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center gap-x-5 gap-y-2">
               <MetaItem
                 label="Last seen"
-                value={node.last_seen_at ? formatRelativeTime(node.last_seen_at) : "Never"}
+                value={<RelativeTime value={node.last_seen_at} fallback="Never" />}
               />
               <MetaItem label="Services" value={String(node.service_count)} />
               {node.active_alert_count > 0 ? (
@@ -432,7 +433,7 @@ export function NodeDetailPage() {
             </h2>
             {node.latest_cpu?.observed_at && (
               <span className="text-xs text-muted-foreground tabular-nums">
-                {formatRelativeTime(node.latest_cpu.observed_at)}
+                <RelativeTime value={node.latest_cpu.observed_at} />
               </span>
             )}
           </div>

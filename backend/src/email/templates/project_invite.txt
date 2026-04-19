@@ -1,9 +1,9 @@
-AGRAFA INVITATION
+AGRAFA ACCESS
 
 {{ if .InviterName }}{{ .InviterName }} invited you{{ else }}You were invited{{ end }} to join {{ if .ProjectName }}{{ .ProjectName }}{{ else }}an Agrafa project{{ end }}.
-Role: {{ .Role }}
+Access level: {{ .Role }}
 
-Accept invitation:
+Open this link to accept the invitation:
 {{ .AcceptURL }}
 
-If you don't want to join this project, you can ignore this email.
+If you were not expecting this invitation, you can ignore this email.

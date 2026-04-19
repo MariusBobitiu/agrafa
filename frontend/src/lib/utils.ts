@@ -5,17 +5,37 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: string | Date): string {
-  if (isNaN(new Date(date).getTime())) return "Invalid date";
+function toValidDate(date: string | Date | null | undefined): Date | null {
+  if (!date) {
+    return null;
+  }
+
+  const value = new Date(date);
+  if (Number.isNaN(value.getTime())) {
+    return null;
+  }
+
+  return value;
+}
+
+export function formatDate(date: string | Date | null | undefined): string {
+  const value = toValidDate(date);
+  if (!value) return "—";
 
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(date));
+  }).format(value);
 }
 
-export function formatRelativeTime(date: string | Date): string {
-  const diff = (new Date(date).getTime() - Date.now()) / 1000;
+export function formatRelativeTime(
+  date: string | Date | null | undefined,
+  now = Date.now(),
+): string {
+  const value = toValidDate(date);
+  if (!value) return "—";
+
+  const diff = (value.getTime() - now) / 1000;
   const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
   const abs = Math.abs(diff);

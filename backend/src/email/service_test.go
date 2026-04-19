@@ -40,11 +40,11 @@ func TestSendAlertTriggeredEmailRendersHTMLTemplate(t *testing.T) {
 	}
 
 	message := sender.messages[0]
-	if !strings.Contains(message.HTML, "Alert triggered") {
+	if !strings.Contains(message.HTML, "Agrafa Alerts") || !strings.Contains(message.HTML, "Active") {
 		t.Fatalf("expected rendered HTML to contain heading, got %q", message.HTML)
 	}
 
-	if !strings.Contains(message.Text, "AGRAFA ALERT TRIGGERED") {
+	if !strings.Contains(message.Text, "AGRAFA ALERTS") || !strings.Contains(message.Text, "Alert active:") {
 		t.Fatalf("expected rendered text to contain heading, got %q", message.Text)
 	}
 
@@ -83,11 +83,11 @@ func TestSendAlertResolvedEmailRendersHTMLTemplate(t *testing.T) {
 	}
 
 	message := sender.messages[0]
-	if !strings.Contains(message.HTML, "Alert resolved") {
+	if !strings.Contains(message.HTML, "Agrafa Alerts") || !strings.Contains(message.HTML, "Resolved") {
 		t.Fatalf("expected rendered HTML to contain heading, got %q", message.HTML)
 	}
 
-	if !strings.Contains(message.Text, "AGRAFA ALERT RESOLVED") {
+	if !strings.Contains(message.Text, "AGRAFA ALERTS") || !strings.Contains(message.Text, "Alert resolved:") {
 		t.Fatalf("expected rendered text to contain heading, got %q", message.Text)
 	}
 
@@ -117,7 +117,7 @@ func TestRendererRenderTextTriggeredTemplate(t *testing.T) {
 		t.Fatalf("RenderText returned error: %v", err)
 	}
 
-	if !strings.Contains(output, "AGRAFA ALERT TRIGGERED") || !strings.Contains(output, "Project: Agrafa") {
+	if !strings.Contains(output, "AGRAFA ALERTS") || !strings.Contains(output, "Alert active:") || !strings.Contains(output, "Project: Agrafa") {
 		t.Fatalf("unexpected rendered text output: %q", output)
 	}
 }
@@ -141,7 +141,7 @@ func TestRendererRenderTextResolvedTemplate(t *testing.T) {
 		t.Fatalf("RenderText returned error: %v", err)
 	}
 
-	if !strings.Contains(output, "AGRAFA ALERT RESOLVED") || !strings.Contains(output, "Resolved at:") {
+	if !strings.Contains(output, "AGRAFA ALERTS") || !strings.Contains(output, "Alert resolved:") || !strings.Contains(output, "Resolved at:") {
 		t.Fatalf("unexpected rendered text output: %q", output)
 	}
 }
@@ -176,7 +176,7 @@ func TestSendVerifyEmailRendersSecurityTemplate(t *testing.T) {
 	if !strings.Contains(message.HTML, "Verify your email") || !strings.Contains(message.HTML, "https://app.agrafa.co/verify-email?token=abc123") {
 		t.Fatalf("unexpected rendered HTML: %q", message.HTML)
 	}
-	if !strings.Contains(message.Text, "secure your Agrafa account") {
+	if !strings.Contains(message.Text, "finish setting up your Agrafa account") {
 		t.Fatalf("unexpected rendered text: %q", message.Text)
 	}
 }
@@ -202,7 +202,7 @@ func TestSendPasswordResetEmailRendersSecurityTemplate(t *testing.T) {
 	if !strings.Contains(message.HTML, "Reset your password") || !strings.Contains(message.HTML, "https://app.agrafa.co/reset-password?token=abc123") {
 		t.Fatalf("unexpected rendered HTML: %q", message.HTML)
 	}
-	if !strings.Contains(message.Text, "Reset your Agrafa password") {
+	if !strings.Contains(message.Text, "Use this link to reset your Agrafa password") {
 		t.Fatalf("unexpected rendered text: %q", message.Text)
 	}
 }
@@ -242,7 +242,7 @@ func TestSendProjectInviteRendersInviteTemplate(t *testing.T) {
 	if !strings.Contains(message.HTML, "Accept invitation") || !strings.Contains(message.HTML, "https://app.agrafa.co/invite?token=abc123") {
 		t.Fatalf("unexpected rendered HTML: %q", message.HTML)
 	}
-	if !strings.Contains(message.Text, "Role: viewer") {
+	if !strings.Contains(message.Text, "Access level: viewer") {
 		t.Fatalf("unexpected rendered text: %q", message.Text)
 	}
 }
@@ -273,10 +273,10 @@ func TestSendNotificationRecipientTestEmailRendersTemplate(t *testing.T) {
 	if !strings.Contains(message.Subject, "Agrafa Team") {
 		t.Fatalf("subject = %q", message.Subject)
 	}
-	if !strings.Contains(message.HTML, "delivery test from Agrafa") || !strings.Contains(message.HTML, "ops@example.com") {
+	if !strings.Contains(message.HTML, "test notification from Agrafa") || !strings.Contains(message.HTML, "ops@example.com") {
 		t.Fatalf("unexpected rendered HTML: %q", message.HTML)
 	}
-	if !strings.Contains(message.Text, "AGRAFA TEST NOTIFICATION EMAIL") || !strings.Contains(message.Text, "Project: Agrafa Team") {
+	if !strings.Contains(message.Text, "AGRAFA NOTIFICATIONS") || !strings.Contains(message.Text, "Project: Agrafa Team") {
 		t.Fatalf("unexpected rendered text: %q", message.Text)
 	}
 }

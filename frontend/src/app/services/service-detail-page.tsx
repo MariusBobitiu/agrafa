@@ -18,12 +18,13 @@ import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { StatusBadge } from "@/components/ui/status-badge.tsx";
 import { MetaItem } from "@/components/meta-item.tsx";
+import { RelativeTime } from "@/components/relative-time.tsx";
 import { SectionHeading } from "@/components/section-heading.tsx";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
 import { CreateServiceDialog } from "./components/create-service-dialog.tsx";
 import { useService, useDeleteService, useServiceDetailStream } from "@/hooks/use-services.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
-import { formatDate, formatRelativeTime, cn } from "@/lib/utils.ts";
+import { formatDate, cn } from "@/lib/utils.ts";
 import type { Service, ServiceAlert, HealthCheckSummary } from "@/types/service.ts";
 import { useMeta } from "@/hooks/use-meta.ts";
 
@@ -106,7 +107,9 @@ function CheckRow({ check }: { check: HealthCheckSummary }) {
       <div className="flex items-center gap-3 ml-2 shrink-0 text-xs text-muted-foreground tabular-nums">
         {check.response_time_ms != null && <span>{check.response_time_ms}ms</span>}
         <span>{check.status_code != null ? `HTTP ${check.status_code}` : "No response"}</span>
-        <span className="hidden sm:inline">{formatRelativeTime(check.observed_at)}</span>
+        <span className="hidden sm:inline">
+          <RelativeTime value={check.observed_at} />
+        </span>
       </div>
     </div>
   );
@@ -290,9 +293,7 @@ export function ServiceDetailPage() {
             <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center gap-x-5 gap-y-2">
               <MetaItem
                 label="Last checked"
-                value={
-                  service.last_checked_at ? formatRelativeTime(service.last_checked_at) : "Never"
-                }
+                value={<RelativeTime value={service.last_checked_at} fallback="Never" />}
               />
               <MetaItem label="Type" value={service.check_type.toUpperCase()} />
               {service.consecutive_failures > 0 ? (
@@ -367,7 +368,7 @@ export function ServiceDetailPage() {
                 </div>
                 {latest?.observed_at && (
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    Last checked: {formatRelativeTime(latest.observed_at)}
+                    Last checked: <RelativeTime value={latest.observed_at} />
                   </span>
                 )}
               </div>
@@ -428,12 +429,12 @@ export function ServiceDetailPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground">{alert.title}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Triggered {formatRelativeTime(alert.triggered_at)}
+                      <RelativeTime value={alert.triggered_at} prefix="Triggered" />
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1 ml-2 shrink-0">
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {formatRelativeTime(alert.triggered_at)}
+                      <RelativeTime value={alert.triggered_at} />
                     </span>
                     <div className="flex items-center gap-1.5">
                       <span

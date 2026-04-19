@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronRightIcon, GlobeIcon, NetworkIcon, PencilIcon, TrashIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -8,7 +8,6 @@ import { PageHeader } from "@/components/ui/page-header.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { StatusBadge } from "@/components/ui/status-badge.tsx";
 import { useServices, useDeleteService } from "@/hooks/use-services.ts";
-import { formatRelativeTime } from "@/lib/utils.ts";
 import { cn } from "@/lib/utils.ts";
 import { useServiceCreationStore } from "@/stores/service-creation-store.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
@@ -18,6 +17,7 @@ import { AnimateIcon, PlusIcon, ActivityIcon } from "@/components/animate-ui/ico
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
 import type { Service } from "@/types/service.ts";
 import { useMeta } from "@/hooks/use-meta.ts";
+import { RelativeTime } from "@/components/relative-time.tsx";
 
 // ─── Service row card ─────────────────────────────────────────────────────────
 
@@ -110,9 +110,7 @@ function ServiceRowCard({
               <StatusBadge status={svc.status} />
             </div>
             <p className="text-xs text-muted-foreground/60 leading-none">
-              {svc.last_checked_at
-                ? `Checked ${formatRelativeTime(svc.last_checked_at)}`
-                : "Never checked"}
+              <RelativeTime value={svc.last_checked_at} prefix="Checked" fallback="Never checked" />
             </p>
           </div>
           <Button
@@ -199,7 +197,6 @@ export function ServicesPage() {
   const createOpen = searchParams.get("create") === "1";
   const [nodeSetupOpen, setNodeSetupOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
-  const [, setNow] = useState(() => Date.now());
 
   function handleDelete(id: number) {
     deleteService.mutate(id, {
@@ -207,16 +204,6 @@ export function ServicesPage() {
       onError: () => toast.error("Failed to delete service."),
     });
   }
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, []);
 
   function setCreateOpen(open: boolean) {
     const nextParams = new URLSearchParams(searchParams);

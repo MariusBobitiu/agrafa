@@ -17,7 +17,6 @@ import { StatusBadge } from "@/components/ui/status-badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { useNodes, useDeleteNode } from "@/hooks/use-nodes.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
-import { formatRelativeTime } from "@/lib/utils.ts";
 import { cn } from "@/lib/utils.ts";
 import { AnimateIcon, PlusIcon } from "@/components/animate-ui/icons";
 import { CreateNodeDialog } from "./components/create-node-dialog.tsx";
@@ -25,6 +24,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
 import type { Node } from "@/types/node.ts";
 import { InlineMetric } from "@/components/inline-metric.tsx";
 import { useMeta } from "@/hooks/use-meta.ts";
+import { RelativeTime } from "@/components/relative-time.tsx";
 // ─── Node row card ────────────────────────────────────────────────────────────
 
 function NodeRowCard({
@@ -82,11 +82,17 @@ function NodeRowCard({
               {node.name}
             </p>
             <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">
-              {node.last_seen_at
-                ? isOnline
-                  ? `Active · ${formatRelativeTime(node.last_seen_at)}`
-                  : `Last seen ${formatRelativeTime(node.last_seen_at)}`
-                : "Never seen"}
+              {node.last_seen_at ? (
+                isOnline ? (
+                  <>
+                    Active · <RelativeTime value={node.last_seen_at} />
+                  </>
+                ) : (
+                  <RelativeTime value={node.last_seen_at} prefix="Last seen" />
+                )
+              ) : (
+                "Never seen"
+              )}
             </p>
           </div>
         </div>

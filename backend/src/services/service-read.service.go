@@ -97,6 +97,8 @@ func (s *ServiceReadService) List(ctx context.Context, filters types.ServiceList
 			ConsecutiveFailures: service.ConsecutiveFailures,
 			ActiveAlertCount:    alertCountsByService[service.ID],
 			LatestHealthCheck:   latestHealthByService[service.ID],
+			CreatedAt:           service.CreatedAt,
+			UpdatedAt:           service.UpdatedAt,
 		})
 	}
 
@@ -166,6 +168,8 @@ func (s *ServiceReadService) GetByID(ctx context.Context, serviceID int64) (type
 		ActiveAlertCount:    activeAlertCount,
 		ActiveAlerts:        mapServiceActiveAlerts(activeAlerts),
 		LatestHealthCheck:   latestHealthCheck,
+		CreatedAt:           service.CreatedAt,
+		UpdatedAt:           service.UpdatedAt,
 	}, nil
 }
 

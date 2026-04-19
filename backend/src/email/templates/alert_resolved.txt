@@ -1,11 +1,12 @@
-AGRAFA ALERT RESOLVED
+AGRAFA ALERTS
 
+Alert resolved: {{ .AlertTitle }}
 {{ if .ProjectName }}Project: {{ .ProjectName }}{{ else }}Project ID: {{ .ProjectID }}{{ end }}
-Title: {{ .AlertTitle }}
-Message: {{ .AlertMessage }}
-Rule type: {{ .RuleType }}
+Rule: {{ .RuleType }}
 Status: {{ .Status }}
-Node ID: {{ if .NodeID }}{{ .NodeID }}{{ else }}n/a{{ end }}
-Service ID: {{ if .ServiceID }}{{ .ServiceID }}{{ else }}n/a{{ end }}
-Triggered at: {{ formatTime .TriggeredAt }}
+{{ if .NodeID }}Node ID: {{ .NodeID }}
+{{ end }}{{ if .ServiceID }}Service ID: {{ .ServiceID }}
+{{ end }}Triggered at: {{ formatTime .TriggeredAt }}
 Resolved at: {{ formatTime .ResolvedAt }}
+
+{{ .AlertMessage }}
