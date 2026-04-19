@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { CheckCircle2, CopyIcon, LoaderCircle, RefreshCw, ServerCog } from "lucide-react";
+import { CheckCircle2, LoaderCircle, RefreshCw, ServerCog } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import {
@@ -36,6 +36,8 @@ import { formatRelativeTime } from "@/lib/utils.ts";
 import type { Node, NodeResponse } from "@/types/node.ts";
 import { CodeBlock } from "@/components/code-block.tsx";
 import { AnimatePresence, motion } from "motion/react";
+import { CopyButton } from "@/components/animate-ui/components/buttons/copy.tsx";
+import { buildAgentInstallCommand, getAgentInstallScriptUrl } from "@/lib/agent-install.ts";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Keep the name under 100 characters"),
@@ -43,8 +45,6 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 type Step = 0 | 1 | 2;
-
-const AGENT_IMAGE = "ghcr.io/mariusbobitiu/agrafa-agent:latest";
 
 type Props = {
   projectId: number;
@@ -201,6 +201,7 @@ export function CreateNodeDialog({
   const [rawToken, setRawToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const agentApiBaseUrl = getAgentApiBaseUrl();
+  const agentInstallScriptUrl = getAgentInstallScriptUrl();
   const [regenerated, setRegenerated] = useState(false);
 
   const form = useForm<FormValues>({
@@ -220,26 +221,15 @@ export function CreateNodeDialog({
 
   const liveNode = nodeQuery.data?.node;
   const isNodeOnline = liveNode?.current_state === "online";
-  // const pullCommand = `docker pull ${AGENT_IMAGE}`;
-  const runCommand = [
-    "docker run -d \\",
-    `  --restart unless-stopped \\`,
-    `  --name agrafa-agent-${createdNode?.id ?? "node"} \\`,
-    "  --pid=host \\",
-    `  -e AGRAFA_API_BASE_URL='${agentApiBaseUrl}' \\`,
-    `  -e AGRAFA_AGENT_TOKEN='${rawToken ?? "<generate a token first>"}' \\`,
-    // `  -e AGRAFA_NODE_ID='${createdNode?.id ?? "<node id>"}' \\`,
-    "  -e HOST_PROC=/host/proc \\",
-    "  -e HOST_SYS=/host/sys \\",
-    "  -e HOST_ETC=/host/etc \\",
-    "  -e HOST_ROOT=/host \\",
-    "  -e AGRAFA_DISK_PATH=/host \\",
-    "  -v /proc:/host/proc:ro \\",
-    "  -v /sys:/host/sys:ro \\",
-    "  -v /etc:/host/etc:ro \\",
-    "  -v /:/host:ro \\",
-    `  ${AGENT_IMAGE}`,
-  ].join("\n");
+  const installCommand =
+    rawToken && createdNode
+      ? buildAgentInstallCommand({
+          scriptUrl: agentInstallScriptUrl,
+          serverUrl: agentApiBaseUrl,
+          token: rawToken,
+          nodeName: createdNode.name,
+        })
+      : null;
 
   useEffect(() => {
     if (!open) {
@@ -411,18 +401,24 @@ export function CreateNodeDialog({
             <div className="space-y-6">
               <SectionTitle
                 title="Install and start the agent"
-                description="Run these commands on the target machine. Once the container is up, move to heartbeat detection."
+                description="Run this install command on the target machine. It fetches Agrafa's installer script and starts the agent container with the generated token."
               />
               <div className="grid gap-4">
-                {/* <CodeBlock label="Pull image" value={pullCommand} /> */}
-                <CodeBlock label="Run this command" value={runCommand} />
+                {installCommand ? (
+                  <CodeBlock label="Run this install command" value={installCommand} />
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border/70 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
+                    Generate a token to unlock the install command for this node.
+                  </div>
+                )}
               </div>
 
               <div className="rounded-xl border border-dashed border-border/70 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
-                This Linux example mounts host system paths so the agent can report host metrics.
-                Add <code className="mx-1 rounded bg-background px-1 py-0.5">--network host</code>
-                if you plan to monitor services bound to{" "}
-                <code className="mx-1 rounded bg-background px-1 py-0.5">localhost</code>.
+                The installer starts the Linux agent container with the host mounts needed for host
+                metrics. Add{" "}
+                <code className="mx-1 rounded bg-background px-1 py-0.5">--network host</code> to
+                the generated Docker command inside the script if you plan to monitor services bound
+                to <code className="mx-1 rounded bg-background px-1 py-0.5">localhost</code>.
               </div>
 
               {tokenError && (
@@ -487,11 +483,18 @@ export function CreateNodeDialog({
                         <pre className="max-h-48 overflow-auto text-sm leading-7 text-muted-foreground font-mono">
                           {rawToken}
                         </pre>
-                        <CopyIcon
-                          className="h-3.5 w-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground cursor-pointer"
-                          onClick={() => {
-                            navigator.clipboard.writeText(rawToken);
-                            toast.success("Token copied to clipboard");
+                        <CopyButton
+                          content={rawToken}
+                          variant="ghost"
+                          size="xs"
+                          className="absolute right-2 top-1/2 -translate-y-1/2"
+                          onCopiedChange={(copied) => {
+                            if (copied) {
+                              toast.success("Token copied to clipboard");
+                            }
+                          }}
+                          onCopyError={() => {
+                            toast.error("Couldn't copy the token. Copy it manually.");
                           }}
                         />
                       </motion.div>

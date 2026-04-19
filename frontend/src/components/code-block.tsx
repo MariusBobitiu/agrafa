@@ -1,4 +1,5 @@
 import { CopyButton } from "@/components/animate-ui/components/buttons/copy";
+import { toast } from "sonner";
 
 type CodeBlockProps = {
   label?: string;
@@ -22,6 +23,14 @@ export function CodeBlock({ label, value }: CodeBlockProps) {
           variant="secondary"
           size="sm"
           className="absolute right-2 top-2"
+          onCopiedChange={(copied) => {
+            if (copied) {
+              toast.success("Command copied");
+            }
+          }}
+          onCopyError={() => {
+            toast.error("Couldn't copy the command. Copy it manually.");
+          }}
         />
       </div>
     </div>

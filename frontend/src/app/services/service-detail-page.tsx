@@ -218,6 +218,7 @@ export function ServiceDetailPage() {
     ? !latest.is_success && service.status === "degraded"
     : service.status === "degraded";
   const checkHistory = approximateCheckHistory(service, 12);
+  const hasAgentBackedNode = service.execution_mode === "agent" && service.node_id > 0;
 
   return (
     <div className="px-6 py-6">
@@ -453,19 +454,23 @@ export function ServiceDetailPage() {
             icon={<NetworkIcon size={13} />}
             label="Service Configuration"
             action={
-              <Link
-                to={`/nodes/${service.node_id}`}
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                View node #{service.node_id}
-                <ChevronRightIcon size={12} />
-              </Link>
+              hasAgentBackedNode ? (
+                <Link
+                  to={`/nodes/${service.node_id}`}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  View node #{service.node_id}
+                  <ChevronRightIcon size={12} />
+                </Link>
+              ) : undefined
             }
           />
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             <MetaItem label="Check type" value={service.check_type.toUpperCase()} />
             <MetaItem label="Execution mode" value={service.execution_mode} />
-            <MetaItem label="Node ID" value={String(service.node_id)} />
+            {hasAgentBackedNode ? (
+              <MetaItem label="Node ID" value={String(service.node_id)} />
+            ) : null}
             <MetaItem label="Service ID" value={String(service.id)} />
             <MetaItem label="Updated" value={formatDate(service.updated_at)} />
           </div>
