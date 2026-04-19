@@ -1,5 +1,8 @@
-# Build stage
-FROM node:22-alpine AS builder
+# syntax=docker/dockerfile:1.7
+
+# Build static assets on the host builder architecture so multi-arch publishes
+# don't need to run pnpm/vite under QEMU emulation.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
 
 WORKDIR /app
 RUN corepack enable
