@@ -72,16 +72,19 @@ func (r *ProjectRepository) CreateWithOwner(
 
 	queries := r.queries.WithTx(tx)
 
-	if err := appdb.ApplyRLSSessionContext(ctx, tx); err != nil {
+	// Project creation bootstraps the first owner membership in the same
+	// transaction, so rely on the authenticated caller validated by the service
+	// layer and use the internal bypass consistently for both inserts.
+	bootstrapCtx := appdb.WithInternalRLSBypass(ctx)
+	if err := appdb.ApplyRLSSessionContext(bootstrapCtx, tx); err != nil {
 		return generated.Project{}, err
 	}
 
-	project, err := queries.CreateProject(ctx, projectParams)
+	project, err := queries.CreateProject(bootstrapCtx, projectParams)
 	if err != nil {
 		return generated.Project{}, err
 	}
 
-	bootstrapCtx := appdb.WithInternalRLSBypass(ctx)
 	if err := appdb.ApplyRLSSessionContext(bootstrapCtx, tx); err != nil {
 		return generated.Project{}, err
 	}

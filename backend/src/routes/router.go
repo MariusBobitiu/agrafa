@@ -36,6 +36,7 @@ func NewRouter(
 	router.Use(chimiddleware.RequestID)
 	router.Use(chimiddleware.RealIP)
 	router.Use(chimiddleware.Logger)
+	router.Use(agentmiddleware.ErrorLogging)
 	router.Use(chimiddleware.Recoverer)
 	router.Use(chimiddleware.Timeout(30 * time.Second))
 	router.Use(agentmiddleware.CORS(allowedOrigins))
