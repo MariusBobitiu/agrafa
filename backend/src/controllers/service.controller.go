@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
@@ -24,12 +25,16 @@ type serviceReader interface {
 type ServiceController struct {
 	serviceService     serviceWriter
 	serviceReadService serviceReader
+	streamInterval     time.Duration
+	streamMaxDuration  time.Duration
 }
 
 func NewServiceController(serviceService serviceWriter, serviceReadService serviceReader) *ServiceController {
 	return &ServiceController{
 		serviceService:     serviceService,
 		serviceReadService: serviceReadService,
+		streamInterval:     5 * time.Second,
+		streamMaxDuration:  25 * time.Second,
 	}
 }
 
@@ -117,6 +122,37 @@ func (c *ServiceController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteJSON(w, http.StatusOK, map[string]any{"service": service})
+}
+
+// Stream streams service detail snapshots over SSE.
+//
+// @Summary      Stream service detail
+// @Description  Streams the current service detail payload over Server-Sent Events for a service the current user can read.
+// @Tags         inventory
+// @Produce      text/event-stream
+// @Param        id   path      int  true  "Service ID"
+// @Success      200
+// @Failure      400  {object}  types.ErrorResponse
+// @Failure      401  {object}  types.ErrorResponse
+// @Failure      403  {object}  types.ErrorResponse
+// @Failure      404  {object}  types.ErrorResponse
+// @Failure      500  {object}  types.ErrorResponse
+// @Router       /services/{id}/stream [get]
+func (c *ServiceController) Stream(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		utils.WriteError(w, http.StatusBadRequest, "id must be a positive integer")
+		return
+	}
+
+	streamSSESnapshots(w, r, c.streamMaxDuration, c.streamInterval, func(ctx context.Context) (any, error) {
+		service, err := c.serviceReadService.GetByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		return map[string]any{"service": service}, nil
+	})
 }
 
 // Update updates a service.

@@ -121,6 +121,9 @@ func NewRouter(
 				withProjectPermission(authorizationService, services.PermissionNodesRead, agentmiddleware.ProjectIDFromURLParamResource("id", authorizationService.ProjectIDForNode)),
 			).Get("/nodes/{id}", nodeController.Get)
 			protected.With(
+				withProjectPermission(authorizationService, services.PermissionNodesRead, agentmiddleware.ProjectIDFromURLParamResource("id", authorizationService.ProjectIDForNode)),
+			).Get("/nodes/{id}/stream", nodeController.Stream)
+			protected.With(
 				withProjectPermission(authorizationService, services.PermissionNodesWrite, agentmiddleware.ProjectIDFromURLParamResource("id", authorizationService.ProjectIDForNode)),
 			).Patch("/nodes/{id}", nodeController.Update)
 			protected.With(
@@ -138,6 +141,9 @@ func NewRouter(
 			protected.With(
 				withProjectPermission(authorizationService, services.PermissionServicesRead, agentmiddleware.ProjectIDFromURLParamResource("id", authorizationService.ProjectIDForService)),
 			).Get("/services/{id}", serviceController.Get)
+			protected.With(
+				withProjectPermission(authorizationService, services.PermissionServicesRead, agentmiddleware.ProjectIDFromURLParamResource("id", authorizationService.ProjectIDForService)),
+			).Get("/services/{id}/stream", serviceController.Stream)
 			protected.With(
 				withProjectPermission(authorizationService, services.PermissionServicesWrite, agentmiddleware.ProjectIDFromURLParamResource("id", authorizationService.ProjectIDForService)),
 			).Patch("/services/{id}", serviceController.Update)

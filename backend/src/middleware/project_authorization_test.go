@@ -298,6 +298,47 @@ func TestRequireProjectPermissionServicesReadFromResource(t *testing.T) {
 	}
 }
 
+func TestRequireProjectPermissionServicesReadStreamFromResource(t *testing.T) {
+	t.Parallel()
+
+	authorizer := &fakeProjectPermissionAuthorizer{}
+	nextCalled := false
+	handler := RequireProjectPermission(
+		authorizer,
+		services.PermissionServicesRead,
+		ProjectIDFromURLParamResource("id", func(_ context.Context, id int64) (int64, error) {
+			if id != 21 {
+				t.Fatalf("resolver id = %d, want 21", id)
+			}
+			return 8, nil
+		}),
+	)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/services/21/stream", nil)
+	routeContext := chi.NewRouteContext()
+	routeContext.URLParams.Add("id", "21")
+	request = request.WithContext(context.WithValue(context.WithValue(request.Context(), chi.RouteCtxKey, routeContext), authenticatedUserContextKey{}, generated.User{ID: "usr_1"}))
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", recorder.Code)
+	}
+	if !nextCalled {
+		t.Fatal("expected next handler to be called")
+	}
+	if authorizer.permission != services.PermissionServicesRead {
+		t.Fatalf("permission = %q, want %q", authorizer.permission, services.PermissionServicesRead)
+	}
+	if authorizer.projectID != 8 {
+		t.Fatalf("projectID = %d, want 8", authorizer.projectID)
+	}
+}
+
 func TestRequireProjectPermissionProjectUpdateFromResource(t *testing.T) {
 	t.Parallel()
 
@@ -400,6 +441,47 @@ func TestRequireProjectPermissionNodesReadFromResource(t *testing.T) {
 	}))
 
 	request := httptest.NewRequest(http.MethodGet, "/v1/nodes/31", nil)
+	routeContext := chi.NewRouteContext()
+	routeContext.URLParams.Add("id", "31")
+	request = request.WithContext(context.WithValue(context.WithValue(request.Context(), chi.RouteCtxKey, routeContext), authenticatedUserContextKey{}, generated.User{ID: "usr_1"}))
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", recorder.Code)
+	}
+	if !nextCalled {
+		t.Fatal("expected next handler to be called")
+	}
+	if authorizer.permission != services.PermissionNodesRead {
+		t.Fatalf("permission = %q, want %q", authorizer.permission, services.PermissionNodesRead)
+	}
+	if authorizer.projectID != 12 {
+		t.Fatalf("projectID = %d, want 12", authorizer.projectID)
+	}
+}
+
+func TestRequireProjectPermissionNodesReadStreamFromResource(t *testing.T) {
+	t.Parallel()
+
+	authorizer := &fakeProjectPermissionAuthorizer{}
+	nextCalled := false
+	handler := RequireProjectPermission(
+		authorizer,
+		services.PermissionNodesRead,
+		ProjectIDFromURLParamResource("id", func(_ context.Context, id int64) (int64, error) {
+			if id != 31 {
+				t.Fatalf("resolver id = %d, want 31", id)
+			}
+			return 12, nil
+		}),
+	)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/nodes/31/stream", nil)
 	routeContext := chi.NewRouteContext()
 	routeContext.URLParams.Add("id", "31")
 	request = request.WithContext(context.WithValue(context.WithValue(request.Context(), chi.RouteCtxKey, routeContext), authenticatedUserContextKey{}, generated.User{ID: "usr_1"}))

@@ -1,12 +1,25 @@
 import { type Query, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { nodesApi } from "@/data/nodes.ts";
-import type { NodeCreateInput, NodeUpdateInput } from "@/types/node.ts";
+import { useSSE } from "@/hooks/use-sse.ts";
+import type { Node, NodeCreateInput, NodeUpdateInput } from "@/types/node.ts";
 
 export function useNodes(projectId: number, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["nodes", projectId],
     queryFn: () => nodesApi.list(projectId),
     enabled: (options?.enabled ?? true) && projectId > 0,
+  });
+}
+
+export function useNodeDetailStream(id: number, options?: { enabled?: boolean }) {
+  const qc = useQueryClient();
+
+  useSSE<{ node: Node }>({
+    enabled: (options?.enabled ?? true) && id > 0,
+    path: `/nodes/${id}/stream`,
+    onMessage: (payload) => {
+      qc.setQueryData(["nodes", "detail", id], payload);
+    },
   });
 }
 

@@ -1,22 +1,47 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { servicesApi } from "@/data/services.ts";
-import type { ServiceCreateInput, ServiceUpdateInput } from "@/types/service.ts";
+import { useSSE } from "@/hooks/use-sse.ts";
+import type { Service, ServiceCreateInput, ServiceUpdateInput } from "@/types/service.ts";
 
-export function useServices(projectId: number) {
+export function useServices(
+  projectId: number,
+  options?: {
+    enabled?: boolean;
+    refetchInterval?: number | false;
+  },
+) {
   return useQuery({
     queryKey: ["services", projectId],
     queryFn: () => servicesApi.list(projectId),
-    enabled: projectId > 0,
-    refetchInterval: 10_000,
+    enabled: (options?.enabled ?? true) && projectId > 0,
+    refetchInterval: options?.refetchInterval ?? 10_000,
   });
 }
 
-export function useService(id: number) {
+export function useService(
+  id: number,
+  options?: {
+    enabled?: boolean;
+    refetchInterval?: number | false;
+  },
+) {
   return useQuery({
     queryKey: ["services", "detail", id],
     queryFn: () => servicesApi.get(id),
-    enabled: id > 0,
-    refetchInterval: 10_000,
+    enabled: (options?.enabled ?? true) && id > 0,
+    refetchInterval: options?.refetchInterval ?? false,
+  });
+}
+
+export function useServiceDetailStream(id: number, options?: { enabled?: boolean }) {
+  const qc = useQueryClient();
+
+  useSSE<{ service: Service }>({
+    enabled: (options?.enabled ?? true) && id > 0,
+    path: `/services/${id}/stream`,
+    onMessage: (payload) => {
+      qc.setQueryData(["services", "detail", id], payload);
+    },
   });
 }
 

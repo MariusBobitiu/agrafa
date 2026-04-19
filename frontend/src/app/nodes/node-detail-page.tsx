@@ -16,9 +16,8 @@ import { ActivityIcon, CircuitBoardIcon, WifiIcon } from "@/components/animate-u
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { StatusBadge } from "@/components/ui/status-badge.tsx";
-import { useNode, useDeleteNode } from "@/hooks/use-nodes.ts";
+import { useNode, useDeleteNode, useNodeDetailStream } from "@/hooks/use-nodes.ts";
 import { useServices } from "@/hooks/use-services.ts";
-import { useAlerts } from "@/hooks/use-alerts.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
 import { formatRelativeTime, formatDate } from "@/lib/utils.ts";
 import { cn } from "@/lib/utils.ts";
@@ -276,8 +275,9 @@ export function NodeDetailPage() {
     error: nodeError,
   } = useNode(nodeId, {
     enabled: nodeId > 0,
-    refetchInterval: 15_000,
+    refetchInterval: false,
   });
+  useNodeDetailStream(nodeId, { enabled: nodeId > 0 });
 
   const deleteNode = useDeleteNode(activeProjectId ?? 0);
 
@@ -294,14 +294,13 @@ export function NodeDetailPage() {
     });
   }
 
-  const { data: servicesData, isLoading: servicesLoading } = useServices(activeProjectId ?? 0);
-  const { data: alertsData, isLoading: alertsLoading } = useAlerts(activeProjectId ?? 0);
+  const { data: servicesData, isLoading: servicesLoading } = useServices(activeProjectId ?? 0, {
+    refetchInterval: false,
+  });
 
   const node: Node | undefined = nodeData?.node;
   const nodeServices = (servicesData?.services ?? []).filter((s) => s.node_id === nodeId);
-  const nodeAlerts = (alertsData?.alerts ?? []).filter(
-    (a) => a.node_id === nodeId && a.status === "active",
-  );
+  const nodeAlerts = node?.active_alerts ?? [];
 
   if (isNaN(nodeId) || nodeId <= 0) {
     return (
@@ -516,16 +515,14 @@ export function NodeDetailPage() {
             icon={<WifiIcon size={13} />}
             label="Active Alerts"
             aside={
-              nodeAlerts.length > 0 ? (
-                <span className="text-xs font-semibold text-destructive">{nodeAlerts.length}</span>
+              node.active_alert_count > 0 ? (
+                <span className="text-xs font-semibold text-destructive">
+                  {node.active_alert_count}
+                </span>
               ) : undefined
             }
           />
-          {alertsLoading ? (
-            <Skeleton className="h-10 w-full rounded-lg" />
-          ) : (
-            <NodeAlertList alerts={nodeAlerts} />
-          )}
+          <NodeAlertList alerts={nodeAlerts} />
         </section>
 
         {/* ── Footer ── */}

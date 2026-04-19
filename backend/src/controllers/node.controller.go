@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/services"
@@ -24,14 +25,18 @@ type nodeReader interface {
 }
 
 type NodeController struct {
-	nodeService nodeService
-	nodeReader  nodeReader
+	nodeService       nodeService
+	nodeReader        nodeReader
+	streamInterval    time.Duration
+	streamMaxDuration time.Duration
 }
 
 func NewNodeController(nodeService nodeService, nodeReader nodeReader) *NodeController {
 	return &NodeController{
-		nodeService: nodeService,
-		nodeReader:  nodeReader,
+		nodeService:       nodeService,
+		nodeReader:        nodeReader,
+		streamInterval:    5 * time.Second,
+		streamMaxDuration: 25 * time.Second,
 	}
 }
 
@@ -102,6 +107,37 @@ func (c *NodeController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteJSON(w, http.StatusOK, map[string]any{"node": node})
+}
+
+// Stream streams node detail snapshots over SSE.
+//
+// @Summary      Stream node detail
+// @Description  Streams the current node detail payload over Server-Sent Events for a node the current user can read.
+// @Tags         inventory
+// @Produce      text/event-stream
+// @Param        id   path      int  true  "Node ID"
+// @Success      200
+// @Failure      400  {object}  types.ErrorResponse
+// @Failure      401  {object}  types.ErrorResponse
+// @Failure      403  {object}  types.ErrorResponse
+// @Failure      404  {object}  types.ErrorResponse
+// @Failure      500  {object}  types.ErrorResponse
+// @Router       /nodes/{id}/stream [get]
+func (c *NodeController) Stream(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		utils.WriteError(w, http.StatusBadRequest, "id must be a positive integer")
+		return
+	}
+
+	streamSSESnapshots(w, r, c.streamMaxDuration, c.streamInterval, func(ctx context.Context) (any, error) {
+		node, err := c.nodeReader.GetByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		return map[string]any{"node": node}, nil
+	})
 }
 
 // Update updates a node.

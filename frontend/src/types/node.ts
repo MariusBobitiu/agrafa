@@ -1,3 +1,5 @@
+import type { Alert } from "@/types/alert.ts";
+
 export type NodeState = "online" | "offline" | "unknown";
 
 export type MetricValue = {
@@ -18,6 +20,7 @@ export type Node = {
   latest_memory: MetricValue | null;
   latest_disk: MetricValue | null;
   active_alert_count: number;
+  active_alerts?: Alert[];
   service_count: number;
   created_at: string;
   updated_at: string;
