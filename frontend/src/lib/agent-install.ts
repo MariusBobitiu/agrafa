@@ -24,15 +24,14 @@ export function buildAgentInstallCommand({
   token,
   nodeName,
 }: AgentInstallCommandInput) {
-  const lines = [
-    `curl -fsSL ${scriptUrl} | bash -s -- \\`,
-    `  --server-url ${shellQuote(serverUrl)} \\`,
-    `  --token ${shellQuote(token)}`,
-  ];
+  const args = [`--server-url ${shellQuote(serverUrl)}`, `--token ${shellQuote(token)}`];
 
   if (nodeName?.trim()) {
-    lines.push(`  --node-name ${shellQuote(nodeName.trim())}`);
+    args.push(`--node-name ${shellQuote(nodeName.trim())}`);
   }
+
+  const lines = [`curl -fsSL ${scriptUrl} | bash -s -- \\`];
+  lines.push(...args.map((arg, index) => `  ${arg}${index === args.length - 1 ? "" : " \\"}`));
 
   return lines.join("\n");
 }

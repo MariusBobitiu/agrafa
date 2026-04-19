@@ -50,6 +50,26 @@ type CopyButtonProps = Omit<ButtonPrimitiveProps, "children"> &
     delay?: number;
   };
 
+function fallbackCopyText(content: string) {
+  const textArea = document.createElement("textarea");
+  textArea.value = content;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.top = "-9999px";
+  textArea.style.left = "-9999px";
+
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  textArea.setSelectionRange(0, textArea.value.length);
+
+  try {
+    return document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textArea);
+  }
+}
+
 function CopyButton({
   className,
   content,
@@ -72,20 +92,47 @@ function CopyButton({
       onClick?.(e);
       if (isCopied) return;
       if (content) {
-        navigator.clipboard
-          .writeText(content)
-          .then(() => {
-            setIsCopied(true);
-            onCopiedChange?.(true, content);
-            setTimeout(() => {
-              setIsCopied(false);
-              onCopiedChange?.(false);
-            }, delay);
-          })
-          .catch((error) => {
-            console.error("Error copying command", error);
-            onCopyError?.(error);
-          });
+        const handleSuccess = () => {
+          setIsCopied(true);
+          onCopiedChange?.(true, content);
+          setTimeout(() => {
+            setIsCopied(false);
+            onCopiedChange?.(false);
+          }, delay);
+        };
+
+        if (navigator.clipboard?.writeText && window.isSecureContext) {
+          navigator.clipboard
+            .writeText(content)
+            .then(handleSuccess)
+            .catch((error) => {
+              try {
+                if (fallbackCopyText(content)) {
+                  handleSuccess();
+                  return;
+                }
+              } catch (fallbackError) {
+                console.error("Error copying command", fallbackError);
+              }
+
+              console.error("Error copying command", error);
+              onCopyError?.(error);
+            });
+          return;
+        }
+
+        try {
+          if (fallbackCopyText(content)) {
+            handleSuccess();
+            return;
+          }
+        } catch (error) {
+          console.error("Error copying command", error);
+          onCopyError?.(error);
+          return;
+        }
+
+        onCopyError?.(new Error("Clipboard copy failed"));
       }
     },
     [onClick, isCopied, content, setIsCopied, onCopiedChange, onCopyError, delay],
