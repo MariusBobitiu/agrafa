@@ -2,9 +2,9 @@
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg width="100%" height="100%" viewBox="0 0 636 636" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
     <g transform="matrix(1.3251,0,0,1.3251,21.983011,-3.273433)">
-        <ellipse cx="200" cy="240" rx="107" ry="203" style="fill:none;stroke:rgb(126,207,0);stroke-width:4.72px;"/>
+        <ellipse cx="200" cy="240" rx="107" ry="203" style="fill:none;stroke:rgb(126,207,0);stroke-width:18.87px;"/>
     </g>
-    <g transform="matrix(1.279948,0.342961,-0.342961,1.279948,164.324016,-54.029251)">
-        <ellipse cx="200" cy="240" rx="107" ry="203" style="fill:none;stroke:rgb(126,207,0);stroke-width:4.72px;"/>
+    <g transform="matrix(1.189808,0.583307,-0.583307,1.189808,268.035256,-68.464778)">
+        <ellipse cx="200" cy="240" rx="107" ry="203" style="fill:none;stroke:rgb(126,207,0);stroke-width:18.87px;"/>
     </g>
 </svg>
