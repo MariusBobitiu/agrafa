@@ -1,10 +1,10 @@
 module github.com/MariusBobitiu/agrafa-backend
 
-go 1.24.2
+go 1.25.0
 
 require (
 	github.com/go-chi/chi/v5 v5.2.2
-	github.com/jackc/pgx/v5 v5.7.4
+	github.com/jackc/pgx/v5 v5.9.0
 	github.com/joho/godotenv v1.5.1
 	github.com/swaggo/swag v1.16.6
 	golang.org/x/crypto v0.45.0
