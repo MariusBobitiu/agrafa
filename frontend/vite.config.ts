@@ -16,6 +16,7 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    allowedHosts: ["arrested-hindu-stuck-over.trycloudflare.com"],
   },
   staged: {
     "*": "vp check --fix",

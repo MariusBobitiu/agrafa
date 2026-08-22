@@ -1,51 +1,147 @@
 # Agrafa
 
-Agrafa is a lightweight observability stack for small deployments, self-hosted apps, and side projects. It combines a Go backend, a React frontend, and a small Go agent that reports heartbeats, host metrics, and health check results.
+<p align="center">
+  <img src="frontend/public/logo.png" alt="Agrafa" width="96" />
+</p>
 
-The backend is the source of truth. The agent reports raw signals, the backend interprets them into current state and events, and the frontend presents that operational view to users.
+<p align="center">
+  Lightweight, self-hosted monitoring for small deployments, personal infrastructure, and side projects.
+</p>
 
-## Repository Structure
+<p align="center">
+  <a href="https://github.com/MariusBobitiu/agrafa/actions/workflows/ci.yml"><img src="https://github.com/MariusBobitiu/agrafa/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
+</p>
 
-```text
-agrafa/
-├── frontend/   # React + Vite UI
-├── backend/    # Go API, state engine, jobs, database layer
-└── agent/      # Go node agent for heartbeats, metrics, and health checks
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#api-documentation">API docs</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="SECURITY.md">Security</a> ·
+  <a href="LICENSE">License</a>
+</p>
+
+<p align="center">
+  <a href="https://res.cloudinary.com/mb-labs/image/upload/v1787432958/overview-page_a5w9eb.png">
+    <img src="https://res.cloudinary.com/mb-labs/image/upload/v1787432958/overview-page_a5w9eb.png" alt="Agrafa overview dashboard" />
+  </a>
+</p>
+
+Agrafa combines a Go API, a React dashboard, and a small Go agent in one focused observability stack. The agent reports heartbeats, host metrics, and health-check results; the backend turns those signals into current state, events, and alerts; and the frontend gives you one operational view of your nodes and services.
+
+> Agrafa is currently early-stage software. Expect deployment details and APIs to evolve before a stable release.
+
+## Highlights
+
+- Monitor node availability, CPU, memory, disk usage, and HTTP health checks.
+- Keep state evaluation and event history in a central PostgreSQL-backed API.
+- Configure monitored services from the dashboard and deliver optional email alerts.
+- Run the agent on Linux with host-level metrics or use it during local development.
+- Self-host the stack with Docker Compose and pin every Agrafa image to one product version.
+
+## Quick Start
+
+The non-interactive installer creates an `agrafa/` directory, generates secrets, detects the server IP when possible, and starts PostgreSQL, the backend, and the frontend:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MariusBobitiu/agrafa/main/install/install.sh | bash
 ```
 
-## What Each Part Does
+It exposes:
+
+- Frontend: `http://server_ip:8080`
+- Backend API: `http://server_ip:8081`
+- Agent API base URL: `http://server_ip:8081`
+
+The installer uses the `latest` images by default. For a reproducible deployment, pin one released version across the stack:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MariusBobitiu/agrafa/main/install/install.sh \
+  | AGRAFA_VERSION=0.1.0 bash
+```
+
+Domain routing and TLS are deliberately left to your reverse proxy of choice.
+
+For configuration and alternative deployment paths, continue to [Self-Hosting with Docker Compose](#self-hosting-with-docker-compose). For API exploration, see [API Documentation](#api-documentation).
+
+## Architecture
+
+```text
+┌──────────────┐       heartbeats, metrics, checks        ┌──────────────┐
+│ Agrafa agent │ ───────────────────────────────────────▶ │  Go backend  │
+└──────────────┘                                          │ + PostgreSQL │
+                                                          └──────┬───────┘
+                                                                 │ state, events,
+                                                                 │ alerts, settings
+                                                                 ▼
+                                                          ┌──────────────┐
+                                                          │ React UI     │
+                                                          └──────────────┘
+```
+
+The backend is the source of truth. Agents report raw observations; the backend evaluates them; and the frontend reads the resulting operational state.
 
 | Folder | Purpose | Main stack |
 | --- | --- | --- |
-| `frontend` | Dashboard UI for auth, overview, nodes, services, alerts, and settings | React 19, Vite, TypeScript, Tailwind |
-| `backend` | API, auth, ingestion, state evaluation, events, alerts, and read models | Go, Chi, PostgreSQL, sqlc |
-| `agent` | Runs on a monitored machine and reports data back to the backend | Go, gopsutil |
+| `frontend` | Dashboard for authentication, overview, nodes, services, alerts, and settings | React 19, Vite, TypeScript, Tailwind |
+| `backend` | API, ingestion, state evaluation, events, alerts, and read models | Go, Chi, PostgreSQL, sqlc |
+| `agent` | Host agent for heartbeats, metrics, and health checks | Go, gopsutil |
+| `install` | Non-interactive Docker Compose installer | Bash, Docker Compose |
 
-## How It Fits Together
+## Self-Hosting with Docker Compose
 
-1. The `agent` sends heartbeats, metrics, and health check results to the `backend`.
-2. The `backend` stores observations, evaluates node and service state, and records meaningful events.
-3. The `frontend` reads that backend state and exposes it through the UI.
+The root Compose files provide two paths:
 
-## Prerequisites
+- `docker-compose.yml` pulls released backend and frontend images from GitHub Container Registry.
+- `docker-compose.local.yml` builds backend and frontend from the current checkout.
 
-- Go `1.24.x`
-- Node.js and `pnpm` for the frontend
-- PostgreSQL for the backend
-- `psql` for running migrations and seeds via the backend `Makefile`
+Copy and configure the environment file:
+
+```bash
+cp .env.example .env
+```
+
+At minimum, replace `POSTGRES_PASSWORD` and `APP_SECRET`, then review `POSTGRES_URI`, `APP_BASE_URL`, `APP_ALLOWED_ORIGINS`, and `VITE_API_URL` for your environment. Email settings are optional.
+
+Released deployments use these image settings:
+
+```env
+GHCR_OWNER=mariusbobitiu
+AGRAFA_VERSION=0.1.0
+```
+
+A product tag such as `v0.1.0` publishes matching `agrafa-backend:0.1.0`, `agrafa-frontend:0.1.0`, and `agrafa-agent:0.1.0` images. Use the same `AGRAFA_VERSION` for compatibility across the stack.
+
+Start released images:
+
+```bash
+docker compose up -d
+```
+
+Or build locally:
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+The root Compose setup exposes the frontend at `http://localhost:5173`, the API at `http://localhost:8080/v1`, and Swagger UI at `http://localhost:8080/docs`.
 
 ## Local Development
 
-### 1. Start the backend
+### Prerequisites
 
-The backend needs PostgreSQL before it can run.
+- The Go versions declared in `backend/go.mod` and `agent/go.mod`
+- Node.js 24 and pnpm 10 for the frontend
+- PostgreSQL and `psql` for backend migrations and seed data
+
+### Backend
 
 ```bash
 cd backend
 cp .env.example .env
 ```
 
-Update `POSTGRES_URI` in `backend/.env` to point at your local database, then run:
+Set `POSTGRES_URI` in `backend/.env`, then run:
 
 ```bash
 make migrate-up
@@ -53,15 +149,13 @@ make seed
 make run
 ```
 
-Useful local endpoints:
+Local endpoints:
 
-- API base: `http://localhost:8080/v1`
+- API: `http://localhost:8080/v1`
 - Swagger UI: `http://localhost:8080/docs`
 - OpenAPI JSON: `http://localhost:8080/openapi/swagger.json`
 
-### 2. Start the agent
-
-The agent talks to the backend and uses a node token for authentication.
+### Agent
 
 ```bash
 cd agent
@@ -69,15 +163,9 @@ cp .env.example .env
 make run
 ```
 
-Important values in `agent/.env`:
+Set `AGRAFA_API_BASE_URL` and `AGRAFA_AGENT_TOKEN` in `agent/.env`. `AGRAFA_NODE_ID` is optional compatibility configuration; the normal flow learns the node ID from the backend. See the [agent guide](agent/README.md) for runtime and container details.
 
-- `AGRAFA_API_BASE_URL=http://localhost:8080/v1`
-- `AGRAFA_AGENT_TOKEN=...`
-- `AGRAFA_NODE_ID=...`
-
-More agent details live in [agent/README.md](agent/README.md).
-
-### 3. Start the frontend
+### Frontend
 
 ```bash
 cd frontend
@@ -88,97 +176,31 @@ pnpm dev
 
 The frontend uses `VITE_API_URL` from `frontend/.env` and proxies `/v1` requests to the backend during development.
 
-## Self-Hosting MVP
+## API Documentation
 
-### Zero-Question Install
-
-The simplest self-hosted install is the dedicated `install/` path. It is fully non-interactive and brings Agrafa up on the server IP without domain setup, TLS, or Traefik.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/agrafa/main/install/install.sh | bash
-```
-
-Result:
-
-- Frontend: `http://server_ip:8080`
-- Backend API: `http://server_ip:8081`
-- Agent API base URL: `http://server_ip:8081`
-
-The installer generates `.env`, randomizes `POSTGRES_PASSWORD` and `APP_SECRET`, detects the public IP when possible, and starts the stack with `docker compose up -d`.
-
-If you want a domain, TLS, or a single public entrypoint later, place your own reverse proxy in front after installation.
-
-This repo includes two Compose setups for `postgres`, `backend`, and `frontend`:
-
-- `docker-compose.yml` pulls released backend and frontend images from GitHub Container Registry.
-- `docker-compose.local.yml` builds backend and frontend locally from this checkout.
-
-1. Copy the root env file:
-
-```bash
-cp .env.example .env
-```
-
-2. Set the required values in `.env`:
-
-- `POSTGRES_PASSWORD`
-- `APP_SECRET`
-- `APP_BASE_URL`
-- `VITE_API_URL`
-
-Keep the email variables blank unless you want outbound email. Agrafa boots without email configured.
-
-3. Set the published image owner and tags in `.env` when using released images:
-
-- `GHCR_OWNER`
-- `AGRAFA_BACKEND_TAG`
-- `AGRAFA_FRONTEND_TAG`
-
-4. Start the released stack:
-
-```bash
-docker compose up -d
-```
-
-5. Or start the local-build stack:
-
-```bash
-docker compose -f docker-compose.local.yml up -d --build
-```
-
-6. Access the app:
-
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8080/v1`
-- Swagger UI: `http://localhost:8080/docs`
-
-Notes:
-
-- The backend connects to PostgreSQL over the Compose network using the `postgres` service hostname from `POSTGRES_URI`.
-- The backend runs app migrations on startup using the app's fixed `agrafa_meta.schema_migrations` metadata table.
-- The released-image Compose file defaults to `latest` tags; pin `AGRAFA_BACKEND_TAG` and `AGRAFA_FRONTEND_TAG` in `.env` if you want a specific release.
-- Reverse proxying is not bundled. If you want a single public entrypoint or TLS, place your own nginx, Traefik, or Caddy in front.
+The backend serves interactive Swagger UI at `http://localhost:8080/docs` and the OpenAPI document at `http://localhost:8080/openapi/swagger.json` while it is running. The generated specification is also kept in [`backend/docs`](backend/docs).
 
 ## Common Commands
 
 | Area | Command |
 | --- | --- |
-| Frontend dev server | `cd frontend && pnpm dev` |
-| Frontend production build | `cd frontend && pnpm build` |
-| Backend run | `cd backend && make run` |
-| Backend migrate up | `cd backend && make migrate-up` |
-| Backend seed sample data | `cd backend && make seed` |
-| Agent run | `cd agent && make run` |
+| Frontend development | `cd frontend && pnpm dev` |
+| Frontend validation | `cd frontend && vp lint && vp run build` |
 | Backend tests | `cd backend && go test ./...` |
+| Backend static checks | `cd backend && go vet ./...` |
+| Backend build | `cd backend && go build ./...` |
 | Agent tests | `cd agent && go test ./...` |
+| Agent static checks | `cd agent && go vet ./...` |
+| Agent build | `cd agent && go build ./...` |
+| Backend migrations | `cd backend && make migrate-up` |
+| Backend sample data | `cd backend && make seed` |
 
-## Notes
+## Releases
 
-- The backend uses a single PostgreSQL database configured with `POSTGRES_URI`.
-- Backend migrations live under `backend/src/db/migrations/app`.
-- The agent can load fallback health checks from `agent/health_checks.json`, but backend-provided config is the normal path.
-- The agent can also be published as a container image to GitHub Container Registry via `.github/workflows/publish-agent-container.yml`.
+Agrafa has one product version. Pushing a SemVer-style tag such as `v0.1.0` or `v0.1.0-rc.1` runs the unified publish workflow and publishes backend, frontend, and agent images with the same version. Component-specific release tags are not used.
 
-## Status
+## Contributing and Security
 
-This repo is organized as a multi-part application rather than a single root package. Development commands are run from `frontend`, `backend`, and `agent` individually.
+Issues and focused pull requests are welcome. See the [contributing guide](CONTRIBUTING.md) for setup, checks, and pull request expectations.
+
+Report vulnerabilities privately according to the [security policy](SECURITY.md). Agrafa is available under the [MIT License](LICENSE).

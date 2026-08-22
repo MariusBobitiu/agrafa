@@ -134,10 +134,17 @@ export function ProjectSwitcher({ isSidebarOpen = true }: { isSidebarOpen?: bool
   const setActiveProjectId = useUIStore((s) => s.setActiveProjectId);
   const [createOpen, setCreateOpen] = useState(false);
 
-  // Auto-select first project if none selected
+  // Keep persisted selection scoped to the projects available to this account.
   useEffect(() => {
-    if (!activeProjectId && data?.projects.length) {
-      setActiveProjectId(data.projects[0]!.id);
+    if (!data) {
+      return;
+    }
+
+    const activeProjectIsAvailable = data.projects.some(
+      (project) => project.id === activeProjectId,
+    );
+    if (!activeProjectIsAvailable) {
+      setActiveProjectId(data.projects[0]?.id ?? null);
     }
   }, [data, activeProjectId, setActiveProjectId]);
 

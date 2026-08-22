@@ -5,6 +5,7 @@ import { authApi } from "@/data/auth.ts";
 import { clearAuthRedirect, resolveAuthRedirect } from "@/lib/auth-redirect.ts";
 import { ApiError } from "@/lib/fetch-client.ts";
 import { useAuthStore } from "@/stores/auth-store.ts";
+import { useUIStore } from "@/stores/ui-store.ts";
 import type { LoginInput, RegisterInput, User } from "@/types/auth.ts";
 
 type AuthNavigationOptions = {
@@ -27,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
+  const setActiveProjectId = useUIStore((s) => s.setActiveProjectId);
 
   const fetchCurrentUser = useCallback(async () => {
     try {
@@ -106,11 +108,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.logout();
     } finally {
       clearAuthRedirect();
+      setActiveProjectId(null);
       queryClient.clear();
       setAuthenticated(false);
       void navigate("/sign-in", { replace: true });
     }
-  }, [queryClient, setAuthenticated, navigate]);
+  }, [queryClient, setActiveProjectId, setAuthenticated, navigate]);
 
   const value = useMemo<AuthContextValue>(
     () => ({ user, isLoading, isAuthenticated, login, register, logout, refreshUser }),
