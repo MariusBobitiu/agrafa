@@ -16,7 +16,7 @@ services:
       retries: 5
 
   backend:
-    image: ghcr.io/${GHCR_OWNER}/agrafa-backend:latest
+    image: ghcr.io/${GHCR_OWNER}/agrafa-backend:${AGRAFA_VERSION:-latest}
     container_name: agrafa-backend
     restart: unless-stopped
     depends_on:
@@ -46,7 +46,7 @@ services:
       retries: 5
 
   frontend:
-    image: ghcr.io/${GHCR_OWNER}/agrafa-frontend:latest
+    image: ghcr.io/${GHCR_OWNER}/agrafa-frontend:${AGRAFA_VERSION:-latest}
     env_file:
       - ./.env
     container_name: agrafa-frontend

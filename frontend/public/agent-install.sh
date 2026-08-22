@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-AGENT_IMAGE="ghcr.io/mariusbobitiu/agrafa-agent:latest"
+AGRAFA_VERSION="${AGRAFA_VERSION:-latest}"
+AGENT_IMAGE="${AGENT_IMAGE:-ghcr.io/mariusbobitiu/agrafa-agent:${AGRAFA_VERSION}}"
 
 SERVER_URL=""
 TOKEN=""

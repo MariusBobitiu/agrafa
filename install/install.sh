@@ -45,27 +45,73 @@ detect_public_ip() {
   hostname -I 2>/dev/null | awk '{print $1}' || true
 }
 
+set_env_value() {
+  local key="$1"
+  local value="$2"
+  local temp_file
+
+  temp_file="$(mktemp "${TMPDIR:-/tmp}/agrafa-env.XXXXXX")"
+  awk -v key="$key" -v value="$value" '
+    index($0, key "=") == 1 {
+      print key "=" value
+      updated = 1
+      next
+    }
+    { print }
+    END {
+      if (!updated) {
+        print key "=" value
+      }
+    }
+  ' .env > "$temp_file"
+  mv "$temp_file" .env
+}
+
+read_env_value() {
+  local key="$1"
+  awk -v key="$key" 'index($0, key "=") == 1 { print substr($0, length(key) + 2); exit }' .env
+}
+
 GHCR_OWNER="${GHCR_OWNER:-$REPO_OWNER}"
+AGRAFA_VERSION="${AGRAFA_VERSION:-latest}"
+
+if [[ ! "$GHCR_OWNER" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then
+  echo "Invalid GHCR_OWNER: ${GHCR_OWNER}"
+  exit 1
+fi
+
+if [[ ! "$AGRAFA_VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+  echo "Invalid AGRAFA_VERSION: ${AGRAFA_VERSION}"
+  exit 1
+fi
 
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-POSTGRES_DB="agrafa"
-POSTGRES_USER="agrafa"
-POSTGRES_PASSWORD="$(openssl rand -base64 24 | tr -d '\n' | tr '/+' 'ab' | cut -c1-24)"
-APP_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
-SERVER_IP="$(detect_public_ip | tr -d '[:space:]')"
-if [ -z "${SERVER_IP:-}" ]; then
-  SERVER_IP="$DEFAULT_PUBLIC_IP"
-fi
+COMPOSE_TEMP="$(mktemp "${TMPDIR:-/tmp}/agrafa-compose.XXXXXX")"
+curl -fsSL "${RAW_BASE}/docker-compose.yml" -o "$COMPOSE_TEMP"
+mv "$COMPOSE_TEMP" docker-compose.yml
 
-APP_BASE_URL="http://${SERVER_IP}:${FRONTEND_PORT}"
-APP_ALLOWED_ORIGINS="${APP_BASE_URL}"
+if [ -f .env ]; then
+  set_env_value GHCR_OWNER "$GHCR_OWNER"
+  set_env_value AGRAFA_VERSION "$AGRAFA_VERSION"
+  INSTALL_ACTION="updated"
+else
+  POSTGRES_DB="agrafa"
+  POSTGRES_USER="agrafa"
+  POSTGRES_PASSWORD="$(openssl rand -base64 24 | tr -d '\n' | tr '/+' 'ab' | cut -c1-24)"
+  APP_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
+  SERVER_IP="$(detect_public_ip | tr -d '[:space:]')"
+  if [ -z "${SERVER_IP:-}" ]; then
+    SERVER_IP="$DEFAULT_PUBLIC_IP"
+  fi
 
-curl -fsSL "${RAW_BASE}/docker-compose.yml" -o docker-compose.yml
+  APP_BASE_URL="http://${SERVER_IP}:${FRONTEND_PORT}"
+  APP_ALLOWED_ORIGINS="${APP_BASE_URL}"
 
-cat > .env <<EOF
+  cat > .env <<EOF
 GHCR_OWNER=${GHCR_OWNER}
+AGRAFA_VERSION=${AGRAFA_VERSION}
 
 POSTGRES_DB=${POSTGRES_DB}
 POSTGRES_USER=${POSTGRES_USER}
@@ -93,9 +139,16 @@ FRONTEND_HOST_PORT=${FRONTEND_PORT}
 BACKEND_HOST_PORT=${BACKEND_PORT}
 EOF
 
+  INSTALL_ACTION="installed"
+fi
+
+docker compose pull backend frontend
 docker compose up -d
 
-echo "Agrafa installed."
+APP_BASE_URL="$(read_env_value APP_BASE_URL)"
+AGENT_API_BASE_URL="$(read_env_value VITE_API_BASE_URL)"
+
+echo "Agrafa ${INSTALL_ACTION} with image version ${AGRAFA_VERSION}."
 echo "Frontend: ${APP_BASE_URL}"
-echo "Backend/API: http://${SERVER_IP}:${BACKEND_PORT}"
-echo "Agent API base URL: http://${SERVER_IP}:${BACKEND_PORT}"
+echo "Backend/API: ${AGENT_API_BASE_URL}"
+echo "Agent API base URL: ${AGENT_API_BASE_URL}"
