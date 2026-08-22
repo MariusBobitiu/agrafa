@@ -8,6 +8,5 @@ export const projectMembersApi = {
   updateRole: (id: string, role: ProjectMemberRole): Promise<{ project_member: ProjectMember }> =>
     api.patch(`/project-members/${id}`, { role }),
 
-  delete: (id: string): Promise<void> =>
-    api.del(`/project-members/${id}`),
+  delete: (id: string): Promise<void> => api.del(`/project-members/${id}`),
 };

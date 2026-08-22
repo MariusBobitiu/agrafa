@@ -72,11 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (nextUser && !nextUser.email_verified && !redirectTo.startsWith("/invite")) {
-        navigate("/verify-email", { replace: true });
+        void navigate("/verify-email", { replace: true });
         return;
       }
 
-      navigate(redirectTo, { replace: true });
+      void navigate(redirectTo, { replace: true });
     },
     [navigate, refreshUser],
   );
@@ -92,11 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (nextUser && !nextUser.email_verified && !redirectTo.startsWith("/invite")) {
         await authApi.sendVerifyEmail();
-        navigate("/verify-email", { replace: true });
+        void navigate("/verify-email", { replace: true });
         return;
       }
 
-      navigate(redirectTo, { replace: true });
+      void navigate(redirectTo, { replace: true });
     },
     [navigate, refreshUser],
   );
@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearAuthRedirect();
       queryClient.clear();
       setAuthenticated(false);
-      navigate("/sign-in", { replace: true });
+      void navigate("/sign-in", { replace: true });
     }
   }, [queryClient, setAuthenticated, navigate]);
 

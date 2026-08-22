@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from "motion/react";
 
 import {
   getVariants,
   useAnimateIconContext,
   IconWrapper,
   type IconProps,
-} from '@/components/animate-ui/icons/icon';
+} from "@/components/animate-ui/icons/icon";
 
 type SunProps = IconProps<keyof typeof animations>;
 
@@ -25,7 +25,7 @@ const animations = {
           pathLength: [0, 1],
           transition: {
             duration: 0.6,
-            ease: 'easeInOut',
+            ease: "easeInOut",
             delay: (i - 1) * 0.15,
           },
         },
@@ -143,10 +143,4 @@ function Sun(props: SunProps) {
   return <IconWrapper icon={IconComponent} {...props} />;
 }
 
-export {
-  animations,
-  Sun,
-  Sun as SunIcon,
-  type SunProps,
-  type SunProps as SunIconProps,
-};
+export { animations, Sun, Sun as SunIcon, type SunProps, type SunProps as SunIconProps };

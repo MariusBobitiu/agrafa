@@ -45,18 +45,15 @@ function DeleteProjectDialog({
         <DialogHeader>
           <DialogTitle>Delete project</DialogTitle>
           <DialogDescription>
-            This action is permanent and cannot be undone. All nodes, services,
-            alert rules, and history will be permanently removed.
+            This action is permanent and cannot be undone. All nodes, services, alert rules, and
+            history will be permanently removed.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2 py-1">
           <Label className="text-sm text-muted-foreground">
-            Type{" "}
-            <span className="font-mono font-semibold text-foreground">
-              {projectName}
-            </span>{" "}
-            to confirm
+            Type <span className="font-mono font-semibold text-foreground">{projectName}</span> to
+            confirm
           </Label>
           <Input
             value={typed}
@@ -70,11 +67,7 @@ function DeleteProjectDialog({
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={!confirmed || loading}
-          >
+          <Button variant="destructive" onClick={onConfirm} disabled={!confirmed || loading}>
             {loading ? "Deleting…" : "Delete project"}
           </Button>
         </DialogFooter>
@@ -100,7 +93,7 @@ export function DangerZoneSection({ projectId }: { projectId: number }) {
       await deleteProject.mutateAsync(projectId);
       setActiveProjectId(null);
       toast.success("Project deleted");
-      navigate("/overview");
+      void navigate("/overview");
     } catch {
       toast.error("Failed to delete project. Please try again.");
     }
@@ -108,7 +101,6 @@ export function DangerZoneSection({ projectId }: { projectId: number }) {
 
   return (
     <div className="space-y-4">
-
       {/* Section label */}
       <div>
         <h2 className="text-sm font-semibold">Danger zone</h2>
@@ -122,7 +114,8 @@ export function DangerZoneSection({ projectId }: { projectId: number }) {
         <div className="space-y-0.5 min-w-0">
           <p className="text-sm font-medium text-foreground">Delete this project</p>
           <p className="text-sm text-muted-foreground">
-            Permanently removes all nodes, services, alert rules, and history. This cannot be reversed.
+            Permanently removes all nodes, services, alert rules, and history. This cannot be
+            reversed.
           </p>
         </div>
         <Button

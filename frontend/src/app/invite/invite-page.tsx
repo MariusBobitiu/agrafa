@@ -59,13 +59,13 @@ export function InvitePage() {
       toast.success(
         result.already_member ? "Project already linked to your account." : "Invitation accepted.",
       );
-      navigate("/overview", { replace: true });
+      void navigate("/overview", { replace: true });
     },
   });
 
   function handleAuthRedirect(path: "/sign-in" | "/sign-up") {
     setAuthRedirect(buildRedirectPath(location));
-    navigate(path, { replace: true });
+    void navigate(path, { replace: true });
   }
 
   async function handleSwitchAccount() {

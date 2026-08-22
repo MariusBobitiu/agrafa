@@ -55,7 +55,7 @@ export function VerifyEmailPage() {
       );
 
       void refreshUser().catch(() => undefined);
-      navigate(continueTo, { replace: true });
+      void navigate(continueTo, { replace: true });
     }
   }, [confirm.isSuccess, continueTo, isAuthenticated, navigate, queryClient, refreshUser, user]);
 
@@ -154,7 +154,7 @@ export function VerifyEmailPage() {
             <Button onClick={() => resend.mutate()} disabled={resend.isPending} className="w-full">
               {resend.isPending ? "Sending..." : "Send a new verification email"}
             </Button>
-            <Button variant="outline" onClick={() => navigate(continueTo)} className="w-full">
+            <Button variant="outline" onClick={() => void navigate(continueTo)} className="w-full">
               Back to app
             </Button>
           </>

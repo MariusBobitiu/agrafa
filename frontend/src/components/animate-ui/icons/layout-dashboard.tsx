@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from "motion/react";
 
 import {
   getVariants,
   useAnimateIconContext,
   IconWrapper,
   type IconProps,
-} from '@/components/animate-ui/icons/icon';
+} from "@/components/animate-ui/icons/icon";
 
 type LayoutDashboardProps = IconProps<keyof typeof animations>;
 
@@ -16,56 +16,56 @@ const animations = {
     rect1: {
       initial: {
         height: 9,
-        transition: { duration: 0.3, ease: 'easeInOut' },
+        transition: { duration: 0.3, ease: "easeInOut" },
       },
       animate: {
         height: 5,
-        transition: { duration: 0.3, ease: 'easeInOut' },
+        transition: { duration: 0.3, ease: "easeInOut" },
       },
     },
     rect2: {
       initial: {
         height: 5,
-        transition: { duration: 0.3, ease: 'easeInOut' },
+        transition: { duration: 0.3, ease: "easeInOut" },
       },
       animate: {
         height: 9,
-        transition: { duration: 0.3, ease: 'easeInOut' },
+        transition: { duration: 0.3, ease: "easeInOut" },
       },
     },
     rect3: {
       initial: {
         height: 9,
         y: 0,
-        transition: { duration: 0.3, ease: 'easeInOut' },
+        transition: { duration: 0.3, ease: "easeInOut" },
       },
       animate: {
         height: 5,
         y: 4,
-        transition: { duration: 0.3, ease: 'easeInOut' },
+        transition: { duration: 0.3, ease: "easeInOut" },
       },
     },
     rect4: {
       initial: {
         height: 5,
         y: 0,
-        transition: { duration: 0.3, ease: 'easeInOut' },
+        transition: { duration: 0.3, ease: "easeInOut" },
       },
       animate: {
         height: 9,
         y: -4,
-        transition: { duration: 0.3, ease: 'easeInOut' },
+        transition: { duration: 0.3, ease: "easeInOut" },
       },
     },
   } satisfies Record<string, Variants>,
-  'default-loop': {
+  "default-loop": {
     rect1: {
       initial: {
         height: 9,
       },
       animate: {
         height: [9, 5, 9],
-        transition: { duration: 0.6, ease: 'easeInOut' },
+        transition: { duration: 0.6, ease: "easeInOut" },
       },
     },
     rect2: {
@@ -74,7 +74,7 @@ const animations = {
       },
       animate: {
         height: [5, 9, 5],
-        transition: { duration: 0.6, ease: 'easeInOut' },
+        transition: { duration: 0.6, ease: "easeInOut" },
       },
     },
     rect3: {
@@ -85,7 +85,7 @@ const animations = {
       animate: {
         height: [9, 5, 9],
         y: [0, 4, 0],
-        transition: { duration: 0.6, ease: 'easeInOut' },
+        transition: { duration: 0.6, ease: "easeInOut" },
       },
     },
     rect4: {
@@ -96,7 +96,7 @@ const animations = {
       animate: {
         height: [5, 9, 5],
         y: [0, -4, 0],
-        transition: { duration: 0.6, ease: 'easeInOut' },
+        transition: { duration: 0.6, ease: "easeInOut" },
       },
     },
   } satisfies Record<string, Variants>,

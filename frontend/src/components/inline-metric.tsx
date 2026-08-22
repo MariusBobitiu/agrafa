@@ -8,12 +8,7 @@ type InlineMetricProps = {
 };
 
 export function InlineMetric({ icon, label, value }: InlineMetricProps) {
-  const barColor =
-    value > 90
-      ? "bg-destructive"
-      : value > 70
-        ? "bg-warning"
-        : "bg-primary/90";
+  const barColor = value > 90 ? "bg-destructive" : value > 70 ? "bg-warning" : "bg-primary/90";
 
   const textColor =
     value > 90 ? "text-destructive" : value > 70 ? "text-warning" : "text-primary/90";

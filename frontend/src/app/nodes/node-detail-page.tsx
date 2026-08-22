@@ -281,7 +281,7 @@ export function NodeDetailPage() {
     deleteNode.mutate(nodeId, {
       onSuccess: () => {
         toast.success("Node deleted");
-        navigate("/nodes");
+        void navigate("/nodes");
       },
       onError: () => {
         toast.error("Failed to delete node. Remove all services from this node first.");
@@ -321,7 +321,7 @@ export function NodeDetailPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/nodes")}
+          onClick={() => void navigate("/nodes")}
           className="mb-4 -ml-2 gap-1.5 text-muted-foreground"
         >
           <ArrowLeftIcon size={14} />
@@ -489,7 +489,7 @@ export function NodeDetailPage() {
                 variant="ghost"
                 size="sm"
                 className="h-7 px-2 text-xs"
-                onClick={() => navigate("/services")}
+                onClick={() => void navigate("/services")}
               >
                 View all
               </Button>

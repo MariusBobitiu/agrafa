@@ -5,8 +5,7 @@ export const nodesApi = {
   list: (projectId: number): Promise<{ nodes: Node[] }> =>
     api.get(`/nodes?project_id=${projectId}`),
 
-  get: (id: number): Promise<{ node: Node }> =>
-    api.get(`/nodes/${id}`),
+  get: (id: number): Promise<{ node: Node }> => api.get(`/nodes/${id}`),
 
   create: (payload: NodeCreateInput): Promise<{ node: NodeResponse }> =>
     api.post("/nodes", payload),
@@ -14,8 +13,7 @@ export const nodesApi = {
   update: (id: number, payload: NodeUpdateInput): Promise<{ node: NodeResponse }> =>
     api.patch(`/nodes/${id}`, payload),
 
-  delete: (id: number): Promise<void> =>
-    api.del(`/nodes/${id}`),
+  delete: (id: number): Promise<void> => api.del(`/nodes/${id}`),
 
   regenerateAgentToken: (id: number): Promise<{ node_id: number; agent_token: string }> =>
     api.post(`/nodes/${id}/regenerate-agent-token`),

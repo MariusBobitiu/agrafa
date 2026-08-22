@@ -177,7 +177,7 @@ export function ServiceDetailPage() {
     deleteService.mutate(serviceId, {
       onSuccess: () => {
         toast.success("Service deleted");
-        navigate("/services");
+        void navigate("/services");
       },
       onError: () => {
         toast.error("Failed to delete service.");
@@ -202,7 +202,7 @@ export function ServiceDetailPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/services")}
+          onClick={() => void navigate("/services")}
           className="mb-4 -ml-2 gap-1.5 text-muted-foreground"
         >
           <ArrowLeftIcon size={14} />

@@ -42,10 +42,7 @@ export function clearAuthRedirect() {
   window.sessionStorage.removeItem(AUTH_REDIRECT_KEY);
 }
 
-export function resolveAuthRedirect(options: {
-  candidate?: string | null;
-  fallback: string;
-}) {
+export function resolveAuthRedirect(options: { candidate?: string | null; fallback: string }) {
   const stored = consumeAuthRedirect();
   if (stored) return stored;
   if (isSafeRedirect(options.candidate)) return options.candidate;

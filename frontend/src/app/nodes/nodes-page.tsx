@@ -50,8 +50,8 @@ function NodeRowCard({
       <div
         role="button"
         tabIndex={0}
-        onClick={() => navigate(`/nodes/${node.id}`)}
-        onKeyDown={(e) => e.key === "Enter" && navigate(`/nodes/${node.id}`)}
+        onClick={() => void navigate(`/nodes/${node.id}`)}
+        onKeyDown={(e) => e.key === "Enter" && void navigate(`/nodes/${node.id}`)}
         className={cn(
           "group flex items-center gap-6 rounded-xl border px-5 py-3.5 cursor-pointer transition-colors",
           "hover:bg-muted/30",

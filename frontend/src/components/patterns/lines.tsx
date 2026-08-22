@@ -25,7 +25,7 @@ export function BackgroundLines({
     // Spread lines across a range at the start and end
     const spread = 25;
     const offset = ((index - total / 2) / total) * spread;
-    
+
     // Swirl variations per line
     const swirlOffset = Math.sin(index * 0.9) * 8;
     const swirlIntensity = 15 + Math.cos(index * 0.7) * 5;
@@ -36,7 +36,7 @@ export function BackgroundLines({
     const startY = -5 + offset;
     const endX = 105 + offset * 0.5;
     const endY = 105 + offset;
-    
+
     // Control points for the swirl in the center
     const cp1x = 25 + swirlOffset;
     const cp1y = 30 + offset + swirlIntensity;
@@ -51,9 +51,7 @@ export function BackgroundLines({
   };
 
   return (
-    <div
-      className={`relative w-full h-full overflow-hidden bg-neutral-950 ${className}`}
-    >
+    <div className={`relative w-full h-full overflow-hidden bg-neutral-950 ${className}`}>
       {/* SVG Background */}
       <svg
         className="absolute inset-0 w-full h-full"

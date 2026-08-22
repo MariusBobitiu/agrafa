@@ -52,87 +52,68 @@ export function DataTable<TData, TValue>({
   });
 
   return (
-		<div className={cn("overflow-hidden", wrapperClassName)}>
-			<Table
-				wrapperClassName={tableWrapperClassName}
-				className={tableClassName}
-			>
-				<TableHeader
-					className={cn(
-						stickyHeader &&
-							"sticky top-0 z-10 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80",
-						tableHeaderClassName,
-					)}
-				>
-					{table.getHeaderGroups().map((headerGroup) => (
-						<TableRow key={headerGroup.id}>
-							{headerGroup.headers.map((header) => {
-								const meta = header.column.columnDef.meta as
-									| DataTableColumnMeta
-									| undefined;
+    <div className={cn("overflow-hidden", wrapperClassName)}>
+      <Table wrapperClassName={tableWrapperClassName} className={tableClassName}>
+        <TableHeader
+          className={cn(
+            stickyHeader &&
+              "sticky top-0 z-10 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80",
+            tableHeaderClassName,
+          )}
+        >
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => {
+                const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
 
-								return (
-									<TableHead
-										key={header.id}
-										className={cn(
-											stickyHeader &&
-												"sticky top-0 z-10 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80",
-											meta?.headClassName,
-										)}
-									>
-										{header.isPlaceholder
-											? null
-											: flexRender(
-													header.column.columnDef.header,
-													header.getContext(),
-												)}
-									</TableHead>
-								);
-							})}
-						</TableRow>
-					))}
-				</TableHeader>
-				<TableBody>
-					{table.getRowModel().rows.length > 0 ? (
-						table.getRowModel().rows.map((row) => (
-							<TableRow
-								key={row.id}
-								className={cn(
-									rowClassName?.(row),
-									"border-b border-b-muted/30",
-								)}
-							>
-								{row.getVisibleCells().map((cell) => {
-									const meta = cell.column.columnDef.meta as
-										| DataTableColumnMeta
-										| undefined;
+                return (
+                  <TableHead
+                    key={header.id}
+                    className={cn(
+                      stickyHeader &&
+                        "sticky top-0 z-10 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80",
+                      meta?.headClassName,
+                    )}
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.length > 0 ? (
+            table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                className={cn(rowClassName?.(row), "border-b border-b-muted/30")}
+              >
+                {row.getVisibleCells().map((cell) => {
+                  const meta = cell.column.columnDef.meta as DataTableColumnMeta | undefined;
 
-									return (
-										<TableCell
-											key={cell.id}
-											className={cn(meta?.cellClassName)}
-										>
-											{flexRender(
-												cell.column.columnDef.cell,
-												cell.getContext(),
-											)}
-										</TableCell>
-									);
-								})}
-							</TableRow>
-						))
-					) : (
-						<TableRow>
-							<TableCell
-								colSpan={columns.length}
-								className="h-24 text-center text-muted-foreground"
-							>
-								{emptyMessage}
-							</TableCell>
-						</TableRow>
-					)}
-				</TableBody>
-			</Table>
-		</div>
-	);
+                  return (
+                    <TableCell key={cell.id} className={cn(meta?.cellClassName)}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell
+                colSpan={columns.length}
+                className="h-24 text-center text-muted-foreground"
+              >
+                {emptyMessage}
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
 }

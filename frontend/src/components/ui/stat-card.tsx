@@ -13,23 +13,21 @@ type StatCardProps = {
 
 export function StatCard({ title, value, icon: Icon, description, loading }: StatCardProps) {
   return (
-		<AnimateIcon asChild animateOnHover>
-			<Card>
-				<CardContent className="p-5">
-					<div className="flex items-center justify-between">
-						<p className="text-sm text-muted-foreground">{title}</p>
-						<Icon size={20} className="text-muted-foreground" />
-					</div>
-					{loading ? (
-						<Skeleton className="mt-2 h-7 w-24" />
-					) : (
-						<p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-					)}
-					{description && (
-						<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-					)}
-				</CardContent>
-			</Card>
-		</AnimateIcon>
-	);
+    <AnimateIcon asChild animateOnHover>
+      <Card>
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">{title}</p>
+            <Icon size={20} className="text-muted-foreground" />
+          </div>
+          {loading ? (
+            <Skeleton className="mt-2 h-7 w-24" />
+          ) : (
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+          )}
+          {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
+        </CardContent>
+      </Card>
+    </AnimateIcon>
+  );
 }

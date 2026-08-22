@@ -5,8 +5,7 @@ import type {
 } from "@/types/instance-setting.ts";
 
 export const instanceSettingsApi = {
-  list: (): Promise<InstanceSettingsResponse> =>
-    api.get("/instance-settings"),
+  list: (): Promise<InstanceSettingsResponse> => api.get("/instance-settings"),
 
   patch: (payload: InstanceSettingsPatchPayload): Promise<InstanceSettingsResponse> =>
     api.patch("/instance-settings", payload),

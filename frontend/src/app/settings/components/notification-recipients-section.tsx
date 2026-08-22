@@ -54,7 +54,7 @@ export function NotificationRecipientsSection({ projectId }: { projectId: number
     mutationFn: (recipients: { target: string; min_severity: Severity }[]) =>
       notificationsApi.setRecipients({ channel_type: "email", project_id: projectId, recipients }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["notifications", projectId] });
+      void qc.invalidateQueries({ queryKey: ["notifications", projectId] });
       toast.success("Recipients saved");
     },
     onError: () => toast.error("Couldn't save recipients. Try again."),

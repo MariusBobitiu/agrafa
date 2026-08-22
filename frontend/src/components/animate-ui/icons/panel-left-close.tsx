@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from "motion/react";
 
 import {
   getVariants,
   useAnimateIconContext,
   IconWrapper,
   type IconProps,
-} from '@/components/animate-ui/icons/icon';
+} from "@/components/animate-ui/icons/icon";
 
 type PanelLeftCloseProps = IconProps<keyof typeof animations>;
 
@@ -21,14 +21,14 @@ const animations = {
         y1: 3,
         x2: 7,
         y2: 21,
-        transition: { type: 'spring', damping: 18, stiffness: 200 },
+        transition: { type: "spring", damping: 18, stiffness: 200 },
       },
     },
     arrow: {
       initial: { x: 0 },
       animate: {
         x: -2,
-        transition: { type: 'spring', damping: 18, stiffness: 200 },
+        transition: { type: "spring", damping: 18, stiffness: 200 },
       },
     },
   } satisfies Record<string, Variants>,

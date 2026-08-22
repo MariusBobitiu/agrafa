@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from "motion/react";
 
 import {
   getVariants,
   useAnimateIconContext,
   IconWrapper,
   type IconProps,
-} from '@/components/animate-ui/icons/icon';
+} from "@/components/animate-ui/icons/icon";
 
 type CopyProps = IconProps<keyof typeof animations>;
 
@@ -23,7 +23,7 @@ const animations = {
         x: -3,
         transition: {
           duration: 0.3,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         },
       },
     },
@@ -37,12 +37,12 @@ const animations = {
         x: 3,
         transition: {
           duration: 0.3,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         },
       },
     },
   } satisfies Record<string, Variants>,
-  'default-loop': {
+  "default-loop": {
     rect: {
       initial: {
         y: 0,
@@ -53,7 +53,7 @@ const animations = {
         x: [0, -3, 0],
         transition: {
           duration: 0.6,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         },
       },
     },
@@ -67,7 +67,7 @@ const animations = {
         x: [0, 3, 0],
         transition: {
           duration: 0.6,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         },
       },
     },
@@ -116,10 +116,4 @@ function Copy(props: CopyProps) {
   return <IconWrapper icon={IconComponent} {...props} />;
 }
 
-export {
-  animations,
-  Copy,
-  Copy as CopyIcon,
-  type CopyProps,
-  type CopyProps as CopyIconProps,
-};
+export { animations, Copy, Copy as CopyIcon, type CopyProps, type CopyProps as CopyIconProps };

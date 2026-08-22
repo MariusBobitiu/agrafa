@@ -35,7 +35,7 @@ export function useInviteMembers(projectId: number) {
     mutationFn: (payload: ProjectInvitationCreateBatchInput) =>
       projectInvitationsApi.createBatch(payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["project-invitations", projectId] });
+      void qc.invalidateQueries({ queryKey: ["project-invitations", projectId] });
     },
   });
 }

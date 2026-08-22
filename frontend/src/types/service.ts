@@ -52,6 +52,8 @@ export type ServiceCreateInput = {
   consecutive_failures_before_alert?: number;
 };
 
-export type ServiceUpdateInput = Partial<Omit<ServiceCreateInput, "project_id" | "node_id" | "execution_mode">>;
+export type ServiceUpdateInput = Partial<
+  Omit<ServiceCreateInput, "project_id" | "node_id" | "execution_mode">
+>;
 
 export type ServiceResponse = Service;

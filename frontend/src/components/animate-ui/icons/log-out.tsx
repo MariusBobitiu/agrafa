@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from "motion/react";
 
 import {
   getVariants,
   useAnimateIconContext,
   IconWrapper,
   type IconProps,
-} from '@/components/animate-ui/icons/icon';
+} from "@/components/animate-ui/icons/icon";
 
 type LogOutProps = IconProps<keyof typeof animations>;
 
@@ -16,25 +16,25 @@ const animations = {
     group: {
       initial: {
         x: 0,
-        transition: { duration: 0.3, ease: 'easeInOut' },
+        transition: { duration: 0.3, ease: "easeInOut" },
       },
       animate: {
         x: 2,
-        transition: { duration: 0.3, ease: 'easeInOut' },
+        transition: { duration: 0.3, ease: "easeInOut" },
       },
     },
     path1: {},
     path2: {},
     path3: {},
   } satisfies Record<string, Variants>,
-  'default-loop': {
+  "default-loop": {
     group: {
       initial: {
         x: 0,
       },
       animate: {
         x: [0, 2, 0],
-        transition: { duration: 0.6, ease: 'easeInOut' },
+        transition: { duration: 0.6, ease: "easeInOut" },
       },
     },
     path1: {},
@@ -67,12 +67,7 @@ function IconComponent({ size, ...props }: LogOutProps) {
           initial="initial"
           animate={controls}
         />
-        <motion.path
-          d="M21 12H9"
-          variants={variants.path2}
-          initial="initial"
-          animate={controls}
-        />
+        <motion.path d="M21 12H9" variants={variants.path2} initial="initial" animate={controls} />
       </motion.g>
       <motion.path
         d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"

@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from "motion/react";
 
 import {
   getVariants,
   useAnimateIconContext,
   IconWrapper,
   type IconProps,
-} from '@/components/animate-ui/icons/icon';
+} from "@/components/animate-ui/icons/icon";
 
 type CogProps = IconProps<keyof typeof animations>;
 
@@ -21,7 +21,7 @@ const animations = {
         rotate: [0, 90, 180],
         transition: {
           duration: 1.25,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         },
       },
     },
@@ -40,7 +40,7 @@ const animations = {
     path13: {},
     path14: {},
   } satisfies Record<string, Variants>,
-  'default-loop': {
+  "default-loop": {
     group: {
       initial: {
         rotate: 0,
@@ -49,7 +49,7 @@ const animations = {
         rotate: [0, 90, 180, 270, 360],
         transition: {
           duration: 2.5,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         },
       },
     },
@@ -77,7 +77,7 @@ const animations = {
         rotate: 360,
         transition: {
           duration: 2,
-          ease: 'linear',
+          ease: "linear",
         },
       },
     },
@@ -128,18 +128,8 @@ function IconComponent({ size, ...props }: CogProps) {
           initial="initial"
           animate={controls}
         />
-        <motion.path
-          d="M12 2v2"
-          variants={variants.path3}
-          initial="initial"
-          animate={controls}
-        />
-        <motion.path
-          d="M12 22v-2"
-          variants={variants.path4}
-          initial="initial"
-          animate={controls}
-        />
+        <motion.path d="M12 2v2" variants={variants.path3} initial="initial" animate={controls} />
+        <motion.path d="M12 22v-2" variants={variants.path4} initial="initial" animate={controls} />
         <motion.path
           d="m17 20.66-1-1.73"
           variants={variants.path5}
@@ -164,18 +154,8 @@ function IconComponent({ size, ...props }: CogProps) {
           initial="initial"
           animate={controls}
         />
-        <motion.path
-          d="M14 12h8"
-          variants={variants.path9}
-          initial="initial"
-          animate={controls}
-        />
-        <motion.path
-          d="M2 12h2"
-          variants={variants.path10}
-          initial="initial"
-          animate={controls}
-        />
+        <motion.path d="M14 12h8" variants={variants.path9} initial="initial" animate={controls} />
+        <motion.path d="M2 12h2" variants={variants.path10} initial="initial" animate={controls} />
         <motion.path
           d="m20.66 7-1.73 1"
           variants={variants.path11}
@@ -209,10 +189,4 @@ function Cog(props: CogProps) {
   return <IconWrapper icon={IconComponent} {...props} />;
 }
 
-export {
-  animations,
-  Cog,
-  Cog as CogIcon,
-  type CogProps,
-  type CogProps as CogIconProps,
-};
+export { animations, Cog, Cog as CogIcon, type CogProps, type CogProps as CogIconProps };

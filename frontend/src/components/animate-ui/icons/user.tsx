@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from "motion/react";
 
 import {
   getVariants,
   useAnimateIconContext,
   IconWrapper,
   type IconProps,
-} from '@/components/animate-ui/icons/icon';
+} from "@/components/animate-ui/icons/icon";
 
 type UserProps = IconProps<keyof typeof animations>;
 
@@ -21,7 +21,7 @@ const animations = {
         y: [0, 2, -2, 0],
         transition: {
           duration: 0.6,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         },
       },
     },
@@ -33,7 +33,7 @@ const animations = {
         y: [0, 4, -2, 0],
         transition: {
           duration: 0.6,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         },
       },
     },
@@ -79,10 +79,4 @@ function User(props: UserProps) {
   return <IconWrapper icon={IconComponent} {...props} />;
 }
 
-export {
-  animations,
-  User,
-  User as UserIcon,
-  type UserProps,
-  type UserProps as UserIconProps,
-};
+export { animations, User, User as UserIcon, type UserProps, type UserProps as UserIconProps };

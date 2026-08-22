@@ -40,8 +40,8 @@ function ServiceRowCard({
       <div
         role="button"
         tabIndex={0}
-        onClick={() => navigate(`/services/${svc.id}`)}
-        onKeyDown={(e) => e.key === "Enter" && navigate(`/services/${svc.id}`)}
+        onClick={() => void navigate(`/services/${svc.id}`)}
+        onKeyDown={(e) => e.key === "Enter" && void navigate(`/services/${svc.id}`)}
         className={cn(
           "group flex items-center gap-4 rounded-xl border px-5 py-3.5 transition-colors cursor-pointer",
           "hover:bg-muted/30",

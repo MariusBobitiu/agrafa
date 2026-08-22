@@ -6,7 +6,9 @@ import type {
 } from "@/types/notification.ts";
 
 export const notificationsApi = {
-  listRecipients: (projectId: number): Promise<{ notification_recipients: NotificationRecipient[] }> =>
+  listRecipients: (
+    projectId: number,
+  ): Promise<{ notification_recipients: NotificationRecipient[] }> =>
     api.get(`/notification-recipients?project_id=${projectId}`),
 
   setRecipients: (
@@ -14,8 +16,7 @@ export const notificationsApi = {
   ): Promise<{ notification_recipients: NotificationRecipient[] }> =>
     api.post("/notification-recipients", payload),
 
-  deleteRecipient: (id: number): Promise<void> =>
-    api.del(`/notification-recipients/${id}`),
+  deleteRecipient: (id: number): Promise<void> => api.del(`/notification-recipients/${id}`),
 
   listDeliveries: (projectId: number): Promise<{ deliveries: NotificationDelivery[] }> =>
     api.get(`/notification-deliveries?project_id=${projectId}`),

@@ -214,18 +214,11 @@ export function InstanceSection() {
   return (
     <div className="space-y-6">
       {hasEmail && (
-        <EmailSettingsCard
-          settings={emailSettings}
-          onSettingChange={handleSettingChange}
-        />
+        <EmailSettingsCard settings={emailSettings} onSettingChange={handleSettingChange} />
       )}
 
       <div className="flex justify-end">
-        <Button
-          size="sm"
-          onClick={handleSave}
-          disabled={save.isPending || overrides.size === 0}
-        >
+        <Button size="sm" onClick={handleSave} disabled={save.isPending || overrides.size === 0}>
           {save.isPending ? "Saving…" : "Save"}
         </Button>
       </div>

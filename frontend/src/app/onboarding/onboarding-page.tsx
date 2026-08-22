@@ -193,7 +193,7 @@ export function OnboardingPage() {
     },
     onSuccess: () => {
       toast.success("Onboarding completed");
-      navigate("/overview", { replace: true });
+      void navigate("/overview", { replace: true });
     },
   });
 

@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from "motion/react";
 
 import {
   getVariants,
   useAnimateIconContext,
   IconWrapper,
   type IconProps,
-} from '@/components/animate-ui/icons/icon';
+} from "@/components/animate-ui/icons/icon";
 
 type ActivityProps = IconProps<keyof typeof animations>;
 
@@ -25,13 +25,13 @@ const animations = {
         pathOffset: [1, 0],
         transition: {
           duration: 0.8,
-          ease: 'easeInOut',
+          ease: "easeInOut",
           opacity: { duration: 0.01 },
         },
       },
     },
   } satisfies Record<string, Variants>,
-  'default-return': {
+  "default-return": {
     path: {
       initial: {
         opacity: 1,
@@ -44,13 +44,13 @@ const animations = {
         pathOffset: [1, 0, 0.01, 0],
         transition: {
           duration: 2.5,
-          ease: 'easeInOut',
+          ease: "easeInOut",
           opacity: { duration: 0.01 },
         },
       },
     },
   } satisfies Record<string, Variants>,
-  'default-loop': {
+  "default-loop": {
     path: {
       initial: {
         opacity: 1,
@@ -63,9 +63,9 @@ const animations = {
         pathOffset: [1, 0, 0.01, 0, 0.999],
         transition: {
           duration: 3,
-          ease: 'easeInOut',
+          ease: "easeInOut",
           repeat: Infinity,
-          repeatType: 'loop',
+          repeatType: "loop",
           opacity: { duration: 0.01 },
         },
       },

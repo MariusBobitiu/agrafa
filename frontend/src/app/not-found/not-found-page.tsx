@@ -14,14 +14,14 @@ export function NotFoundPage() {
       description="The page you're looking for doesn't exist or may have been moved."
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+          <Button variant="outline" size="sm" onClick={() => void navigate(-1)}>
             <ArrowLeftIcon size={14} />
             Go back
           </Button>
           <Button
             variant="default"
             size="sm"
-            onClick={() => navigate("/overview", { replace: true })}
+            onClick={() => void navigate("/overview", { replace: true })}
           >
             <HomeIcon size={14} />
             Dashboard

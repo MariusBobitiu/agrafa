@@ -12,8 +12,7 @@ export function useInstanceSettings() {
 export function useSaveInstanceSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: InstanceSettingsPatchPayload) =>
-      instanceSettingsApi.patch(payload),
+    mutationFn: (payload: InstanceSettingsPatchPayload) => instanceSettingsApi.patch(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["instance-settings"] }),
   });
 }

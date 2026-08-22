@@ -156,7 +156,7 @@ function SystemStatusBanner({ data, services }: BannerProps) {
             detail="Firing right now"
             severity="critical"
             href="/alerts"
-            onClick={() => navigate("/alerts")}
+            onClick={() => void navigate("/alerts")}
           />
         )}
       </div>
@@ -177,7 +177,7 @@ function BannerIssueRow({ label, detail, severity, href, onClick }: BannerIssueR
   return (
     <button
       type="button"
-      onClick={onClick ?? (href ? () => navigate(href) : undefined)}
+      onClick={onClick ?? (href ? () => void navigate(href) : undefined)}
       className={cn(
         "w-full flex items-center justify-between px-5 py-2.5 text-left text-sm transition-colors",
         href ? "cursor-pointer hover:bg-destructive/5" : "cursor-default",
@@ -218,7 +218,7 @@ function NodeMachineCard({ node }: { node: NodeSummary }) {
         "rounded-xl border bg-card p-5 cursor-pointer transition-colors hover:bg-muted/20",
         isOffline ? "border-destructive/30 bg-destructive/2" : "border-border",
       )}
-      onClick={() => navigate(`/nodes/${node.id}`)}
+      onClick={() => void navigate(`/nodes/${node.id}`)}
     >
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-3 mb-4">
@@ -318,7 +318,7 @@ function OverviewNodeGrid({ nodes }: { nodes: NodeSummary[] }) {
           variant="ghost"
           size="sm"
           className="h-7 px-2 text-xs"
-          onClick={() => navigate("/nodes")}
+          onClick={() => void navigate("/nodes")}
         >
           View all
           <ArrowRightIcon size={11} />
@@ -332,7 +332,7 @@ function OverviewNodeGrid({ nodes }: { nodes: NodeSummary[] }) {
       {nodes.length > 6 && (
         <button
           type="button"
-          onClick={() => navigate("/nodes")}
+          onClick={() => void navigate("/nodes")}
           className="mt-3 w-full rounded-lg border border-dashed border-border py-2.5 text-xs text-muted-foreground hover:text-foreground hover:border-border/70 transition-colors text-center"
         >
           +{nodes.length - 6} more nodes — view all
@@ -367,7 +367,7 @@ function OverviewServiceList({ services }: { services: Service[] }) {
           variant="ghost"
           size="sm"
           className="h-7 px-2 text-xs"
-          onClick={() => navigate("/services")}
+          onClick={() => void navigate("/services")}
         >
           View all
           <ArrowRightIcon size={11} />
@@ -406,7 +406,7 @@ function OverviewServiceList({ services }: { services: Service[] }) {
         {services.length > 8 && (
           <button
             type="button"
-            onClick={() => navigate("/services")}
+            onClick={() => void navigate("/services")}
             className="w-full px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors text-center"
           >
             +{services.length - 8} more — view all
@@ -472,7 +472,7 @@ function AlertSetupPrompt() {
           variant="ghost"
           size="sm"
           className="h-7 px-2 text-xs"
-          onClick={() => navigate("/alerts")}
+          onClick={() => void navigate("/alerts")}
         >
           View alerts
         </Button>
@@ -480,7 +480,7 @@ function AlertSetupPrompt() {
           variant="outline"
           size="sm"
           className="h-7 px-3 text-xs"
-          onClick={() => navigate("/alerts?create=1")}
+          onClick={() => void navigate("/alerts?create=1")}
         >
           Create alert rule
         </Button>
@@ -507,7 +507,7 @@ function OverviewEmptyState() {
         <Button
           variant="default"
           size="sm"
-          onClick={() => navigate("/nodes?setup=1")}
+          onClick={() => void navigate("/nodes?setup=1")}
           className="gap-2 min-w-40"
         >
           <ServerIcon size={14} />
@@ -516,7 +516,7 @@ function OverviewEmptyState() {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => navigate("/services?create=1")}
+          onClick={() => void navigate("/services?create=1")}
           className="gap-2 min-w-40"
         >
           <ActivityIcon size={14} />
@@ -629,7 +629,7 @@ export function OverviewPage() {
           description="Live infrastructure status"
           actions={
             !isEmpty && !isLoading ? (
-              <Button variant="outline" size="sm" onClick={() => navigate("/alerts")}>
+              <Button variant="outline" size="sm" onClick={() => void navigate("/alerts")}>
                 <BellIcon size={14} />
                 Alerts
                 {(data?.active_alerts ?? 0) > 0 && (
@@ -714,7 +714,11 @@ export function OverviewPage() {
                 <h2 className="mb-3 text-sm font-semibold text-foreground">Infrastructure</h2>
                 <div className="rounded-xl border border-dashed border-border bg-card/50 px-4 py-8 text-center">
                   <p className="text-sm text-muted-foreground mb-3">No nodes registered yet</p>
-                  <Button variant="outline" size="sm" onClick={() => navigate("/nodes?setup=1")}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void navigate("/nodes?setup=1")}
+                  >
                     Add a server
                   </Button>
                 </div>
@@ -739,7 +743,7 @@ export function OverviewPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => navigate("/services?create=1")}
+                    onClick={() => void navigate("/services?create=1")}
                   >
                     Monitor a service
                   </Button>

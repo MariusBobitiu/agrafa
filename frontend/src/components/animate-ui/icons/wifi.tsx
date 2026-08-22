@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from "motion/react";
 
 import {
   getVariants,
   useAnimateIconContext,
   IconWrapper,
   type IconProps,
-} from '@/components/animate-ui/icons/icon';
+} from "@/components/animate-ui/icons/icon";
 
 type WifiProps = IconProps<keyof typeof animations>;
 
@@ -24,17 +24,17 @@ const animations = {
           transition: {
             opacity: {
               duration: 0.2,
-              ease: 'easeInOut',
+              ease: "easeInOut",
               repeat: 1,
-              repeatType: 'reverse',
+              repeatType: "reverse",
               repeatDelay: 0.2,
               delay: 0.2 * (i - 1),
             },
             scale: {
               duration: 0.2,
-              ease: 'easeInOut',
+              ease: "easeInOut",
               repeat: 1,
-              repeatType: 'reverse',
+              repeatType: "reverse",
               repeatDelay: 0.2,
               delay: 0.2 * (i - 1),
             },
@@ -64,12 +64,7 @@ function IconComponent({ size, ...props }: WifiProps) {
       strokeLinejoin="round"
       {...props}
     >
-      <motion.path
-        d="M12 20h.01"
-        variants={variants.path1}
-        initial="initial"
-        animate={controls}
-      />
+      <motion.path d="M12 20h.01" variants={variants.path1} initial="initial" animate={controls} />
       <motion.path
         d="M8.5 16.429a5 5 0 0 1 7 0"
         variants={variants.path2}
@@ -96,10 +91,4 @@ function Wifi(props: WifiProps) {
   return <IconWrapper icon={IconComponent} {...props} />;
 }
 
-export {
-  animations,
-  Wifi,
-  Wifi as WifiIcon,
-  type WifiProps,
-  type WifiProps as WifiIconProps,
-};
+export { animations, Wifi, Wifi as WifiIcon, type WifiProps, type WifiProps as WifiIconProps };

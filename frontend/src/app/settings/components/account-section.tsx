@@ -37,11 +37,7 @@ type PasswordValues = z.infer<typeof passwordSchema>;
 // ─── Shared section card shell ────────────────────────────────────────────────
 
 function SectionCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-border overflow-hidden">
-      {children}
-    </div>
-  );
+  return <div className="rounded-xl border border-border overflow-hidden">{children}</div>;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -74,7 +70,6 @@ export function AccountSection() {
 
   return (
     <div className="space-y-6">
-
       {/* ── Profile card ── */}
       <SectionCard>
         <div className="px-6 py-5">
@@ -115,9 +110,7 @@ export function AccountSection() {
       <SectionCard>
         <div className="px-6 py-5">
           <h2 className="text-sm font-semibold">Change password</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Update your account password.
-          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">Update your account password.</p>
         </div>
         <Separator />
         <div className="px-6 py-5">
@@ -177,7 +170,6 @@ export function AccountSection() {
       <SectionCard>
         <SessionsSection />
       </SectionCard>
-
     </div>
   );
 }
