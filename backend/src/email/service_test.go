@@ -40,7 +40,7 @@ func TestSendAlertTriggeredEmailRendersHTMLTemplate(t *testing.T) {
 	}
 
 	message := sender.messages[0]
-	if !strings.Contains(message.HTML, "Agrafa Alerts") || !strings.Contains(message.HTML, "Active") {
+	if !strings.Contains(message.HTML, "Agrafa Alert Active") || !strings.Contains(message.HTML, "Active") {
 		t.Fatalf("expected rendered HTML to contain heading, got %q", message.HTML)
 	}
 
@@ -83,7 +83,7 @@ func TestSendAlertResolvedEmailRendersHTMLTemplate(t *testing.T) {
 	}
 
 	message := sender.messages[0]
-	if !strings.Contains(message.HTML, "Agrafa Alerts") || !strings.Contains(message.HTML, "Resolved") {
+	if !strings.Contains(message.HTML, "Agrafa Alert Resolved") || !strings.Contains(message.HTML, "Resolved") {
 		t.Fatalf("expected rendered HTML to contain heading, got %q", message.HTML)
 	}
 
@@ -273,7 +273,7 @@ func TestSendNotificationRecipientTestEmailRendersTemplate(t *testing.T) {
 	if !strings.Contains(message.Subject, "Agrafa Team") {
 		t.Fatalf("subject = %q", message.Subject)
 	}
-	if !strings.Contains(message.HTML, "test notification from Agrafa") || !strings.Contains(message.HTML, "ops@example.com") {
+	if !strings.Contains(message.HTML, "Notification test") || !strings.Contains(message.HTML, "ops@example.com") {
 		t.Fatalf("unexpected rendered HTML: %q", message.HTML)
 	}
 	if !strings.Contains(message.Text, "AGRAFA NOTIFICATIONS") || !strings.Contains(message.Text, "Project: Agrafa Team") {
