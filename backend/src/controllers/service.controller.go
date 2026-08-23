@@ -30,7 +30,10 @@ type serviceReader interface {
 	SummarizeHistory(ctx context.Context, serviceID int64, historyRange types.ServiceHistoryRange) (types.ServiceHistorySummaryData, error)
 }
 
-const maxServiceHistoryRange = 31 * 24 * time.Hour
+const (
+	maxServiceHistoryRange           = 31 * 24 * time.Hour
+	serviceHistoryClockSkewTolerance = time.Minute
+)
 
 type ServiceController struct {
 	serviceService     serviceWriter
@@ -144,7 +147,7 @@ func (c *ServiceController) Get(w http.ResponseWriter, r *http.Request) {
 // @Param        limit   query  int     false  "Number of observations (default 100, maximum 500)"
 // @Param        before  query  string  false  "Opaque cursor returned as next_cursor"
 // @Param        from    query  string  false  "Inclusive range start (RFC3339; requires to)"
-// @Param        to      query  string  false  "Inclusive range end (RFC3339; requires from)"
+// @Param        to      query  string  false  "Inclusive range end (RFC3339; requires from; small future clock skew is clamped to server time)"
 // @Success      200  {object}  types.ServiceHistoryResponse
 // @Failure      400  {object}  types.ErrorResponse
 // @Failure      401  {object}  types.ErrorResponse
@@ -227,7 +230,7 @@ func (c *ServiceController) History(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        id    path   int     true  "Service ID"
 // @Param        from  query  string  true  "Inclusive range start (RFC3339)"
-// @Param        to    query  string  true  "Inclusive range end (RFC3339, not in the future)"
+// @Param        to    query  string  true  "Inclusive range end (RFC3339; small future clock skew is clamped to server time)"
 // @Success      200  {object}  types.ServiceHistorySummaryData
 // @Failure      400  {object}  types.ErrorResponse
 // @Failure      401  {object}  types.ErrorResponse
@@ -265,6 +268,10 @@ func (c *ServiceController) HistorySummary(w http.ResponseWriter, r *http.Reques
 }
 
 func parseServiceHistoryRange(r *http.Request) (types.ServiceHistoryRange, bool, error) {
+	return parseServiceHistoryRangeAt(r, time.Now().UTC())
+}
+
+func parseServiceHistoryRangeAt(r *http.Request, now time.Time) (types.ServiceHistoryRange, bool, error) {
 	rawFrom := r.URL.Query().Get("from")
 	rawTo := r.URL.Query().Get("to")
 	if rawFrom == "" && rawTo == "" {
@@ -286,11 +293,18 @@ func parseServiceHistoryRange(r *http.Request) (types.ServiceHistoryRange, bool,
 	if from.After(to) {
 		return types.ServiceHistoryRange{}, false, fmt.Errorf("from must be before or equal to to")
 	}
-	if to.After(time.Now().UTC()) {
-		return types.ServiceHistoryRange{}, false, fmt.Errorf("to must not be in the future")
-	}
-	if to.Sub(from) > maxServiceHistoryRange {
+	duration := to.Sub(from)
+	if duration > maxServiceHistoryRange {
 		return types.ServiceHistoryRange{}, false, fmt.Errorf("history range must not exceed 31 days")
+	}
+
+	now = now.UTC()
+	if to.After(now.Add(serviceHistoryClockSkewTolerance)) {
+		return types.ServiceHistoryRange{}, false, fmt.Errorf("to exceeds the allowed clock-skew tolerance")
+	}
+	if to.After(now) {
+		to = now
+		from = to.Add(-duration)
 	}
 
 	return types.ServiceHistoryRange{From: from, To: to}, true, nil

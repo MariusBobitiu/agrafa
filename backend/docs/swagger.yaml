@@ -3588,7 +3588,8 @@ paths:
         in: query
         name: from
         type: string
-      - description: Inclusive range end (RFC3339; requires from)
+      - description: Inclusive range end (RFC3339; requires from; small future clock
+          skew is clamped to server time)
         in: query
         name: to
         type: string
@@ -3637,7 +3638,8 @@ paths:
         name: from
         required: true
         type: string
-      - description: Inclusive range end (RFC3339, not in the future)
+      - description: Inclusive range end (RFC3339; small future clock skew is clamped
+          to server time)
         in: query
         name: to
         required: true

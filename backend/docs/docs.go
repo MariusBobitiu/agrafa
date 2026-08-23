@@ -3265,7 +3265,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Inclusive range end (RFC3339; requires from)",
+                        "description": "Inclusive range end (RFC3339; requires from; small future clock skew is clamped to server time)",
                         "name": "to",
                         "in": "query"
                     }
@@ -3337,7 +3337,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Inclusive range end (RFC3339, not in the future)",
+                        "description": "Inclusive range end (RFC3339; small future clock skew is clamped to server time)",
                         "name": "to",
                         "in": "query",
                         "required": true

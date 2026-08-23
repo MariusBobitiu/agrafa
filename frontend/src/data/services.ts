@@ -198,11 +198,17 @@ export const servicesApi = {
       fetchBoundedHistoryObservations(id, since, to),
       servicesApi.historySummary(id, since, to),
     ]);
+    const effectiveFromMs = Date.parse(summary.from);
+    const effectiveToMs = Date.parse(summary.to);
 
     return {
       ...boundedHistory,
-      from: since.toISOString(),
-      to: to.toISOString(),
+      observations: boundedHistory.observations.filter((observation) => {
+        const observedAt = Date.parse(observation.observedAt);
+        return observedAt >= effectiveFromMs && observedAt <= effectiveToMs;
+      }),
+      from: summary.from,
+      to: summary.to,
       summary,
     };
   },

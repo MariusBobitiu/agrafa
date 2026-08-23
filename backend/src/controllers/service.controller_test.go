@@ -182,12 +182,63 @@ func TestServiceControllerHistorySummaryReturnsAuthoritativeRange(t *testing.T) 
 	}
 }
 
+func TestParseServiceHistoryRangeAllowsAndClampsClockSkew(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 23, 12, 0, 0, 123456000, time.UTC)
+	requestedDuration := 24 * time.Hour
+
+	t.Run("exact current time is accepted", func(t *testing.T) {
+		from := now.Add(-requestedDuration)
+		request := httptest.NewRequest(http.MethodGet, "/history?from="+from.Format(time.RFC3339Nano)+"&to="+now.Format(time.RFC3339Nano), nil)
+
+		historyRange, hasRange, err := parseServiceHistoryRangeAt(request, now)
+		if err != nil || !hasRange {
+			t.Fatalf("parse range: hasRange=%v err=%v", hasRange, err)
+		}
+		if !historyRange.From.Equal(from) || !historyRange.To.Equal(now) {
+			t.Fatalf("range = %#v, want %v to %v", historyRange, from, now)
+		}
+	})
+
+	t.Run("small future skew is clamped while preserving duration", func(t *testing.T) {
+		requestedTo := now.Add(serviceHistoryClockSkewTolerance)
+		requestedFrom := requestedTo.Add(-requestedDuration)
+		request := httptest.NewRequest(http.MethodGet, "/history?from="+requestedFrom.Format(time.RFC3339Nano)+"&to="+requestedTo.Format(time.RFC3339Nano), nil)
+
+		historyRange, hasRange, err := parseServiceHistoryRangeAt(request, now)
+		if err != nil || !hasRange {
+			t.Fatalf("parse range: hasRange=%v err=%v", hasRange, err)
+		}
+		if !historyRange.To.Equal(now) {
+			t.Fatalf("clamped to = %v, want %v", historyRange.To, now)
+		}
+		if got := historyRange.To.Sub(historyRange.From); got != requestedDuration {
+			t.Fatalf("clamped duration = %v, want %v", got, requestedDuration)
+		}
+		if !historyRange.From.Equal(now.Add(-requestedDuration)) {
+			t.Fatalf("clamped from = %v, want %v", historyRange.From, now.Add(-requestedDuration))
+		}
+	})
+
+	t.Run("future time beyond tolerance is rejected", func(t *testing.T) {
+		requestedTo := now.Add(serviceHistoryClockSkewTolerance + time.Nanosecond)
+		request := httptest.NewRequest(http.MethodGet, "/history?from="+requestedTo.Add(-requestedDuration).Format(time.RFC3339Nano)+"&to="+requestedTo.Format(time.RFC3339Nano), nil)
+
+		_, _, err := parseServiceHistoryRangeAt(request, now)
+		if err == nil || !strings.Contains(err.Error(), "clock-skew tolerance") {
+			t.Fatalf("error = %v, want clock-skew rejection", err)
+		}
+	})
+}
+
 func TestServiceControllerHistoryRejectsFutureAndUnreasonableRanges(t *testing.T) {
 	t.Parallel()
 
 	testCases := []string{
 		"from=" + time.Now().UTC().Add(-time.Hour).Format(time.RFC3339Nano) + "&to=" + time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano),
 		"from=" + time.Now().UTC().Add(-32*24*time.Hour).Format(time.RFC3339Nano) + "&to=" + time.Now().UTC().Add(-time.Minute).Format(time.RFC3339Nano),
+		"from=" + time.Now().UTC().Format(time.RFC3339Nano) + "&to=" + time.Now().UTC().Add(-time.Hour).Format(time.RFC3339Nano),
 		"from=not-a-time&to=also-not-a-time",
 	}
 	for _, query := range testCases {

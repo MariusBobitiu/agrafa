@@ -138,6 +138,36 @@ afterEach(() => {
   environmentManager.setIsServer(() => true);
 });
 
+describe("service history authoritative bounds", () => {
+  it("uses clamped summary bounds for observations and cache metadata", async () => {
+    const serverTo = new Date("2026-08-23T12:00:00Z");
+    const serverFrom = new Date(serverTo.getTime() - 24 * 60 * 60 * 1_000);
+    const requestedTo = new Date(serverTo.getTime() + 30_000);
+    const requestedFrom = new Date(requestedTo.getTime() - 24 * 60 * 60 * 1_000);
+    vi.spyOn(servicesApi, "history").mockResolvedValue({
+      ...historyPage([]),
+      observations: [
+        observation(1, { observedAt: new Date(serverTo.getTime() + 15_000).toISOString() }),
+      ],
+    });
+    vi.spyOn(servicesApi, "historySummary").mockResolvedValue({
+      from: serverFrom.toISOString(),
+      to: serverTo.toISOString(),
+      totalChecks: 0,
+      successfulChecks: 0,
+      uptimePercent: null,
+      averageLatencyMs: null,
+      lastCheckedAt: null,
+    });
+
+    const result = await servicesApi.historyWindow(7, requestedFrom, requestedTo);
+
+    expect(result.from).toBe(serverFrom.toISOString());
+    expect(result.to).toBe(serverTo.toISOString());
+    expect(result.observations).toEqual([]);
+  });
+});
+
 describe("service history loading states", () => {
   it("is pending without data on first load and retains the previous range while refetching", async () => {
     const firstWindow = historyWindow([observation(1)]);
