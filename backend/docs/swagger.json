@@ -498,7 +498,7 @@
                 }
             },
             "patch": {
-                "description": "Updates the enabled state of an alert rule.",
+                "description": "Updates the target, threshold, severity, and enabled state of an alert rule.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1588,6 +1588,62 @@
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/nodes/{id}/stream": {
+            "get": {
+                "description": "Streams the current node detail payload over Server-Sent Events for a node the current user can read.",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "inventory"
+                ],
+                "summary": "Stream node detail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Node ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/types.ErrorResponse"
                         }
@@ -3167,6 +3223,133 @@
                     }
                 }
             }
+        },
+        "/services/{id}/history": {
+            "get": {
+                "description": "Returns append-only HTTP or TCP check observations newest-first. Use next_cursor as before for keyset pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "inventory"
+                ],
+                "summary": "Get service check history",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Service ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of observations (default 100, maximum 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque cursor returned as next_cursor",
+                        "name": "before",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/types.ServiceHistoryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/services/{id}/stream": {
+            "get": {
+                "description": "Streams the current service detail payload over Server-Sent Events for a service the current user can read.",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "inventory"
+                ],
+                "summary": "Stream service detail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Service ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -3391,6 +3574,22 @@
                 "is_enabled": {
                     "type": "boolean",
                     "example": false
+                },
+                "node_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "service_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "severity": {
+                    "type": "string",
+                    "example": "warning"
+                },
+                "threshold_value": {
+                    "type": "number",
+                    "example": 90
                 }
             }
         },
@@ -4912,6 +5111,85 @@
                 "status": {
                     "type": "string",
                     "example": "healthy"
+                }
+            }
+        },
+        "types.ServiceHistoryEntryDocument": {
+            "type": "object",
+            "properties": {
+                "check_type": {
+                    "type": "string",
+                    "example": "http"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 301
+                },
+                "is_success": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "message": {
+                    "type": "string",
+                    "example": "200 OK"
+                },
+                "metadata": {
+                    "type": "object"
+                },
+                "node_id": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "observed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "response_time_ms": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "service_id": {
+                    "type": "integer",
+                    "example": 101
+                },
+                "source": {
+                    "type": "string",
+                    "example": "managed"
+                },
+                "status_code": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "types.ServiceHistoryPaginationDocument": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "example": "eyJvYnNlcnZlZF9hdCI6IjIwMjYtMDgtMjNUMTI6MDA6MDBaIiwiaWQiOjMwMX0"
+                }
+            }
+        },
+        "types.ServiceHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "history": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.ServiceHistoryEntryDocument"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/types.ServiceHistoryPaginationDocument"
                 }
             }
         },

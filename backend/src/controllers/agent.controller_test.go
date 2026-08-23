@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	agentmiddleware "github.com/MariusBobitiu/agrafa-backend/src/middleware"
 	"github.com/MariusBobitiu/agrafa-backend/src/services"
@@ -47,10 +48,15 @@ func (s *fakeAgentControllerNodeStateService) MarkOfflineFromShutdown(_ context.
 	return s.node, s.transitioned, s.err
 }
 
-type fakeAgentControllerHealthService struct{}
+type fakeAgentControllerHealthService struct {
+	inputs        []types.HealthCheckInput
+	hasRLSContext bool
+}
 
-func (s *fakeAgentControllerHealthService) Ingest(context.Context, types.HealthCheckInput) (generated.Service, error) {
-	return generated.Service{}, nil
+func (s *fakeAgentControllerHealthService) Ingest(ctx context.Context, input types.HealthCheckInput) (generated.Service, error) {
+	s.inputs = append(s.inputs, input)
+	s.hasRLSContext = appdb.HasRLSSessionContext(ctx)
+	return generated.Service{ID: input.ServiceID}, nil
 }
 
 type fakeAgentControllerMetricService struct{}
@@ -168,6 +174,49 @@ func TestAgentControllerGetConfigRejectsInvalidToken(t *testing.T) {
 	}
 	if body := recorder.Body.String(); !strings.Contains(body, `{"error":"invalid agent token"}`) {
 		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestAgentControllerIngestHealthFeedsSharedHistoryPipeline(t *testing.T) {
+	t.Parallel()
+
+	validToken := "agent-token"
+	authenticatedNode := generated.Node{ID: 12, ProjectID: 7, Name: "web-01", Identifier: "web-01"}
+	authService := services.NewAgentAuthService(&fakeAgentConfigAuthNodeRepo{
+		nodesByHash: map[string]generated.Node{utils.HashAgentToken(validToken): authenticatedNode},
+	})
+	healthService := &fakeAgentControllerHealthService{}
+	controller := NewAgentController(
+		&fakeAgentControllerHeartbeatService{},
+		&fakeAgentControllerNodeStateService{},
+		healthService,
+		&fakeAgentControllerMetricService{},
+		&fakeAgentControllerConfigService{},
+	)
+
+	handler := agentmiddleware.AgentAuth(authService)(http.HandlerFunc(controller.IngestHealth))
+	request := httptest.NewRequest(http.MethodPost, "/v1/agent/health", strings.NewReader(`{"service_id":101,"is_success":false,"response_time_ms":31,"message":"connection refused","payload":{"type":"tcp"}}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(agentmiddleware.AgentTokenHeader, validToken)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	if len(healthService.inputs) != 1 {
+		t.Fatalf("health ingestions = %d, want 1", len(healthService.inputs))
+	}
+	input := healthService.inputs[0]
+	if input.AuthenticatedNodeID != 12 || input.ServiceID != 101 || input.Source != types.HealthCheckSourceAgent || input.IsSuccess {
+		t.Fatalf("unexpected health input: %#v", input)
+	}
+	if input.ResponseTimeMs == nil || *input.ResponseTimeMs != 31 || input.StatusCode != nil {
+		t.Fatalf("unexpected response metadata: %#v", input)
+	}
+	if !healthService.hasRLSContext {
+		t.Fatal("expected authenticated agent ingestion to carry internal RLS context")
 	}
 }
 

@@ -1,6 +1,9 @@
 -- name: CreateHealthCheckResult :one
 INSERT INTO app.health_check_results (
     service_id,
+    node_id,
+    check_type,
+    source,
     observed_at,
     is_success,
     status_code,
@@ -14,7 +17,10 @@ INSERT INTO app.health_check_results (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8,
+    $9,
+    $10
 )
 RETURNING *;
 
@@ -30,6 +36,21 @@ SELECT DISTINCT ON (h.service_id)
     h.*
 FROM app.health_check_results AS h
 ORDER BY h.service_id, h.observed_at DESC, h.id DESC;
+
+-- name: ListHealthCheckHistoryByServiceID :many
+SELECT *
+FROM app.health_check_results
+WHERE service_id = sqlc.arg(service_id)
+  AND (
+      NOT sqlc.arg(has_before)::boolean
+      OR observed_at < sqlc.arg(before_observed_at)::timestamptz
+      OR (
+          observed_at = sqlc.arg(before_observed_at)::timestamptz
+          AND id < sqlc.arg(before_id)::bigint
+      )
+  )
+ORDER BY observed_at DESC, id DESC
+LIMIT sqlc.arg(limit_rows);
 
 -- name: ListLatestHealthCheckResultsByProject :many
 SELECT DISTINCT ON (h.service_id)

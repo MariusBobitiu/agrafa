@@ -48,8 +48,11 @@ func (r *fakeServiceReadNodeRepository) ListByProject(_ context.Context, _ int64
 
 type fakeServiceReadHealthCheckRepository struct {
 	rows        []generated.HealthCheckResult
+	historyRows []generated.HealthCheckResult
 	latest      generated.HealthCheckResult
 	lastFilters types.ServiceListFilters
+	lastHistory types.ServiceHistoryFilters
+	serviceID   int64
 	returnedErr error
 }
 
@@ -60,6 +63,63 @@ func (r *fakeServiceReadHealthCheckRepository) GetLatestByServiceID(_ context.Co
 func (r *fakeServiceReadHealthCheckRepository) ListLatestForRead(_ context.Context, filters types.ServiceListFilters) ([]generated.HealthCheckResult, error) {
 	r.lastFilters = filters
 	return r.rows, r.returnedErr
+}
+
+func (r *fakeServiceReadHealthCheckRepository) ListHistoryByServiceID(_ context.Context, serviceID int64, filters types.ServiceHistoryFilters) ([]generated.HealthCheckResult, error) {
+	r.serviceID = serviceID
+	r.lastHistory = filters
+	return r.historyRows, r.returnedErr
+}
+
+func TestServiceReadServiceListHistoryOrdersMapsAndPaginates(t *testing.T) {
+	t.Parallel()
+
+	oldest := time.Date(2026, time.August, 23, 10, 0, 0, 0, time.UTC)
+	newest := oldest.Add(2 * time.Minute)
+	middle := oldest.Add(time.Minute)
+	before := &types.ServiceHistoryCursor{ObservedAt: newest.Add(time.Minute), ID: 4}
+	repo := &fakeServiceReadHealthCheckRepository{historyRows: []generated.HealthCheckResult{
+		{ID: 1, ServiceID: 7, NodeID: 8, CheckType: "tcp", Source: "managed", ObservedAt: oldest, IsSuccess: false, ResponseTimeMs: sql.NullInt32{Int32: 45, Valid: true}, Message: "refused", Payload: []byte(`{"runner":"managed"}`)},
+		{ID: 3, ServiceID: 7, NodeID: 8, CheckType: "tcp", Source: "managed", ObservedAt: newest, IsSuccess: true, ResponseTimeMs: sql.NullInt32{Int32: 12, Valid: true}, Message: "ok", Payload: []byte(`{"runner":"managed"}`)},
+		{ID: 2, ServiceID: 7, NodeID: 8, CheckType: "tcp", Source: "managed", ObservedAt: middle, IsSuccess: true, ResponseTimeMs: sql.NullInt32{Int32: 20, Valid: true}, Message: "ok", Payload: []byte(`{"runner":"managed"}`)},
+	}}
+	service := &ServiceReadService{healthCheckRepo: repo}
+
+	page, err := service.ListHistory(context.Background(), 7, types.ServiceHistoryFilters{Limit: 2, Before: before})
+	if err != nil {
+		t.Fatalf("ListHistory() error = %v", err)
+	}
+	if repo.serviceID != 7 || repo.lastHistory.Limit != 3 {
+		t.Fatalf("repository request = service %d limit %d, want service 7 limit 3", repo.serviceID, repo.lastHistory.Limit)
+	}
+	if repo.lastHistory.Before == nil || repo.lastHistory.Before.ID != 4 || !repo.lastHistory.Before.ObservedAt.Equal(before.ObservedAt) {
+		t.Fatalf("repository before cursor = %#v, want %#v", repo.lastHistory.Before, before)
+	}
+	if len(page.Entries) != 2 || page.Entries[0].ID != 3 || page.Entries[1].ID != 2 {
+		t.Fatalf("history order = %#v, want ids 3,2", page.Entries)
+	}
+	if page.Entries[0].StatusCode != nil {
+		t.Fatalf("TCP status code = %#v, want nil", page.Entries[0].StatusCode)
+	}
+	if page.Entries[0].ResponseTimeMs == nil || *page.Entries[0].ResponseTimeMs != 12 {
+		t.Fatalf("response time = %#v, want 12", page.Entries[0].ResponseTimeMs)
+	}
+	if page.NextCursor == nil || page.NextCursor.ID != 2 || !page.NextCursor.ObservedAt.Equal(middle) {
+		t.Fatalf("next cursor = %#v, want middle row", page.NextCursor)
+	}
+}
+
+func TestServiceReadServiceListHistoryCapsRepositoryLimit(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeServiceReadHealthCheckRepository{}
+	service := &ServiceReadService{healthCheckRepo: repo}
+	if _, err := service.ListHistory(context.Background(), 7, types.ServiceHistoryFilters{Limit: 999}); err != nil {
+		t.Fatalf("ListHistory() error = %v", err)
+	}
+	if repo.lastHistory.Limit != MaxServiceHistoryLimit+1 {
+		t.Fatalf("repository limit = %d, want %d", repo.lastHistory.Limit, MaxServiceHistoryLimit+1)
+	}
 }
 
 type fakeServiceReadAlertInstanceRepository struct {

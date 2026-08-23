@@ -10,6 +10,34 @@ export type HealthCheckSummary = {
   message: string | null;
 };
 
+export type ServiceHistoryObservation = {
+  id: number;
+  serviceId: number;
+  nodeId: number;
+  checkType: CheckType;
+  source: string;
+  observedAt: string;
+  isSuccess: boolean;
+  statusCode: number | null;
+  latencyMs: number | null;
+  message: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ServiceHistoryPage = {
+  observations: ServiceHistoryObservation[];
+  pagination: {
+    limit: number;
+    hasMore: boolean;
+    nextCursor: string | null;
+  };
+};
+
+export type ServiceHistoryWindow = {
+  observations: ServiceHistoryObservation[];
+  isTruncated: boolean;
+};
+
 export type ServiceAlertSeverity = "critical" | "warning" | "info";
 
 export type ServiceAlert = {

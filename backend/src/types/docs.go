@@ -45,6 +45,31 @@ type HealthCheckSummaryDocument struct {
 	Message        string    `json:"message" example:"ok"`
 }
 
+type ServiceHistoryEntryDocument struct {
+	ID             int64          `json:"id" example:"301"`
+	ServiceID      int64          `json:"service_id" example:"101"`
+	NodeID         int64          `json:"node_id" example:"12"`
+	CheckType      string         `json:"check_type" example:"http"`
+	Source         string         `json:"source" example:"managed"`
+	ObservedAt     time.Time      `json:"observed_at" swaggertype:"string" format:"date-time"`
+	IsSuccess      bool           `json:"is_success" example:"true"`
+	StatusCode     *int32         `json:"status_code" example:"200"`
+	ResponseTimeMs *int32         `json:"response_time_ms" example:"42"`
+	Message        string         `json:"message" example:"200 OK"`
+	Metadata       map[string]any `json:"metadata" swaggertype:"object"`
+}
+
+type ServiceHistoryPaginationDocument struct {
+	Limit      int32   `json:"limit" example:"100"`
+	HasMore    bool    `json:"has_more" example:"true"`
+	NextCursor *string `json:"next_cursor" example:"eyJvYnNlcnZlZF9hdCI6IjIwMjYtMDgtMjNUMTI6MDA6MDBaIiwiaWQiOjMwMX0"`
+}
+
+type ServiceHistoryResponse struct {
+	History    []ServiceHistoryEntryDocument    `json:"history"`
+	Pagination ServiceHistoryPaginationDocument `json:"pagination"`
+}
+
 type AgentConfigNodeDocument struct {
 	ID         int64  `json:"id" example:"12"`
 	Name       string `json:"name" example:"web-01"`

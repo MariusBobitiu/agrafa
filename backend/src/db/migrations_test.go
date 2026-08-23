@@ -105,3 +105,33 @@ func TestProjectScopeRLSMigrationVerifiesMembershipInDatabase(t *testing.T) {
 		t.Fatalf("helpers must not trust current_project_role for authorization:\n%s", sql)
 	}
 }
+
+func TestServiceCheckHistoryMigrationAddsMetadataIndexAndRLS(t *testing.T) {
+	t.Parallel()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+
+	migrationPath := filepath.Join(filepath.Dir(currentFile), "migrations", "app", "000014_service_check_history.up.sql")
+	contents, err := os.ReadFile(migrationPath)
+	if err != nil {
+		t.Fatalf("read migration file: %v", err)
+	}
+
+	sql := string(contents)
+	for _, expected := range []string{
+		"ADD COLUMN node_id BIGINT",
+		"ADD COLUMN check_type TEXT",
+		"ADD COLUMN source TEXT",
+		"service_id, observed_at DESC, id DESC",
+		"health_check_results_select_member_access",
+		"health_check_results_insert_access",
+		"Append-only service check observations",
+	} {
+		if !strings.Contains(sql, expected) {
+			t.Fatalf("expected migration to contain %q:\n%s", expected, sql)
+		}
+	}
+}

@@ -21,6 +21,11 @@ const (
 )
 
 const (
+	HealthCheckSourceManaged = "managed"
+	HealthCheckSourceAgent   = "agent"
+)
+
+const (
 	ServiceStateHealthy   = "healthy"
 	ServiceStateDegraded  = "degraded"
 	ServiceStateUnhealthy = "unhealthy"
@@ -94,6 +99,7 @@ type AgentShutdownInput struct {
 type HealthCheckInput struct {
 	AuthenticatedNodeID int64
 	ServiceID           int64
+	Source              string
 	ObservedAt          time.Time
 	IsSuccess           bool
 	StatusCode          *int32
@@ -344,6 +350,35 @@ type HealthCheckSummaryData struct {
 	StatusCode     *int32    `json:"status_code"`
 	ResponseTimeMs *int32    `json:"response_time_ms"`
 	Message        string    `json:"message"`
+}
+
+type ServiceHistoryCursor struct {
+	ObservedAt time.Time
+	ID         int64
+}
+
+type ServiceHistoryFilters struct {
+	Limit  int32
+	Before *ServiceHistoryCursor
+}
+
+type ServiceHistoryEntryData struct {
+	ID             int64     `json:"id"`
+	ServiceID      int64     `json:"service_id"`
+	NodeID         int64     `json:"node_id"`
+	CheckType      string    `json:"check_type"`
+	Source         string    `json:"source"`
+	ObservedAt     time.Time `json:"observed_at"`
+	IsSuccess      bool      `json:"is_success"`
+	StatusCode     *int32    `json:"status_code"`
+	ResponseTimeMs *int32    `json:"response_time_ms"`
+	Message        string    `json:"message"`
+	Metadata       any       `json:"metadata"`
+}
+
+type ServiceHistoryPageData struct {
+	Entries    []ServiceHistoryEntryData
+	NextCursor *ServiceHistoryCursor
 }
 
 type AgentConfigNodeData struct {

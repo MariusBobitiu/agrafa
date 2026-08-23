@@ -144,6 +144,9 @@ func NewRouter(
 			).Get("/services/{id}", serviceController.Get)
 			protected.With(
 				withProjectPermission(authorizationService, services.PermissionServicesRead, agentmiddleware.ProjectIDFromURLParamResource("id", authorizationService.ProjectIDForService)),
+			).Get("/services/{id}/history", serviceController.History)
+			protected.With(
+				withProjectPermission(authorizationService, services.PermissionServicesRead, agentmiddleware.ProjectIDFromURLParamResource("id", authorizationService.ProjectIDForService)),
 			).Get("/services/{id}/stream", serviceController.Stream)
 			protected.With(
 				withProjectPermission(authorizationService, services.PermissionServicesWrite, agentmiddleware.ProjectIDFromURLParamResource("id", authorizationService.ProjectIDForService)),

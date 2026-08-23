@@ -32,6 +32,22 @@ func (r *HealthCheckRepository) GetLatestByServiceID(ctx context.Context, servic
 	})
 }
 
+func (r *HealthCheckRepository) ListHistoryByServiceID(ctx context.Context, serviceID int64, filters types.ServiceHistoryFilters) ([]generated.HealthCheckResult, error) {
+	params := generated.ListHealthCheckHistoryByServiceIDParams{
+		ServiceID: serviceID,
+		LimitRows: filters.Limit,
+	}
+	if filters.Before != nil {
+		params.HasBefore = true
+		params.BeforeObservedAt = filters.Before.ObservedAt
+		params.BeforeID = filters.Before.ID
+	}
+
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.HealthCheckResult, error) {
+		return queries.ListHealthCheckHistoryByServiceID(ctx, params)
+	})
+}
+
 func (r *HealthCheckRepository) ListLatest(ctx context.Context, projectID *int64) ([]generated.HealthCheckResult, error) {
 	if projectID != nil {
 		return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.HealthCheckResult, error) {

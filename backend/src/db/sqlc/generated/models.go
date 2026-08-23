@@ -65,6 +65,9 @@ type AppEvent struct {
 type AppHealthCheckResult struct {
 	ID             int64           `json:"id"`
 	ServiceID      int64           `json:"service_id"`
+	NodeID         int64           `json:"node_id"`
+	CheckType      string          `json:"check_type"`
+	Source         string          `json:"source"`
 	ObservedAt     time.Time       `json:"observed_at"`
 	IsSuccess      bool            `json:"is_success"`
 	StatusCode     sql.NullInt32   `json:"status_code"`

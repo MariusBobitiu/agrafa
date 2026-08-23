@@ -1,17 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangleIcon,
   ArrowLeftIcon,
-  CheckCircle2Icon,
   ChevronRightIcon,
-  ClockIcon,
   GlobeIcon,
+  LoaderCircleIcon,
   NetworkIcon,
   PencilIcon,
   SirenIcon,
   TrashIcon,
-  XCircleIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button.tsx";
@@ -22,11 +20,33 @@ import { RelativeTime } from "@/components/relative-time.tsx";
 import { SectionHeading } from "@/components/section-heading.tsx";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
 import { CreateServiceDialog } from "./components/create-service-dialog.tsx";
-import { useService, useDeleteService, useServiceDetailStream } from "@/hooks/use-services.ts";
+import {
+  useDeleteService,
+  useService,
+  useServiceDetailStream,
+  useServiceHistory,
+  useServiceHistoryWindow,
+} from "@/hooks/use-services.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
 import { formatDate, cn } from "@/lib/utils.ts";
-import type { Service, ServiceAlert, HealthCheckSummary } from "@/types/service.ts";
+import type { Service, ServiceAlert } from "@/types/service.ts";
 import { useMeta } from "@/hooks/use-meta.ts";
+import {
+  HistoryLoadingState,
+  LatencyChart,
+  RecentChecksHeading,
+  RecentChecksList,
+  RecentCheckStrip,
+  ServiceHealthLoadingState,
+} from "./components/service-history.tsx";
+import {
+  calculateHistoryMetrics,
+  deduplicateHistory,
+  formatLatency,
+  formatUptime,
+  SERVICE_HISTORY_RANGES,
+  type ServiceHistoryRangeHours,
+} from "./service-history-utils.ts";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -55,64 +75,6 @@ function stateLabel(service: Service): string {
 
 function executionModeLabel(mode: Service["execution_mode"]) {
   return mode === "agent" ? "Project node" : "This instance";
-}
-
-function checkRowMessage(check: HealthCheckSummary): string {
-  if (check.is_success) return "Service responded normally";
-  if (!check.message) return "Check failed";
-
-  const n = check.message.toLowerCase();
-  if (n.includes("connection refused")) return "Connection refused";
-  if (n.includes("timeout") || n.includes("timed out")) return "Connection timed out";
-  if (n.includes("no such host") || n.includes("name resolution")) return "Host not found";
-  return check.message;
-}
-
-function approximateCheckHistory(service: Service, length = 12): boolean[] {
-  const latest = service.latest_health_check;
-  if (!latest) return [];
-
-  const failures = Math.max(0, service.consecutive_failures);
-
-  if (latest.is_success) {
-    const recentFailures = Math.min(failures, length - 1);
-    return Array.from({ length }, (_, i) => i >= recentFailures);
-  }
-
-  const trailingFailures = Math.max(1, Math.min(failures, length));
-  const leadingSuccesses = length - trailingFailures;
-  return Array.from({ length }, (_, i) => i < leadingSuccesses);
-}
-
-// ─── Check row ────────────────────────────────────────────────────────────────
-
-function CheckRow({ check }: { check: HealthCheckSummary }) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 min-w-0">
-      {check.is_success ? (
-        <CheckCircle2Icon size={14} className="text-primary shrink-0" />
-      ) : (
-        <XCircleIcon size={14} className="text-destructive shrink-0" />
-      )}
-      <div className="min-w-0 flex-1">
-        <p
-          className={cn(
-            "text-sm font-medium truncate",
-            check.is_success ? "text-foreground" : "text-destructive",
-          )}
-        >
-          {checkRowMessage(check)}
-        </p>
-      </div>
-      <div className="flex items-center gap-3 ml-2 shrink-0 text-xs text-muted-foreground tabular-nums">
-        {check.response_time_ms != null && <span>{check.response_time_ms}ms</span>}
-        <span>{check.status_code != null ? `HTTP ${check.status_code}` : "No response"}</span>
-        <span className="hidden sm:inline">
-          <RelativeTime value={check.observed_at} />
-        </span>
-      </div>
-    </div>
-  );
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -159,12 +121,21 @@ export function ServiceDetailPage() {
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [rangeHours, setRangeHours] = useState<ServiceHistoryRangeHours>(24);
   const serviceId = id ? parseInt(id, 10) : 0;
 
   const { data, isLoading, error } = useService(serviceId, { refetchInterval: false });
+  const historyWindow = useServiceHistoryWindow(serviceId, rangeHours);
+  const historyList = useServiceHistory(serviceId);
   useServiceDetailStream(serviceId, { enabled: serviceId > 0 });
   const service = data?.service;
   const deleteService = useDeleteService(activeProjectId ?? 0);
+  const rangeObservations = historyWindow.data?.observations ?? [];
+  const historyObservations = useMemo(
+    () => deduplicateHistory(historyList.data?.pages.flatMap((page) => page.observations) ?? []),
+    [historyList.data],
+  );
+  const metrics = calculateHistoryMetrics(rangeObservations);
 
   useMeta({
     title: service ? `${service.name} Details` : "Service Details",
@@ -225,7 +196,6 @@ export function ServiceDetailPage() {
   const isDegraded = latest
     ? !latest.is_success && service.status === "degraded"
     : service.status === "degraded";
-  const checkHistory = approximateCheckHistory(service, 12);
   const hasAgentBackedNode = service.execution_mode === "agent" && service.node_id > 0;
 
   return (
@@ -321,86 +291,159 @@ export function ServiceDetailPage() {
         {/* ── 2. Service health — visual section ── */}
         <section>
           <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Service Health
-            </h2>
-          </div>
-
-          {checkHistory.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">No checks have run yet.</p>
-          ) : (
-            <div className="flex items-start justify-between">
-              {/* State label */}
-              <div className="space-y-1">
-                <p
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Service Health
+              </h2>
+              <span className="inline-flex size-3.5 items-center justify-center" aria-live="polite">
+                {historyWindow.isFetching && !historyWindow.isPending ? (
+                  <LoaderCircleIcon
+                    className="size-3 animate-spin text-muted-foreground"
+                    aria-label={`Loading ${rangeHours === 168 ? "7D" : `${rangeHours}H`} history`}
+                  />
+                ) : null}
+              </span>
+            </div>
+            <div
+              className="inline-flex rounded-md border border-border bg-card p-0.5"
+              aria-label="History time range"
+            >
+              {SERVICE_HISTORY_RANGES.map((range) => (
+                <button
+                  key={range.label}
+                  type="button"
+                  aria-pressed={rangeHours === range.hours}
+                  onClick={() => setRangeHours(range.hours)}
                   className={cn(
-                    "text-4xl font-bold tracking-tight leading-none font-heading",
-                    isHealthy ? "text-primary" : "text-destructive",
+                    "rounded px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                    rangeHours === range.hours
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {stateLabel(service)}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {service.consecutive_failures > 0
-                    ? `${service.consecutive_failures} consecutive ${service.consecutive_failures === 1 ? "failure" : "failures"}`
-                    : "No recent failures"}
-                </p>
-              </div>
-              {/* Segmented check-history strip */}
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
-                  Recent Checks
-                </p>
-                <div className="flex items-center gap-1">
-                  {checkHistory.map((isSuccess, idx) => {
-                    const opacity = idx * 0.07 + 0.25; // Older checks are more transparent
-                    return (
-                      <span
-                        key={idx}
-                        style={{ opacity }}
-                        className={cn(
-                          "size-3  rounded-full",
-                          isSuccess ? "bg-primary" : "bg-destructive",
-                        )}
-                      />
-                    );
-                  })}
+                  {range.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {historyWindow.isPending ? (
+            <ServiceHealthLoadingState />
+          ) : historyWindow.isError ? (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-4">
+              <p className="text-sm text-destructive">Failed to load service history.</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 -ml-3 h-7 text-xs"
+                onClick={() => void historyWindow.refetch()}
+              >
+                Try again
+              </Button>
+            </div>
+          ) : rangeObservations.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center">
+              <p className="text-sm text-muted-foreground">No check history in this range.</p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-1">
+                  <p
+                    className={cn(
+                      "text-4xl font-bold leading-none tracking-tight font-heading",
+                      isHealthy ? "text-primary" : "text-destructive",
+                    )}
+                  >
+                    {stateLabel(service)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {rangeObservations.filter((observation) => observation.isSuccess).length} of{" "}
+                    {rangeObservations.length} checks successful
+                  </p>
                 </div>
-                {latest?.observed_at && (
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    Last checked: <RelativeTime value={latest.observed_at} />
-                  </span>
-                )}
+                <div className="min-w-0 space-y-2 md:max-w-[55%]">
+                  <p className="text-right text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                    Recent Checks
+                  </p>
+                  <RecentCheckStrip observations={rangeObservations} />
+                </div>
               </div>
+
+              <div className="grid grid-cols-3 divide-x divide-border rounded-lg border border-border bg-card">
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Uptime
+                  </p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
+                    {formatUptime(metrics.uptimePercent)}
+                  </p>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Avg latency
+                  </p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
+                    {formatLatency(metrics.averageLatencyMs)}
+                  </p>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Last checked
+                  </p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
+                    <RelativeTime value={metrics.lastCheckedAt} />
+                  </p>
+                </div>
+              </div>
+
+              <LatencyChart observations={rangeObservations} rangeHours={rangeHours} />
+              {historyWindow.data?.isTruncated ? (
+                <p className="text-xs text-muted-foreground">
+                  Summary uses the latest 2,000 observations in this range.
+                </p>
+              ) : null}
             </div>
           )}
         </section>
 
         {/* ── 3. Recent checks — dense list section ── */}
         <section>
-          <SectionHeading
-            icon={<ClockIcon size={13} />}
-            label="Recent Checks"
-            aside={latest ? <span className="text-xs text-muted-foreground">1</span> : undefined}
-          />
-          {!latest ? (
+          <RecentChecksHeading />
+          {historyList.isPending ? (
+            <HistoryLoadingState rows={10} />
+          ) : historyList.isError ? (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-4">
+              <p className="text-sm text-destructive">Failed to load recent checks.</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 -ml-3 h-7 text-xs"
+                onClick={() => void historyList.refetch()}
+              >
+                Try again
+              </Button>
+            </div>
+          ) : historyObservations.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border px-4 py-5 text-center">
-              <p className="text-sm text-muted-foreground">No check results yet.</p>
+              <p className="text-sm text-muted-foreground">No check history yet.</p>
             </div>
           ) : (
-            <div className="rounded-lg border border-border bg-card overflow-hidden divide-y divide-border">
-              {/* Left accent stripe matching Node page service rows */}
-              <div className="flex items-stretch">
-                <div
-                  className={cn(
-                    "w-0.5 shrink-0",
-                    latest.is_success ? "bg-primary" : "bg-destructive",
-                  )}
-                />
-                <div className="flex-1 min-w-0">
-                  <CheckRow check={latest} />
+            <div className="space-y-3">
+              <RecentChecksList observations={historyObservations} />
+              {historyList.hasNextPage ? (
+                <div className="flex justify-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={historyList.isFetchingNextPage}
+                    onClick={() => void historyList.fetchNextPage()}
+                    className="text-xs text-muted-foreground"
+                  >
+                    {historyList.isFetchingNextPage ? "Loading older checks…" : "Load older checks"}
+                  </Button>
                 </div>
-              </div>
+              ) : null}
             </div>
           )}
         </section>

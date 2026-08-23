@@ -55,6 +55,34 @@ func TestProjectScopeRLSMembershipBackedAuthorization(t *testing.T) {
 		})
 	})
 
+	t.Run("member can read service history in own project", func(t *testing.T) {
+		withSeededRLSTx(t, ctx, db, func(tx *sql.Tx) {
+			setRLSContext(t, ctx, tx, "usr_viewer", int64Ptr(-1001), stringPtr("viewer"), false)
+
+			var count int
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM app.health_check_results WHERE service_id = -3001`).Scan(&count); err != nil {
+				t.Fatalf("count service history: %v", err)
+			}
+			if count != 1 {
+				t.Fatalf("count = %d, want 1", count)
+			}
+		})
+	})
+
+	t.Run("member cannot read service history from another project", func(t *testing.T) {
+		withSeededRLSTx(t, ctx, db, func(tx *sql.Tx) {
+			setRLSContext(t, ctx, tx, "usr_viewer", int64Ptr(-1002), stringPtr("owner"), false)
+
+			var count int
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM app.health_check_results WHERE service_id = -3002`).Scan(&count); err != nil {
+				t.Fatalf("count service history: %v", err)
+			}
+			if count != 0 {
+				t.Fatalf("count = %d, want 0", count)
+			}
+		})
+	})
+
 	t.Run("viewer cannot write project resources", func(t *testing.T) {
 		withSeededRLSTx(t, ctx, db, func(tx *sql.Tx) {
 			setRLSContext(t, ctx, tx, "usr_viewer", int64Ptr(-1001), stringPtr("viewer"), false)
@@ -82,7 +110,7 @@ func TestProjectScopeRLSMembershipBackedAuthorization(t *testing.T) {
 		})
 	})
 
-	t.Run("owner only actions remain owner only", func(t *testing.T) {
+	t.Run("admin cannot perform owner only actions", func(t *testing.T) {
 		withSeededRLSTx(t, ctx, db, func(tx *sql.Tx) {
 			setRLSContext(t, ctx, tx, "usr_admin", int64Ptr(-1001), stringPtr("admin"), false)
 			if _, err := tx.ExecContext(ctx, `
@@ -91,7 +119,11 @@ func TestProjectScopeRLSMembershipBackedAuthorization(t *testing.T) {
 			`); err == nil {
 				t.Fatal("expected admin membership insert to be denied")
 			}
+		})
+	})
 
+	t.Run("owner can perform owner only actions", func(t *testing.T) {
+		withSeededRLSTx(t, ctx, db, func(tx *sql.Tx) {
 			setRLSContext(t, ctx, tx, "usr_owner", int64Ptr(-1001), stringPtr("owner"), false)
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO app.project_members (id, project_id, user_id, role)
@@ -145,6 +177,22 @@ func assertMigrationApplied(t *testing.T, ctx context.Context, db *sql.DB) {
 	if !exists {
 		t.Fatal("RLS migration is not applied; run migration 000013 before executing this test")
 	}
+
+	err = db.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'app'
+			  AND table_name = 'health_check_results'
+			  AND column_name = 'node_id'
+		)
+	`).Scan(&exists)
+	if err != nil {
+		t.Fatalf("check service history migration: %v", err)
+	}
+	if !exists {
+		t.Fatal("service history migration is not applied; run migration 000014 before executing this test")
+	}
 }
 
 func withSeededRLSTx(t *testing.T, ctx context.Context, db *sql.DB, fn func(*sql.Tx)) {
@@ -186,6 +234,12 @@ func seedRLSFixture(t *testing.T, ctx context.Context, tx *sql.Tx) {
 		`INSERT INTO app.nodes (id, project_id, name, identifier, current_state, metadata) VALUES
 			(-2001, -1001, 'Project One Node', 'project-one-node', 'offline', '{}'::jsonb),
 			(-2002, -1002, 'Project Two Node', 'project-two-node', 'offline', '{}'::jsonb)`,
+		`INSERT INTO app.services (id, project_id, node_id, name, check_type, check_target) VALUES
+			(-3001, -1001, -2001, 'Project One API', 'http', 'https://one.example.com/health'),
+			(-3002, -1002, -2002, 'Project Two TCP', 'tcp', 'two.example.com:443')`,
+		`INSERT INTO app.health_check_results (id, service_id, node_id, check_type, source, observed_at, is_success, status_code, response_time_ms, message, payload) VALUES
+			(-4001, -3001, -2001, 'http', 'agent', NOW(), TRUE, 200, 25, 'ok', '{}'::jsonb),
+			(-4002, -3002, -2002, 'tcp', 'managed', NOW(), FALSE, NULL, 40, 'connection refused', '{}'::jsonb)`,
 	}
 
 	for _, statement := range statements {
