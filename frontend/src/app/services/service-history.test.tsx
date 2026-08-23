@@ -1,4 +1,5 @@
 import {
+  environmentManager,
   InfiniteQueryObserver,
   QueryClient,
   QueryObserver,
@@ -16,6 +17,7 @@ import type {
 import type { ServiceHistoryWindow } from "@/types/service.ts";
 import {
   applyServiceDetailStreamPayload,
+  serviceHistoryRangeRefetchInterval,
   serviceHistoryKeys,
   serviceHistoryWindowQueryOptions,
 } from "@/hooks/use-services.ts";
@@ -25,6 +27,7 @@ import {
   RecentChecksList,
   RecentChecksPagination,
   ServiceHealthLoadingState,
+  ServiceHistoryEmptyState,
   ServiceHistoryRefreshError,
   ServiceHistoryRow,
 } from "./components/service-history.tsx";
@@ -32,6 +35,7 @@ import {
   calculateHistoryMetrics,
   deduplicateHistory,
   formatLatency,
+  formatObservationTooltipTime,
   getHistoryRowPresentation,
 } from "./service-history-utils.ts";
 
@@ -103,6 +107,8 @@ function historyEntry(item: ServiceHistoryObservation) {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
+  environmentManager.setIsServer(() => true);
 });
 
 describe("service history loading states", () => {
@@ -185,17 +191,43 @@ describe("service history loading states", () => {
     unsubscribe();
     client.clear();
   });
+
+  it("keeps an empty stale range visible with its refresh retry", async () => {
+    const emptyWindow: ServiceHistoryWindow = { observations: [], isTruncated: false };
+    vi.spyOn(servicesApi, "historyWindow")
+      .mockResolvedValueOnce(emptyWindow)
+      .mockRejectedValueOnce(new Error("offline"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const observer = new QueryObserver(client, serviceHistoryWindowQueryOptions(7, 24));
+    const unsubscribe = observer.subscribe(() => {});
+    await vi.waitFor(() => expect(observer.getCurrentResult().data).toBe(emptyWindow));
+    await observer.refetch();
+
+    const failedRefresh = observer.getCurrentResult();
+    expect(failedRefresh.isError).toBe(true);
+    expect(failedRefresh.data?.observations).toEqual([]);
+    const markup = renderToStaticMarkup(
+      <ServiceHistoryEmptyState refreshError={failedRefresh.isError} onRetry={() => {}} />,
+    );
+
+    expect(markup).toContain("No check history in this range.");
+    expect(markup).toContain("History refresh failed. Showing saved data.");
+    expect(markup).toContain("Try again");
+
+    unsubscribe();
+    client.clear();
+  });
 });
 
 describe("service history SSE refresh", () => {
-  it("prepends the streamed observation without a request and preserves older pages", () => {
+  it("grows page zero without creating a cursor gap or changing older pages", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const key = serviceHistoryKeys.list(7, 2);
-    const olderPage = historyPage([40, 39], "cursor-2");
-    const oldestPage = historyPage([20, 19]);
+    const key = serviceHistoryKeys.list(7, 20);
+    const pageZeroIDs = Array.from({ length: 20 }, (_, index) => 20 - index);
+    const olderPage = historyPage([99, 98], "cursor-2");
     const cached: InfiniteData<ServiceHistoryPage, string | null> = {
-      pages: [historyPage([60, 59], "cursor-1"), olderPage, oldestPage],
-      pageParams: [null, "cursor-1", "cursor-2"],
+      pages: [historyPage(pageZeroIDs, "cursor-1"), olderPage],
+      pageParams: [null, "cursor-1"],
     };
     const inactiveKey = serviceHistoryKeys.list(7, 50);
     const inactiveCached: InfiniteData<ServiceHistoryPage, string | null> = {
@@ -212,9 +244,9 @@ describe("service history SSE refresh", () => {
     const unsubscribe = observer.subscribe(() => {});
     const historyRequest = vi.spyOn(servicesApi, "history");
     const invalidate = vi.spyOn(client, "invalidateQueries");
-    const streamed = observation(61, { latencyMs: null });
+    const streamed = observation(21, { latencyMs: null });
 
-    applyServiceDetailStreamPayload(client, 7, {
+    await applyServiceDetailStreamPayload(client, 7, {
       service: serviceSnapshot(),
       observation: historyEntry(streamed),
     });
@@ -222,11 +254,17 @@ describe("service history SSE refresh", () => {
     const refreshed = client.getQueryData<InfiniteData<ServiceHistoryPage, string | null>>(key);
     expect(historyRequest).not.toHaveBeenCalled();
     expect(invalidate).not.toHaveBeenCalled();
-    expect(refreshed?.pages[0]?.observations.map((item) => item.id)).toEqual([61, 60]);
+    expect(refreshed?.pages[0]?.observations.map((item) => item.id)).toEqual([21, ...pageZeroIDs]);
     expect(refreshed?.pages[0]?.observations[0]?.latencyMs).toBeNull();
+    expect(refreshed?.pages[0]?.pagination.nextCursor).toBe("cursor-1");
     expect(refreshed?.pages[1]).toBe(olderPage);
-    expect(refreshed?.pages[2]).toBe(oldestPage);
     expect(refreshed?.pageParams).toBe(cached.pageParams);
+    expect(refreshed?.pages.flatMap((page) => page.observations).map((item) => item.id)).toEqual([
+      21,
+      ...pageZeroIDs,
+      99,
+      98,
+    ]);
     expect(client.getQueryData(inactiveKey)).toBe(inactiveCached);
     expect(client.getQueryData(["services", "detail", 7])).toEqual({
       service: serviceSnapshot(),
@@ -236,7 +274,7 @@ describe("service history SSE refresh", () => {
     client.clear();
   });
 
-  it("is idempotent by ID and retains newest-first ordering", () => {
+  it("is idempotent by ID and retains newest-first ordering", async () => {
     const client = new QueryClient();
     const key = serviceHistoryKeys.list(7, 20);
     const cached: InfiniteData<ServiceHistoryPage, string | null> = {
@@ -252,11 +290,11 @@ describe("service history SSE refresh", () => {
     const unsubscribe = observer.subscribe(() => {});
     const repeated = observation(2);
 
-    applyServiceDetailStreamPayload(client, 7, {
+    await applyServiceDetailStreamPayload(client, 7, {
       service: serviceSnapshot(),
       observation: historyEntry(repeated),
     });
-    applyServiceDetailStreamPayload(client, 7, {
+    await applyServiceDetailStreamPayload(client, 7, {
       service: serviceSnapshot(),
       observation: historyEntry(repeated),
     });
@@ -268,7 +306,7 @@ describe("service history SSE refresh", () => {
     client.clear();
   });
 
-  it("updates only loaded in-range windows and does not create unrelated queries", () => {
+  it("updates only loaded in-range windows and does not create unrelated queries", async () => {
     const client = new QueryClient();
     const rangeKey = serviceHistoryKeys.window(7, 24);
     const streamedAt = new Date();
@@ -281,7 +319,7 @@ describe("service history SSE refresh", () => {
     client.setQueryData(rangeKey, rangeData);
     const streamed = observation(62, { observedAt: streamedAt.toISOString() });
 
-    applyServiceDetailStreamPayload(client, 7, {
+    await applyServiceDetailStreamPayload(client, 7, {
       service: serviceSnapshot(),
       observation: historyEntry(
         observation(62, {
@@ -301,9 +339,150 @@ describe("service history SSE refresh", () => {
     client.clear();
   });
 
+  it("cancels older in-flight recent and range responses before applying SSE data", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const recentKey = serviceHistoryKeys.list(7, 20);
+    const rangeKey = serviceHistoryKeys.window(7, 24);
+    const initialPage = historyPage([2, 1]);
+    const initialRange: ServiceHistoryWindow = {
+      observations: [observation(2), observation(1)],
+      isTruncated: false,
+    };
+    let resolveRecent: ((page: ServiceHistoryPage) => void) | undefined;
+    let resolveRange: ((window: ServiceHistoryWindow) => void) | undefined;
+    const recentObserver = new InfiniteQueryObserver(client, {
+      queryKey: recentKey,
+      queryFn: () =>
+        new Promise<ServiceHistoryPage>((resolve) => {
+          resolveRecent = resolve;
+        }),
+      initialPageParam: null as string | null,
+      getNextPageParam: (lastPage) => lastPage.pagination.nextCursor ?? undefined,
+      initialData: { pages: [initialPage], pageParams: [null] },
+      staleTime: Infinity,
+    });
+    const rangeObserver = new QueryObserver(client, {
+      queryKey: rangeKey,
+      queryFn: () =>
+        new Promise<ServiceHistoryWindow>((resolve) => {
+          resolveRange = resolve;
+        }),
+      initialData: initialRange,
+      staleTime: Infinity,
+    });
+    const unsubscribeRecent = recentObserver.subscribe(() => {});
+    const unsubscribeRange = rangeObserver.subscribe(() => {});
+    const recentFetch = recentObserver.refetch();
+    const rangeFetch = rangeObserver.refetch();
+    await vi.waitFor(() => {
+      expect(recentObserver.getCurrentResult().isFetching).toBe(true);
+      expect(rangeObserver.getCurrentResult().isFetching).toBe(true);
+    });
+
+    const streamed = observation(3);
+    await applyServiceDetailStreamPayload(client, 7, {
+      service: serviceSnapshot(),
+      observation: historyEntry(streamed),
+    });
+    resolveRecent?.(initialPage);
+    resolveRange?.(initialRange);
+    await Promise.all([recentFetch, rangeFetch]);
+
+    expect(
+      client.getQueryData<InfiniteData<ServiceHistoryPage, string | null>>(recentKey)?.pages[0]
+        ?.observations[0]?.id,
+    ).toBe(3);
+    expect(client.getQueryData<ServiceHistoryWindow>(rangeKey)?.observations[0]?.id).toBe(3);
+
+    unsubscribeRecent();
+    unsubscribeRange();
+    client.clear();
+  });
+
+  it("keeps the authoritative range refresh due at its original cadence", async () => {
+    environmentManager.setIsServer(() => false);
+    vi.useFakeTimers();
+    const startedAt = new Date("2026-08-23T12:00:00Z");
+    vi.setSystemTime(startedAt);
+    const client = new QueryClient();
+    const rangeKey = serviceHistoryKeys.window(7, 24);
+    client.setQueryData<ServiceHistoryWindow>(rangeKey, {
+      observations: [],
+      isTruncated: false,
+    });
+    const authoritativeFetch = vi.spyOn(servicesApi, "historyWindow").mockResolvedValue({
+      observations: [observation(100)],
+      isTruncated: false,
+    });
+    const observer = new QueryObserver(client, {
+      ...serviceHistoryWindowQueryOptions(7, 24),
+      staleTime: Infinity,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+
+    for (const seconds of [15, 30, 45]) {
+      await vi.advanceTimersByTimeAsync(15_000);
+      const streamed = observation(seconds, { observedAt: new Date().toISOString() });
+      await applyServiceDetailStreamPayload(client, 7, {
+        service: serviceSnapshot(),
+        observation: historyEntry(streamed),
+      });
+    }
+
+    expect(authoritativeFetch).not.toHaveBeenCalled();
+    expect(serviceHistoryRangeRefetchInterval(client.getQueryState(rangeKey)!)).toBe(15_000);
+    await vi.advanceTimersByTimeAsync(14_999);
+    expect(authoritativeFetch).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(authoritativeFetch).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    client.clear();
+  });
+
+  it("allows a full range cache to grow without falsely changing truncation metadata", async () => {
+    const client = new QueryClient();
+    const rangeKey = serviceHistoryKeys.window(7, 168);
+    const cached = Array.from({ length: 2_000 }, (_, index) =>
+      observation(index + 1, { observedAt: new Date(Date.now() - index * 1_000).toISOString() }),
+    );
+    client.setQueryData<ServiceHistoryWindow>(rangeKey, {
+      observations: cached,
+      isTruncated: false,
+    });
+    const streamed = observation(2_001, { observedAt: new Date().toISOString() });
+
+    await applyServiceDetailStreamPayload(client, 7, {
+      service: serviceSnapshot(),
+      observation: historyEntry(streamed),
+    });
+    await applyServiceDetailStreamPayload(client, 7, {
+      service: serviceSnapshot(),
+      observation: historyEntry(streamed),
+    });
+
+    const updated = client.getQueryData<ServiceHistoryWindow>(rangeKey);
+    expect(updated?.observations).toHaveLength(2_001);
+    expect(updated?.isTruncated).toBe(false);
+    client.clear();
+  });
+
   it("ignores absent or malformed streamed observations", () => {
     expect(toHistoryObservation(undefined)).toBeNull();
     expect(toHistoryObservation({ id: 1, response_time_ms: 0 })).toBeNull();
+  });
+
+  it("normalizes canonical and uppercase HTTP/TCP check types", () => {
+    const base = historyEntry(observation(1));
+    for (const [input, expected] of [
+      ["HTTP", "http"],
+      ["http", "http"],
+      ["TCP", "tcp"],
+      ["tcp", "tcp"],
+    ] as const) {
+      expect(toHistoryObservation({ ...base, check_type: input })?.checkType).toBe(expected);
+    }
+    expect(toHistoryObservation({ ...base, check_type: "SMTP" })).toBeNull();
   });
 });
 
@@ -431,17 +610,11 @@ describe("service history rows", () => {
     expect(markup).not.toContain("internal diagnostic details");
   });
 
-  it("includes the date in multi-day chart tooltips without cluttering short ranges", () => {
-    const multiDay = renderToStaticMarkup(
-      <ObservationTooltip observation={observation(1)} rangeHours={168} />,
+  it("formats multi-day chart tooltips deterministically without cluttering short ranges", () => {
+    expect(formatObservationTooltipTime(observation(1).observedAt, 168, "UTC")).toBe(
+      "23 Aug, 12:00:01",
     );
-    const shortRange = renderToStaticMarkup(
-      <ObservationTooltip observation={observation(1)} rangeHours={6} />,
-    );
-
-    expect(multiDay).toMatch(/23 Aug, \d{2}:00:01/);
-    expect(shortRange).toMatch(/\d{2}:00:01/);
-    expect(shortRange).not.toContain("23 Aug");
+    expect(formatObservationTooltipTime(observation(1).observedAt, 6, "UTC")).toBe("12:00:01");
   });
 });
 

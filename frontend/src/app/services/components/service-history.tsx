@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatDate, cn } from "@/lib/utils.ts";
 import type { ServiceHistoryObservation } from "@/types/service.ts";
 import {
+  formatObservationTooltipTime,
   getHistoryRowPresentation,
   type ServiceHistoryRangeHours,
 } from "../service-history-utils.ts";
@@ -29,21 +30,6 @@ type ChartPoint = {
   failureLatency: number | null;
   observation: ServiceHistoryObservation;
 };
-
-const TOOLTIP_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: false,
-});
-const MULTI_DAY_TOOLTIP_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: false,
-});
 
 function buildChartData(observations: ServiceHistoryObservation[]): ChartPoint[] {
   return [...observations]
@@ -64,15 +50,6 @@ function tickTime(timestamp: number, rangeHours: ServiceHistoryRangeHours): stri
   ).format(timestamp);
 }
 
-function tooltipTime(observedAt: string, rangeHours?: ServiceHistoryRangeHours): string {
-  const timestamp = Date.parse(observedAt);
-  if (rangeHours != null && rangeHours > 24) {
-    return MULTI_DAY_TOOLTIP_TIME_FORMATTER.format(timestamp);
-  }
-
-  return TOOLTIP_TIME_FORMATTER.format(timestamp);
-}
-
 export function ObservationTooltip({
   observation,
   rangeHours,
@@ -83,7 +60,9 @@ export function ObservationTooltip({
   const presentation = getHistoryRowPresentation(observation);
   return (
     <div className="space-y-0.5 text-xs tabular-nums">
-      <p className="text-muted-foreground">{tooltipTime(observation.observedAt, rangeHours)}</p>
+      <p className="text-muted-foreground">
+        {formatObservationTooltipTime(observation.observedAt, rangeHours)}
+      </p>
       <p
         className={cn(
           "font-medium",
@@ -358,6 +337,23 @@ export function ServiceHistoryRefreshError({ onRetry }: { onRetry: () => void })
       <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onRetry}>
         Try again
       </Button>
+    </div>
+  );
+}
+
+export function ServiceHistoryEmptyState({
+  refreshError,
+  onRetry,
+}: {
+  refreshError: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {refreshError ? <ServiceHistoryRefreshError onRetry={onRetry} /> : null}
+      <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center">
+        <p className="text-sm text-muted-foreground">No check history in this range.</p>
+      </div>
     </div>
   );
 }

@@ -23,7 +23,7 @@ export type ServiceHistoryParams = {
 };
 
 const HISTORY_WINDOW_PAGE_SIZE = 500;
-export const MAX_HISTORY_WINDOW_OBSERVATIONS = 2_000;
+const MAX_HISTORY_WINDOW_OBSERVATIONS = 2_000;
 const MAX_HISTORY_WINDOW_PAGES = MAX_HISTORY_WINDOW_OBSERVATIONS / HISTORY_WINDOW_PAGE_SIZE;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -33,7 +33,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function toHistoryObservation(entry: unknown): ServiceHistoryObservation | null {
   if (!isRecord(entry)) return null;
 
-  const checkType = entry["check_type"];
+  const rawCheckType = entry["check_type"];
+  const checkType = typeof rawCheckType === "string" ? rawCheckType.trim().toLowerCase() : null;
   const observedAt = entry["observed_at"];
   const statusCode = entry["status_code"];
   const responseTimeMs = entry["response_time_ms"];

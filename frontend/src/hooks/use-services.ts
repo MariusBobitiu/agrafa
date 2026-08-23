@@ -2,17 +2,14 @@ import {
   type InfiniteData,
   keepPreviousData,
   type QueryClient,
+  type QueryState,
   queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import {
-  MAX_HISTORY_WINDOW_OBSERVATIONS,
-  servicesApi,
-  toHistoryObservation,
-} from "@/data/services.ts";
+import { servicesApi, toHistoryObservation } from "@/data/services.ts";
 import { useSSE } from "@/hooks/use-sse.ts";
 import type {
   Service,
@@ -32,6 +29,18 @@ export const serviceHistoryKeys = {
     [...serviceHistoryKeys.service(id), "window", rangeHours] as const,
 };
 
+export const SERVICE_HISTORY_RANGE_REFETCH_INTERVAL_MS = 60_000;
+
+export function serviceHistoryRangeRefetchInterval(
+  state: Pick<QueryState<unknown, Error>, "dataUpdatedAt" | "errorUpdatedAt" | "fetchStatus">,
+) {
+  if (state.fetchStatus === "fetching") return SERVICE_HISTORY_RANGE_REFETCH_INTERVAL_MS;
+
+  const lastAuthoritativeUpdate = Math.max(state.dataUpdatedAt, state.errorUpdatedAt);
+  const elapsed = Date.now() - lastAuthoritativeUpdate;
+  return Math.max(1, SERVICE_HISTORY_RANGE_REFETCH_INTERVAL_MS - elapsed);
+}
+
 function newestObservationFirst(left: ServiceHistoryObservation, right: ServiceHistoryObservation) {
   const timestampDifference = Date.parse(right.observedAt) - Date.parse(left.observedAt);
   return timestampDifference || right.id - left.id;
@@ -50,9 +59,6 @@ export function updateServiceHistoryCaches(
     .filter((query) => query.getObserversCount() > 0 && query.state.data != null);
 
   for (const query of activeListQueries) {
-    const limit = query.queryKey.at(-1);
-    if (typeof limit !== "number" || limit <= 0) continue;
-
     queryClient.setQueryData<InfiniteData<ServiceHistoryPage, string | null>>(
       query.queryKey,
       (current) => {
@@ -62,15 +68,14 @@ export function updateServiceHistoryCaches(
         const observations = [
           observation,
           ...firstPage.observations.filter((item) => item.id !== observation.id),
-        ]
-          .sort(newestObservationFirst)
-          .slice(0, limit);
+        ].sort(newestObservationFirst);
 
         return {
           ...current,
           pages: [{ ...firstPage, observations }, ...current.pages.slice(1)],
         };
       },
+      { updatedAt: query.state.dataUpdatedAt },
     );
   }
 
@@ -84,18 +89,20 @@ export function updateServiceHistoryCaches(
     if (typeof rangeHours !== "number" || rangeHours <= 0) continue;
     if (Date.parse(observation.observedAt) < Date.now() - rangeHours * 60 * 60 * 1_000) continue;
 
-    queryClient.setQueryData<ServiceHistoryWindow>(query.queryKey, (current) => {
-      if (!current) return current;
+    queryClient.setQueryData<ServiceHistoryWindow>(
+      query.queryKey,
+      (current) => {
+        if (!current) return current;
 
-      const observations = [
-        observation,
-        ...current.observations.filter((item) => item.id !== observation.id),
-      ]
-        .sort(newestObservationFirst)
-        .slice(0, MAX_HISTORY_WINDOW_OBSERVATIONS);
+        const observations = [
+          observation,
+          ...current.observations.filter((item) => item.id !== observation.id),
+        ].sort(newestObservationFirst);
 
-      return { ...current, observations };
-    });
+        return { ...current, observations };
+      },
+      { updatedAt: query.state.dataUpdatedAt },
+    );
   }
 }
 
@@ -134,7 +141,7 @@ export type ServiceDetailStreamPayload = {
   observation?: unknown;
 };
 
-export function applyServiceDetailStreamPayload(
+export async function applyServiceDetailStreamPayload(
   queryClient: QueryClient,
   id: number,
   payload: ServiceDetailStreamPayload,
@@ -142,7 +149,29 @@ export function applyServiceDetailStreamPayload(
   queryClient.setQueryData(["services", "detail", id], { service: payload.service });
 
   const observation = toHistoryObservation(payload.observation);
-  if (observation) updateServiceHistoryCaches(queryClient, id, observation);
+  if (!observation || observation.serviceId !== id) return;
+
+  const affectedQueries = queryClient
+    .getQueryCache()
+    .findAll({ queryKey: serviceHistoryKeys.service(id) })
+    .filter((query) => {
+      if (query.state.data == null) return false;
+      if (query.queryKey[3] === "list") return query.getObserversCount() > 0;
+      if (query.queryKey[3] !== "window") return false;
+
+      const rangeHours = query.queryKey[4];
+      return (
+        typeof rangeHours === "number" &&
+        Date.parse(observation.observedAt) >= Date.now() - rangeHours * 60 * 60 * 1_000
+      );
+    });
+
+  await Promise.all(
+    affectedQueries.map((query) =>
+      queryClient.cancelQueries({ queryKey: query.queryKey, exact: true }, { silent: true }),
+    ),
+  );
+  updateServiceHistoryCaches(queryClient, id, observation);
 }
 
 export function useServiceDetailStream(id: number, options?: { enabled?: boolean }) {
@@ -151,7 +180,7 @@ export function useServiceDetailStream(id: number, options?: { enabled?: boolean
   useSSE<ServiceDetailStreamPayload>({
     enabled: (options?.enabled ?? true) && id > 0,
     path: `/services/${id}/stream`,
-    onMessage: (payload) => applyServiceDetailStreamPayload(qc, id, payload),
+    onMessage: (payload) => void applyServiceDetailStreamPayload(qc, id, payload),
   });
 }
 
@@ -175,7 +204,7 @@ export function serviceHistoryWindowQueryOptions(id: number, rangeHours: number)
     queryFn: () =>
       servicesApi.historyWindow(id, new Date(Date.now() - rangeHours * 60 * 60 * 1_000)),
     enabled: id > 0,
-    refetchInterval: 60_000,
+    refetchInterval: (query) => serviceHistoryRangeRefetchInterval(query.state),
     placeholderData: keepPreviousData,
   });
 }

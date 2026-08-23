@@ -177,6 +177,55 @@ func (q *Queries) ListHealthCheckHistoryByServiceID(ctx context.Context, arg Lis
 	return items, nil
 }
 
+const listHealthCheckResultsByServiceIDAfterID = `-- name: ListHealthCheckResultsByServiceIDAfterID :many
+SELECT id, service_id, node_id, check_type, source, observed_at, is_success, status_code, response_time_ms, message, payload, created_at
+FROM app.health_check_results
+WHERE service_id = $1
+  AND id > $2
+ORDER BY id ASC
+`
+
+type ListHealthCheckResultsByServiceIDAfterIDParams struct {
+	ServiceID int64 `json:"service_id"`
+	AfterID   int64 `json:"after_id"`
+}
+
+func (q *Queries) ListHealthCheckResultsByServiceIDAfterID(ctx context.Context, arg ListHealthCheckResultsByServiceIDAfterIDParams) ([]AppHealthCheckResult, error) {
+	rows, err := q.db.QueryContext(ctx, listHealthCheckResultsByServiceIDAfterID, arg.ServiceID, arg.AfterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppHealthCheckResult{}
+	for rows.Next() {
+		var i AppHealthCheckResult
+		if err := rows.Scan(
+			&i.ID,
+			&i.ServiceID,
+			&i.NodeID,
+			&i.CheckType,
+			&i.Source,
+			&i.ObservedAt,
+			&i.IsSuccess,
+			&i.StatusCode,
+			&i.ResponseTimeMs,
+			&i.Message,
+			&i.Payload,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLatestHealthCheckResults = `-- name: ListLatestHealthCheckResults :many
 SELECT DISTINCT ON (h.service_id)
     h.id, h.service_id, h.node_id, h.check_type, h.source, h.observed_at, h.is_success, h.status_code, h.response_time_ms, h.message, h.payload, h.created_at

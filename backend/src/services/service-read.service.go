@@ -24,8 +24,28 @@ type serviceReadNodeRepository interface {
 
 type serviceReadHealthCheckRepository interface {
 	GetLatestByServiceID(ctx context.Context, serviceID int64) (generated.HealthCheckResult, error)
+	ListByServiceIDAfterID(ctx context.Context, serviceID int64, afterID int64) ([]generated.HealthCheckResult, error)
 	ListLatestForRead(ctx context.Context, filters types.ServiceListFilters) ([]generated.HealthCheckResult, error)
 	ListHistoryByServiceID(ctx context.Context, serviceID int64, filters types.ServiceHistoryFilters) ([]generated.HealthCheckResult, error)
+}
+
+func (s *ServiceReadService) ListStreamObservations(ctx context.Context, serviceID int64, afterID int64) ([]types.ServiceHistoryEntryData, error) {
+	if serviceID <= 0 {
+		return nil, types.ErrInvalidServiceID
+	}
+
+	rows, err := s.healthCheckRepo.ListByServiceIDAfterID(ctx, serviceID, afterID)
+	if err != nil {
+		return nil, fmt.Errorf("list streamed service observations: %w", err)
+	}
+
+	sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
+	observations := make([]types.ServiceHistoryEntryData, 0, len(rows))
+	for _, row := range rows {
+		observations = append(observations, mapServiceHistoryEntry(row))
+	}
+
+	return observations, nil
 }
 
 const (

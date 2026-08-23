@@ -7,6 +7,54 @@ export const SERVICE_HISTORY_RANGES = [
   { label: "7D", hours: 24 * 7 },
 ] as const;
 
+const TOOLTIP_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+const MULTI_DAY_TOOLTIP_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+const UTC_TOOLTIP_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+  timeZone: "UTC",
+});
+const UTC_MULTI_DAY_TOOLTIP_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+  timeZone: "UTC",
+});
+
+export function formatObservationTooltipTime(
+  observedAt: string,
+  rangeHours?: ServiceHistoryRangeHours,
+  timeZone?: "UTC",
+): string {
+  const timestamp = Date.parse(observedAt);
+  if (rangeHours != null && rangeHours > 24) {
+    return (
+      timeZone === "UTC" ? UTC_MULTI_DAY_TOOLTIP_TIME_FORMATTER : MULTI_DAY_TOOLTIP_TIME_FORMATTER
+    ).format(timestamp);
+  }
+
+  return (timeZone === "UTC" ? UTC_TOOLTIP_TIME_FORMATTER : TOOLTIP_TIME_FORMATTER).format(
+    timestamp,
+  );
+}
+
 export type ServiceHistoryRangeHours = (typeof SERVICE_HISTORY_RANGES)[number]["hours"];
 
 export type ServiceHistoryMetrics = {

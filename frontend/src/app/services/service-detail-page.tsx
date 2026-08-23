@@ -39,6 +39,7 @@ import {
   RecentChecksList,
   RecentCheckStrip,
   ServiceHealthLoadingState,
+  ServiceHistoryEmptyState,
   ServiceHistoryRefreshError,
 } from "./components/service-history.tsx";
 import {
@@ -344,9 +345,10 @@ export function ServiceDetailPage() {
               </Button>
             </div>
           ) : rangeObservations.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center">
-              <p className="text-sm text-muted-foreground">No check history in this range.</p>
-            </div>
+            <ServiceHistoryEmptyState
+              refreshError={historyWindow.isError}
+              onRetry={() => void historyWindow.refetch()}
+            />
           ) : (
             <div className="space-y-5">
               {historyWindow.isError ? (
