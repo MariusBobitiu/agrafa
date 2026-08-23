@@ -32,6 +32,15 @@ func (r *HealthCheckRepository) GetLatestByServiceID(ctx context.Context, servic
 	})
 }
 
+func (r *HealthCheckRepository) ListByServiceIDAfterID(ctx context.Context, serviceID int64, afterID int64) ([]generated.HealthCheckResult, error) {
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.HealthCheckResult, error) {
+		return queries.ListHealthCheckResultsByServiceIDAfterID(ctx, generated.ListHealthCheckResultsByServiceIDAfterIDParams{
+			ServiceID: serviceID,
+			AfterID:   afterID,
+		})
+	})
+}
+
 func (r *HealthCheckRepository) ListHistoryByServiceID(ctx context.Context, serviceID int64, filters types.ServiceHistoryFilters) ([]generated.HealthCheckResult, error) {
 	params := generated.ListHealthCheckHistoryByServiceIDParams{
 		ServiceID: serviceID,

@@ -31,6 +31,13 @@ WHERE service_id = $1
 ORDER BY observed_at DESC, id DESC
 LIMIT 1;
 
+-- name: ListHealthCheckResultsByServiceIDAfterID :many
+SELECT *
+FROM app.health_check_results
+WHERE service_id = $1
+  AND id > sqlc.arg(after_id)
+ORDER BY id ASC;
+
 -- name: ListLatestHealthCheckResults :many
 SELECT DISTINCT ON (h.service_id)
     h.*

@@ -14,11 +14,31 @@ import (
 )
 
 type staticServiceReader struct {
-	service types.ServiceDetailData
-	history types.ServiceHistoryPageData
-	err     error
-	calls   int
-	filters types.ServiceHistoryFilters
+	service            types.ServiceDetailData
+	observation        *types.ServiceHistoryEntryData
+	streamObservations []types.ServiceHistoryEntryData
+	streamWatermarks   []int64
+	history            types.ServiceHistoryPageData
+	err                error
+	calls              int
+	filters            types.ServiceHistoryFilters
+}
+
+func (r *staticServiceReader) ListStreamObservations(_ context.Context, _ int64, afterID int64) ([]types.ServiceHistoryEntryData, error) {
+	r.calls++
+	r.streamWatermarks = append(r.streamWatermarks, afterID)
+	observations := make([]types.ServiceHistoryEntryData, 0, len(r.streamObservations))
+	for _, observation := range r.streamObservations {
+		if observation.ID > afterID {
+			observations = append(observations, observation)
+		}
+	}
+	return observations, r.err
+}
+
+func (r *staticServiceReader) GetStreamSnapshot(_ context.Context, _ int64) (types.ServiceStreamData, error) {
+	r.calls++
+	return types.ServiceStreamData{Service: r.service, Observation: r.observation}, r.err
 }
 
 func (r *staticServiceReader) GetByID(_ context.Context, _ int64) (types.ServiceDetailData, error) {
@@ -110,6 +130,7 @@ func int32Pointer(value int32) *int32 {
 func TestServiceControllerStreamSendsInitialSnapshot(t *testing.T) {
 	t.Parallel()
 
+	observedAt := time.Date(2026, 4, 19, 10, 2, 0, 0, time.UTC)
 	controller := NewServiceController(nil, &staticServiceReader{
 		service: types.ServiceDetailData{
 			ID:                  21,
@@ -124,12 +145,16 @@ func TestServiceControllerStreamSendsInitialSnapshot(t *testing.T) {
 			ActiveAlertCount:    1,
 			ActiveAlerts:        []types.ServiceActiveAlertData{},
 			LatestHealthCheck: &types.HealthCheckSummaryData{
-				ObservedAt:     time.Date(2026, 4, 19, 10, 2, 0, 0, time.UTC),
+				ObservedAt:     observedAt,
 				IsSuccess:      true,
 				StatusCode:     nil,
 				ResponseTimeMs: nil,
 				Message:        "ok",
 			},
+		},
+		observation: &types.ServiceHistoryEntryData{
+			ID: 42, ServiceID: 21, NodeID: 31, CheckType: "http", Source: "agent",
+			ObservedAt: observedAt, IsSuccess: true, ResponseTimeMs: nil, Message: "ok", Metadata: map[string]any{"runner": "agent"},
 		},
 	})
 	controller.streamInterval = 10 * time.Millisecond
@@ -155,5 +180,51 @@ func TestServiceControllerStreamSendsInitialSnapshot(t *testing.T) {
 	}
 	if !strings.Contains(body, `data: {"service":{"id":21`) {
 		t.Fatalf("expected initial snapshot in stream body: %s", body)
+	}
+	if !strings.Contains(body, `"observation":{"id":42,"service_id":21,"node_id":31,"check_type":"http"`) {
+		t.Fatalf("expected persisted observation in stream body: %s", body)
+	}
+	if !strings.Contains(body, `"response_time_ms":null`) {
+		t.Fatalf("expected nullable latency in stream body: %s", body)
+	}
+}
+
+func TestServiceControllerStreamDeliversEveryUnseenObservationOnceByPersistedID(t *testing.T) {
+	t.Parallel()
+
+	initialObservedAt := time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
+	reader := &staticServiceReader{
+		service: types.ServiceDetailData{ID: 21},
+		observation: &types.ServiceHistoryEntryData{
+			ID: 10, ServiceID: 21, CheckType: "http", ObservedAt: initialObservedAt,
+		},
+		streamObservations: []types.ServiceHistoryEntryData{
+			{ID: 11, ServiceID: 21, CheckType: "http", ObservedAt: initialObservedAt.Add(time.Minute)},
+			{ID: 12, ServiceID: 21, CheckType: "http", ObservedAt: initialObservedAt.Add(-time.Hour)},
+		},
+	}
+	controller := NewServiceController(nil, reader)
+	controller.streamInterval = 5 * time.Millisecond
+	controller.streamMaxDuration = 24 * time.Millisecond
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/services/21/stream", nil)
+	routeContext := chi.NewRouteContext()
+	routeContext.URLParams.Add("id", "21")
+	request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, routeContext))
+	recorder := httptest.NewRecorder()
+
+	controller.Stream(recorder, request)
+
+	body := recorder.Body.String()
+	id11 := `"observation":{"id":11`
+	id12 := `"observation":{"id":12`
+	if strings.Count(body, id11) != 1 || strings.Count(body, id12) != 1 {
+		t.Fatalf("unseen observation delivery counts are wrong: %s", body)
+	}
+	if strings.Index(body, id11) > strings.Index(body, id12) {
+		t.Fatalf("observations were not delivered in persisted ID order: %s", body)
+	}
+	if len(reader.streamWatermarks) < 2 || reader.streamWatermarks[0] != 10 || reader.streamWatermarks[1] != 12 {
+		t.Fatalf("stream watermarks = %#v, want first 10 then 12", reader.streamWatermarks)
 	}
 }

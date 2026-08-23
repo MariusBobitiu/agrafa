@@ -12,11 +12,13 @@ import {
 } from "recharts";
 import { RelativeTime } from "@/components/relative-time.tsx";
 import { SectionHeading } from "@/components/section-heading.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { formatDate, cn } from "@/lib/utils.ts";
 import type { ServiceHistoryObservation } from "@/types/service.ts";
 import {
+  formatObservationTooltipTime,
   getHistoryRowPresentation,
   type ServiceHistoryRangeHours,
 } from "../service-history-utils.ts";
@@ -28,13 +30,6 @@ type ChartPoint = {
   failureLatency: number | null;
   observation: ServiceHistoryObservation;
 };
-
-const TOOLTIP_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: false,
-});
 
 function buildChartData(observations: ServiceHistoryObservation[]): ChartPoint[] {
   return [...observations]
@@ -55,15 +50,19 @@ function tickTime(timestamp: number, rangeHours: ServiceHistoryRangeHours): stri
   ).format(timestamp);
 }
 
-function tooltipTime(observedAt: string): string {
-  return TOOLTIP_TIME_FORMATTER.format(Date.parse(observedAt));
-}
-
-export function ObservationTooltip({ observation }: { observation: ServiceHistoryObservation }) {
+export function ObservationTooltip({
+  observation,
+  rangeHours,
+}: {
+  observation: ServiceHistoryObservation;
+  rangeHours?: ServiceHistoryRangeHours;
+}) {
   const presentation = getHistoryRowPresentation(observation);
   return (
     <div className="space-y-0.5 text-xs tabular-nums">
-      <p className="text-muted-foreground">{tooltipTime(observation.observedAt)}</p>
+      <p className="text-muted-foreground">
+        {formatObservationTooltipTime(observation.observedAt, rangeHours)}
+      </p>
       <p
         className={cn(
           "font-medium",
@@ -80,16 +79,18 @@ export function ObservationTooltip({ observation }: { observation: ServiceHistor
 function LatencyTooltip({
   active,
   payload,
+  rangeHours,
 }: {
   active?: boolean;
   payload?: ReadonlyArray<{ payload: ChartPoint }>;
+  rangeHours: ServiceHistoryRangeHours;
 }) {
   const observation = payload?.[0]?.payload.observation;
   if (!active || !observation) return null;
 
   return (
     <div className="rounded-md border border-border bg-popover px-3 py-2 text-xs shadow-md">
-      <ObservationTooltip observation={observation} />
+      <ObservationTooltip observation={observation} rangeHours={rangeHours} />
     </div>
   );
 }
@@ -146,7 +147,7 @@ export function LatencyChart({
             domain={[0, "auto"]}
           />
           <ChartTooltip
-            content={<LatencyTooltip />}
+            content={<LatencyTooltip rangeHours={rangeHours} />}
             cursor={{ stroke: "var(--muted-foreground)", strokeDasharray: "3 3", opacity: 0.35 }}
           />
           <Area
@@ -191,7 +192,13 @@ export function LatencyChart({
   );
 }
 
-export function RecentCheckStrip({ observations }: { observations: ServiceHistoryObservation[] }) {
+export function RecentCheckStrip({
+  observations,
+  rangeHours,
+}: {
+  observations: ServiceHistoryObservation[];
+  rangeHours?: ServiceHistoryRangeHours;
+}) {
   const recent = observations.slice(0, 24).reverse();
 
   return (
@@ -210,7 +217,7 @@ export function RecentCheckStrip({ observations }: { observations: ServiceHistor
             />
           </TooltipTrigger>
           <TooltipContent side="top">
-            <ObservationTooltip observation={observation} />
+            <ObservationTooltip observation={observation} rangeHours={rangeHours} />
           </TooltipContent>
         </Tooltip>
       ))}
@@ -318,4 +325,72 @@ export function RecentChecksList({ observations }: { observations: ServiceHistor
 
 export function RecentChecksHeading() {
   return <SectionHeading icon={<ClockIcon size={13} />} label="Recent Checks" />;
+}
+
+export function ServiceHistoryRefreshError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2"
+      role="status"
+    >
+      <p className="text-xs text-muted-foreground">History refresh failed. Showing saved data.</p>
+      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onRetry}>
+        Try again
+      </Button>
+    </div>
+  );
+}
+
+export function ServiceHistoryEmptyState({
+  refreshError,
+  onRetry,
+}: {
+  refreshError: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {refreshError ? <ServiceHistoryRefreshError onRetry={onRetry} /> : null}
+      <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center">
+        <p className="text-sm text-muted-foreground">No check history in this range.</p>
+      </div>
+    </div>
+  );
+}
+
+export function RecentChecksPagination({
+  hasNextPage,
+  isFetchingNextPage,
+  isFetchNextPageError,
+  onLoadMore,
+}: {
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  isFetchNextPageError: boolean;
+  onLoadMore: () => void;
+}) {
+  if (!hasNextPage && !isFetchNextPageError) return null;
+
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      {isFetchNextPageError ? (
+        <p className="text-xs text-destructive" role="alert">
+          Couldn’t load older checks.
+        </p>
+      ) : null}
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={isFetchingNextPage}
+        onClick={onLoadMore}
+        className="text-xs text-muted-foreground"
+      >
+        {isFetchingNextPage
+          ? "Loading older checks…"
+          : isFetchNextPageError
+            ? "Try again"
+            : "Load older checks"}
+      </Button>
+    </div>
+  );
 }

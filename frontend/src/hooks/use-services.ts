@@ -1,14 +1,110 @@
 import {
+  type InfiniteData,
   keepPreviousData,
+  type QueryClient,
+  type QueryState,
   queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { servicesApi } from "@/data/services.ts";
+import { servicesApi, toHistoryObservation } from "@/data/services.ts";
 import { useSSE } from "@/hooks/use-sse.ts";
-import type { Service, ServiceCreateInput, ServiceUpdateInput } from "@/types/service.ts";
+import type {
+  Service,
+  ServiceCreateInput,
+  ServiceHistoryObservation,
+  ServiceHistoryPage,
+  ServiceHistoryWindow,
+  ServiceUpdateInput,
+} from "@/types/service.ts";
+
+export const serviceHistoryKeys = {
+  all: ["services", "history"] as const,
+  service: (id: number) => [...serviceHistoryKeys.all, id] as const,
+  lists: (id: number) => [...serviceHistoryKeys.service(id), "list"] as const,
+  list: (id: number, limit: number) => [...serviceHistoryKeys.lists(id), limit] as const,
+  window: (id: number, rangeHours: number) =>
+    [...serviceHistoryKeys.service(id), "window", rangeHours] as const,
+};
+
+export const SERVICE_HISTORY_RANGE_REFETCH_INTERVAL_MS = 60_000;
+
+export function serviceHistoryRangeRefetchInterval(
+  state: Pick<QueryState<unknown, Error>, "dataUpdatedAt" | "errorUpdatedAt" | "fetchStatus">,
+) {
+  if (state.fetchStatus === "fetching") return SERVICE_HISTORY_RANGE_REFETCH_INTERVAL_MS;
+
+  const lastAuthoritativeUpdate = Math.max(state.dataUpdatedAt, state.errorUpdatedAt);
+  const elapsed = Date.now() - lastAuthoritativeUpdate;
+  return Math.max(1, SERVICE_HISTORY_RANGE_REFETCH_INTERVAL_MS - elapsed);
+}
+
+function newestObservationFirst(left: ServiceHistoryObservation, right: ServiceHistoryObservation) {
+  const timestampDifference = Date.parse(right.observedAt) - Date.parse(left.observedAt);
+  return timestampDifference || right.id - left.id;
+}
+
+export function updateServiceHistoryCaches(
+  queryClient: QueryClient,
+  id: number,
+  observation: ServiceHistoryObservation,
+) {
+  if (observation.serviceId !== id || !Number.isFinite(Date.parse(observation.observedAt))) return;
+
+  const activeListQueries = queryClient
+    .getQueryCache()
+    .findAll({ queryKey: serviceHistoryKeys.lists(id) })
+    .filter((query) => query.getObserversCount() > 0 && query.state.data != null);
+
+  for (const query of activeListQueries) {
+    queryClient.setQueryData<InfiniteData<ServiceHistoryPage, string | null>>(
+      query.queryKey,
+      (current) => {
+        const firstPage = current?.pages[0];
+        if (!current || !firstPage) return current;
+
+        const observations = [
+          observation,
+          ...firstPage.observations.filter((item) => item.id !== observation.id),
+        ].sort(newestObservationFirst);
+
+        return {
+          ...current,
+          pages: [{ ...firstPage, observations }, ...current.pages.slice(1)],
+        };
+      },
+      { updatedAt: query.state.dataUpdatedAt },
+    );
+  }
+
+  const rangeQueries = queryClient
+    .getQueryCache()
+    .findAll({ queryKey: [...serviceHistoryKeys.service(id), "window"] })
+    .filter((query) => query.state.data != null);
+
+  for (const query of rangeQueries) {
+    const rangeHours = query.queryKey.at(-1);
+    if (typeof rangeHours !== "number" || rangeHours <= 0) continue;
+    if (Date.parse(observation.observedAt) < Date.now() - rangeHours * 60 * 60 * 1_000) continue;
+
+    queryClient.setQueryData<ServiceHistoryWindow>(
+      query.queryKey,
+      (current) => {
+        if (!current) return current;
+
+        const observations = [
+          observation,
+          ...current.observations.filter((item) => item.id !== observation.id),
+        ].sort(newestObservationFirst);
+
+        return { ...current, observations };
+      },
+      { updatedAt: query.state.dataUpdatedAt },
+    );
+  }
+}
 
 export function useServices(
   projectId: number,
@@ -40,22 +136,57 @@ export function useService(
   });
 }
 
+export type ServiceDetailStreamPayload = {
+  service: Service;
+  observation?: unknown;
+};
+
+export async function applyServiceDetailStreamPayload(
+  queryClient: QueryClient,
+  id: number,
+  payload: ServiceDetailStreamPayload,
+) {
+  queryClient.setQueryData(["services", "detail", id], { service: payload.service });
+
+  const observation = toHistoryObservation(payload.observation);
+  if (!observation || observation.serviceId !== id) return;
+
+  const affectedQueries = queryClient
+    .getQueryCache()
+    .findAll({ queryKey: serviceHistoryKeys.service(id) })
+    .filter((query) => {
+      if (query.state.data == null) return false;
+      if (query.queryKey[3] === "list") return query.getObserversCount() > 0;
+      if (query.queryKey[3] !== "window") return false;
+
+      const rangeHours = query.queryKey[4];
+      return (
+        typeof rangeHours === "number" &&
+        Date.parse(observation.observedAt) >= Date.now() - rangeHours * 60 * 60 * 1_000
+      );
+    });
+
+  await Promise.all(
+    affectedQueries.map((query) =>
+      queryClient.cancelQueries({ queryKey: query.queryKey, exact: true }, { silent: true }),
+    ),
+  );
+  updateServiceHistoryCaches(queryClient, id, observation);
+}
+
 export function useServiceDetailStream(id: number, options?: { enabled?: boolean }) {
   const qc = useQueryClient();
 
-  useSSE<{ service: Service }>({
+  useSSE<ServiceDetailStreamPayload>({
     enabled: (options?.enabled ?? true) && id > 0,
     path: `/services/${id}/stream`,
-    onMessage: (payload) => {
-      qc.setQueryData(["services", "detail", id], payload);
-      void qc.invalidateQueries({ queryKey: ["services", "history", id] });
-    },
+    onMessage: (payload) => void applyServiceDetailStreamPayload(qc, id, payload),
   });
 }
 
 export function useServiceHistory(id: number, limit = 20) {
   return useInfiniteQuery({
-    queryKey: ["services", "history", id, "list", limit],
+    queryKey: serviceHistoryKeys.list(id, limit),
     queryFn: ({ pageParam }) => servicesApi.history(id, { limit, before: pageParam ?? undefined }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.pagination.nextCursor ?? undefined,
@@ -69,11 +200,11 @@ export function useServiceHistoryWindow(id: number, rangeHours: number) {
 
 export function serviceHistoryWindowQueryOptions(id: number, rangeHours: number) {
   return queryOptions({
-    queryKey: ["services", "history", id, "window", rangeHours],
+    queryKey: serviceHistoryKeys.window(id, rangeHours),
     queryFn: () =>
       servicesApi.historyWindow(id, new Date(Date.now() - rangeHours * 60 * 60 * 1_000)),
     enabled: id > 0,
-    refetchInterval: 60_000,
+    refetchInterval: (query) => serviceHistoryRangeRefetchInterval(query.state),
     placeholderData: keepPreviousData,
   });
 }
