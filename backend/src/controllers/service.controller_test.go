@@ -14,11 +14,17 @@ import (
 )
 
 type staticServiceReader struct {
-	service types.ServiceDetailData
-	history types.ServiceHistoryPageData
-	err     error
-	calls   int
-	filters types.ServiceHistoryFilters
+	service     types.ServiceDetailData
+	observation *types.ServiceHistoryEntryData
+	history     types.ServiceHistoryPageData
+	err         error
+	calls       int
+	filters     types.ServiceHistoryFilters
+}
+
+func (r *staticServiceReader) GetStreamSnapshot(_ context.Context, _ int64) (types.ServiceStreamData, error) {
+	r.calls++
+	return types.ServiceStreamData{Service: r.service, Observation: r.observation}, r.err
 }
 
 func (r *staticServiceReader) GetByID(_ context.Context, _ int64) (types.ServiceDetailData, error) {
@@ -110,6 +116,7 @@ func int32Pointer(value int32) *int32 {
 func TestServiceControllerStreamSendsInitialSnapshot(t *testing.T) {
 	t.Parallel()
 
+	observedAt := time.Date(2026, 4, 19, 10, 2, 0, 0, time.UTC)
 	controller := NewServiceController(nil, &staticServiceReader{
 		service: types.ServiceDetailData{
 			ID:                  21,
@@ -124,12 +131,16 @@ func TestServiceControllerStreamSendsInitialSnapshot(t *testing.T) {
 			ActiveAlertCount:    1,
 			ActiveAlerts:        []types.ServiceActiveAlertData{},
 			LatestHealthCheck: &types.HealthCheckSummaryData{
-				ObservedAt:     time.Date(2026, 4, 19, 10, 2, 0, 0, time.UTC),
+				ObservedAt:     observedAt,
 				IsSuccess:      true,
 				StatusCode:     nil,
 				ResponseTimeMs: nil,
 				Message:        "ok",
 			},
+		},
+		observation: &types.ServiceHistoryEntryData{
+			ID: 42, ServiceID: 21, NodeID: 31, CheckType: "http", Source: "agent",
+			ObservedAt: observedAt, IsSuccess: true, ResponseTimeMs: nil, Message: "ok", Metadata: map[string]any{"runner": "agent"},
 		},
 	})
 	controller.streamInterval = 10 * time.Millisecond
@@ -155,5 +166,11 @@ func TestServiceControllerStreamSendsInitialSnapshot(t *testing.T) {
 	}
 	if !strings.Contains(body, `data: {"service":{"id":21`) {
 		t.Fatalf("expected initial snapshot in stream body: %s", body)
+	}
+	if !strings.Contains(body, `"observation":{"id":42,"service_id":21,"node_id":31,"check_type":"http"`) {
+		t.Fatalf("expected persisted observation in stream body: %s", body)
+	}
+	if !strings.Contains(body, `"response_time_ms":null`) {
+		t.Fatalf("expected nullable latency in stream body: %s", body)
 	}
 }

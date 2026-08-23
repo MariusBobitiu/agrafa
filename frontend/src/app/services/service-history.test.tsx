@@ -6,11 +6,16 @@ import {
 } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { servicesApi } from "@/data/services.ts";
-import type { CheckType, ServiceHistoryObservation, ServiceHistoryPage } from "@/types/service.ts";
+import { servicesApi, toHistoryObservation } from "@/data/services.ts";
+import type {
+  CheckType,
+  Service,
+  ServiceHistoryObservation,
+  ServiceHistoryPage,
+} from "@/types/service.ts";
 import type { ServiceHistoryWindow } from "@/types/service.ts";
 import {
-  refreshServiceHistoryLatestPage,
+  applyServiceDetailStreamPayload,
   serviceHistoryKeys,
   serviceHistoryWindowQueryOptions,
 } from "@/hooks/use-services.ts";
@@ -40,7 +45,7 @@ function observation(
     nodeId: 2,
     checkType: "http" as CheckType,
     source: "managed",
-    observedAt: `2026-08-23T12:00:${String(id).padStart(2, "0")}Z`,
+    observedAt: new Date(Date.UTC(2026, 7, 23, 12, 0, id)).toISOString().replace(".000Z", "Z"),
     isSuccess: true,
     statusCode: 200,
     latencyMs: 20,
@@ -58,6 +63,41 @@ function historyPage(ids: number[], nextCursor: string | null = null): ServiceHi
       hasMore: nextCursor != null,
       nextCursor,
     },
+  };
+}
+
+function serviceSnapshot(): Service {
+  return {
+    id: 7,
+    project_id: 1,
+    node_id: 2,
+    execution_mode: "managed",
+    name: "API",
+    check_type: "http",
+    check_target: "https://example.com/health",
+    status: "healthy",
+    last_checked_at: null,
+    consecutive_failures: 0,
+    active_alert_count: 0,
+    latest_health_check: null,
+    created_at: "2026-08-23T10:00:00Z",
+    updated_at: "2026-08-23T10:00:00Z",
+  };
+}
+
+function historyEntry(item: ServiceHistoryObservation) {
+  return {
+    id: item.id,
+    service_id: item.serviceId,
+    node_id: item.nodeId,
+    check_type: item.checkType,
+    source: item.source,
+    observed_at: item.observedAt,
+    is_success: item.isSuccess,
+    status_code: item.statusCode,
+    response_time_ms: item.latencyMs,
+    message: item.message,
+    metadata: item.metadata,
   };
 }
 
@@ -148,14 +188,60 @@ describe("service history loading states", () => {
 });
 
 describe("service history SSE refresh", () => {
-  it("replaces only the newest active list page and preserves every loaded older page", async () => {
+  it("prepends the streamed observation without a request and preserves older pages", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const key = serviceHistoryKeys.list(7, 20);
+    const key = serviceHistoryKeys.list(7, 2);
     const olderPage = historyPage([40, 39], "cursor-2");
     const oldestPage = historyPage([20, 19]);
     const cached: InfiniteData<ServiceHistoryPage, string | null> = {
       pages: [historyPage([60, 59], "cursor-1"), olderPage, oldestPage],
       pageParams: [null, "cursor-1", "cursor-2"],
+    };
+    const inactiveKey = serviceHistoryKeys.list(7, 50);
+    const inactiveCached: InfiniteData<ServiceHistoryPage, string | null> = {
+      pages: [historyPage([60, 59], "cursor-1")],
+      pageParams: [null],
+    };
+    client.setQueryData(key, cached);
+    client.setQueryData(inactiveKey, inactiveCached);
+    const observer = new QueryObserver(client, {
+      queryKey: key,
+      queryFn: () => Promise.resolve(cached),
+      staleTime: Infinity,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+    const historyRequest = vi.spyOn(servicesApi, "history");
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const streamed = observation(61, { latencyMs: null });
+
+    applyServiceDetailStreamPayload(client, 7, {
+      service: serviceSnapshot(),
+      observation: historyEntry(streamed),
+    });
+
+    const refreshed = client.getQueryData<InfiniteData<ServiceHistoryPage, string | null>>(key);
+    expect(historyRequest).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(refreshed?.pages[0]?.observations.map((item) => item.id)).toEqual([61, 60]);
+    expect(refreshed?.pages[0]?.observations[0]?.latencyMs).toBeNull();
+    expect(refreshed?.pages[1]).toBe(olderPage);
+    expect(refreshed?.pages[2]).toBe(oldestPage);
+    expect(refreshed?.pageParams).toBe(cached.pageParams);
+    expect(client.getQueryData(inactiveKey)).toBe(inactiveCached);
+    expect(client.getQueryData(["services", "detail", 7])).toEqual({
+      service: serviceSnapshot(),
+    });
+
+    unsubscribe();
+    client.clear();
+  });
+
+  it("is idempotent by ID and retains newest-first ordering", () => {
+    const client = new QueryClient();
+    const key = serviceHistoryKeys.list(7, 20);
+    const cached: InfiniteData<ServiceHistoryPage, string | null> = {
+      pages: [historyPage([3, 1])],
+      pageParams: [null],
     };
     client.setQueryData(key, cached);
     const observer = new QueryObserver(client, {
@@ -164,40 +250,60 @@ describe("service history SSE refresh", () => {
       staleTime: Infinity,
     });
     const unsubscribe = observer.subscribe(() => {});
-    const latestPage = historyPage([61, 60], "cursor-1");
-    const historyRequest = vi.spyOn(servicesApi, "history").mockResolvedValue(latestPage);
-    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const repeated = observation(2);
 
-    await refreshServiceHistoryLatestPage(client, 7);
+    applyServiceDetailStreamPayload(client, 7, {
+      service: serviceSnapshot(),
+      observation: historyEntry(repeated),
+    });
+    applyServiceDetailStreamPayload(client, 7, {
+      service: serviceSnapshot(),
+      observation: historyEntry(repeated),
+    });
 
-    const refreshed = client.getQueryData<InfiniteData<ServiceHistoryPage, string | null>>(key);
-    expect(historyRequest).toHaveBeenCalledTimes(1);
-    expect(historyRequest).toHaveBeenCalledWith(7, { limit: 20 });
-    expect(invalidate).not.toHaveBeenCalled();
-    expect(refreshed?.pages[0]).toEqual(latestPage);
-    expect(refreshed?.pages[1]).toBe(olderPage);
-    expect(refreshed?.pages[2]).toBe(oldestPage);
-    expect(refreshed?.pageParams).toBe(cached.pageParams);
+    const result = client.getQueryData<InfiniteData<ServiceHistoryPage, string | null>>(key);
+    expect(result?.pages[0]?.observations.map((item) => item.id)).toEqual([3, 2, 1]);
 
     unsubscribe();
     client.clear();
   });
 
-  it("does not refetch or modify any range query", async () => {
+  it("updates only loaded in-range windows and does not create unrelated queries", () => {
     const client = new QueryClient();
-    const rangeKey = serviceHistoryKeys.window(7, 168);
+    const rangeKey = serviceHistoryKeys.window(7, 24);
+    const streamedAt = new Date();
     const rangeData: ServiceHistoryWindow = {
-      observations: [observation(1)],
+      observations: [
+        observation(1, { observedAt: new Date(streamedAt.getTime() - 60_000).toISOString() }),
+      ],
       isTruncated: false,
     };
     client.setQueryData(rangeKey, rangeData);
-    const rangeRequest = vi.spyOn(servicesApi, "historyWindow");
+    const streamed = observation(62, { observedAt: streamedAt.toISOString() });
 
-    await refreshServiceHistoryLatestPage(client, 7);
+    applyServiceDetailStreamPayload(client, 7, {
+      service: serviceSnapshot(),
+      observation: historyEntry(
+        observation(62, {
+          checkType: "tcp",
+          observedAt: streamed.observedAt,
+          statusCode: null,
+          latencyMs: null,
+          message: "connected",
+        }),
+      ),
+    });
 
-    expect(rangeRequest).not.toHaveBeenCalled();
-    expect(client.getQueryData(rangeKey)).toBe(rangeData);
+    const updated = client.getQueryData<ServiceHistoryWindow>(rangeKey);
+    expect(updated?.observations[0]).toMatchObject({ id: 62, checkType: "tcp", latencyMs: null });
+    expect(client.getQueryData(serviceHistoryKeys.window(7, 6))).toBeUndefined();
+    expect(client.getQueryData(serviceHistoryKeys.list(8, 20))).toBeUndefined();
     client.clear();
+  });
+
+  it("ignores absent or malformed streamed observations", () => {
+    expect(toHistoryObservation(undefined)).toBeNull();
+    expect(toHistoryObservation({ id: 1, response_time_ms: 0 })).toBeNull();
   });
 });
 

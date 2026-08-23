@@ -23,6 +23,7 @@ type serviceWriter interface {
 
 type serviceReader interface {
 	GetByID(ctx context.Context, serviceID int64) (types.ServiceDetailData, error)
+	GetStreamSnapshot(ctx context.Context, serviceID int64) (types.ServiceStreamData, error)
 	ListHistory(ctx context.Context, serviceID int64, filters types.ServiceHistoryFilters) (types.ServiceHistoryPageData, error)
 }
 
@@ -256,12 +257,12 @@ func (c *ServiceController) Stream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	streamSSESnapshots(w, r, c.streamMaxDuration, c.streamInterval, func(ctx context.Context) (any, error) {
-		service, err := c.serviceReadService.GetByID(ctx, id)
+		snapshot, err := c.serviceReadService.GetStreamSnapshot(ctx, id)
 		if err != nil {
 			return nil, err
 		}
 
-		return map[string]any{"service": service}, nil
+		return snapshot, nil
 	})
 }
 

@@ -1,6 +1,5 @@
 import { api } from "@/lib/fetch-client.ts";
 import type {
-  CheckType,
   Service,
   ServiceCreateInput,
   ServiceHistoryObservation,
@@ -9,22 +8,8 @@ import type {
   ServiceUpdateInput,
 } from "@/types/service.ts";
 
-type ServiceHistoryEntryResponse = {
-  id: number;
-  service_id: number;
-  node_id: number;
-  check_type: string;
-  source: string;
-  observed_at: string;
-  is_success: boolean;
-  status_code: number | null;
-  response_time_ms: number | null;
-  message: string | null;
-  metadata: Record<string, unknown> | null;
-};
-
 type ServiceHistoryResponse = {
-  history: ServiceHistoryEntryResponse[];
+  history: unknown[];
   pagination: {
     limit: number;
     has_more: boolean;
@@ -38,22 +23,52 @@ export type ServiceHistoryParams = {
 };
 
 const HISTORY_WINDOW_PAGE_SIZE = 500;
-const MAX_HISTORY_WINDOW_OBSERVATIONS = 2_000;
+export const MAX_HISTORY_WINDOW_OBSERVATIONS = 2_000;
 const MAX_HISTORY_WINDOW_PAGES = MAX_HISTORY_WINDOW_OBSERVATIONS / HISTORY_WINDOW_PAGE_SIZE;
 
-function toHistoryObservation(entry: ServiceHistoryEntryResponse): ServiceHistoryObservation {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value != null && !Array.isArray(value);
+}
+
+export function toHistoryObservation(entry: unknown): ServiceHistoryObservation | null {
+  if (!isRecord(entry)) return null;
+
+  const checkType = entry["check_type"];
+  const observedAt = entry["observed_at"];
+  const statusCode = entry["status_code"];
+  const responseTimeMs = entry["response_time_ms"];
+  const message = entry["message"];
+  if (
+    typeof entry["id"] !== "number" ||
+    !Number.isInteger(entry["id"]) ||
+    entry["id"] <= 0 ||
+    typeof entry["service_id"] !== "number" ||
+    typeof entry["node_id"] !== "number" ||
+    (checkType !== "http" && checkType !== "tcp") ||
+    typeof entry["source"] !== "string" ||
+    typeof observedAt !== "string" ||
+    !Number.isFinite(Date.parse(observedAt)) ||
+    typeof entry["is_success"] !== "boolean" ||
+    (statusCode !== null && typeof statusCode !== "number") ||
+    (responseTimeMs !== null && typeof responseTimeMs !== "number") ||
+    (message !== null && typeof message !== "string")
+  ) {
+    return null;
+  }
+
+  const metadata = entry["metadata"];
   return {
-    id: entry.id,
-    serviceId: entry.service_id,
-    nodeId: entry.node_id,
-    checkType: entry.check_type as CheckType,
-    source: entry.source,
-    observedAt: entry.observed_at,
-    isSuccess: entry.is_success,
-    statusCode: entry.status_code,
-    latencyMs: entry.response_time_ms,
-    message: entry.message,
-    metadata: entry.metadata ?? {},
+    id: entry["id"],
+    serviceId: entry["service_id"],
+    nodeId: entry["node_id"],
+    checkType,
+    source: entry["source"],
+    observedAt,
+    isSuccess: entry["is_success"],
+    statusCode,
+    latencyMs: responseTimeMs,
+    message,
+    metadata: isRecord(metadata) ? metadata : {},
   };
 }
 
@@ -80,7 +95,9 @@ export const servicesApi = {
     const response = await api.get<ServiceHistoryResponse>(`/services/${id}/history${query}`);
 
     return {
-      observations: response.history.map(toHistoryObservation),
+      observations: response.history
+        .map(toHistoryObservation)
+        .filter((observation): observation is ServiceHistoryObservation => observation != null),
       pagination: {
         limit: response.pagination.limit,
         hasMore: response.pagination.has_more,

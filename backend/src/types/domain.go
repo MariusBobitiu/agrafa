@@ -381,6 +381,11 @@ type ServiceHistoryPageData struct {
 	NextCursor *ServiceHistoryCursor
 }
 
+type ServiceStreamData struct {
+	Service     ServiceDetailData        `json:"service"`
+	Observation *ServiceHistoryEntryData `json:"observation,omitempty"`
+}
+
 type AgentConfigNodeData struct {
 	ID         int64  `json:"id"`
 	Name       string `json:"name"`

@@ -8,12 +8,18 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { servicesApi } from "@/data/services.ts";
+import {
+  MAX_HISTORY_WINDOW_OBSERVATIONS,
+  servicesApi,
+  toHistoryObservation,
+} from "@/data/services.ts";
 import { useSSE } from "@/hooks/use-sse.ts";
 import type {
   Service,
   ServiceCreateInput,
+  ServiceHistoryObservation,
   ServiceHistoryPage,
+  ServiceHistoryWindow,
   ServiceUpdateInput,
 } from "@/types/service.ts";
 
@@ -26,30 +32,71 @@ export const serviceHistoryKeys = {
     [...serviceHistoryKeys.service(id), "window", rangeHours] as const,
 };
 
-export async function refreshServiceHistoryLatestPage(queryClient: QueryClient, id: number) {
+function newestObservationFirst(left: ServiceHistoryObservation, right: ServiceHistoryObservation) {
+  const timestampDifference = Date.parse(right.observedAt) - Date.parse(left.observedAt);
+  return timestampDifference || right.id - left.id;
+}
+
+export function updateServiceHistoryCaches(
+  queryClient: QueryClient,
+  id: number,
+  observation: ServiceHistoryObservation,
+) {
+  if (observation.serviceId !== id || !Number.isFinite(Date.parse(observation.observedAt))) return;
+
   const activeListQueries = queryClient
     .getQueryCache()
     .findAll({ queryKey: serviceHistoryKeys.lists(id) })
     .filter((query) => query.getObserversCount() > 0 && query.state.data != null);
 
-  await Promise.allSettled(
-    activeListQueries.map(async (query) => {
-      const limit = query.queryKey.at(-1);
-      if (typeof limit !== "number") return;
+  for (const query of activeListQueries) {
+    const limit = query.queryKey.at(-1);
+    if (typeof limit !== "number" || limit <= 0) continue;
 
-      const latestPage = await servicesApi.history(id, { limit });
-      queryClient.setQueryData<InfiniteData<ServiceHistoryPage, string | null>>(
-        query.queryKey,
-        (current) =>
-          current
-            ? {
-                ...current,
-                pages: [latestPage, ...current.pages.slice(1)],
-              }
-            : current,
-      );
-    }),
-  );
+    queryClient.setQueryData<InfiniteData<ServiceHistoryPage, string | null>>(
+      query.queryKey,
+      (current) => {
+        const firstPage = current?.pages[0];
+        if (!current || !firstPage) return current;
+
+        const observations = [
+          observation,
+          ...firstPage.observations.filter((item) => item.id !== observation.id),
+        ]
+          .sort(newestObservationFirst)
+          .slice(0, limit);
+
+        return {
+          ...current,
+          pages: [{ ...firstPage, observations }, ...current.pages.slice(1)],
+        };
+      },
+    );
+  }
+
+  const rangeQueries = queryClient
+    .getQueryCache()
+    .findAll({ queryKey: [...serviceHistoryKeys.service(id), "window"] })
+    .filter((query) => query.state.data != null);
+
+  for (const query of rangeQueries) {
+    const rangeHours = query.queryKey.at(-1);
+    if (typeof rangeHours !== "number" || rangeHours <= 0) continue;
+    if (Date.parse(observation.observedAt) < Date.now() - rangeHours * 60 * 60 * 1_000) continue;
+
+    queryClient.setQueryData<ServiceHistoryWindow>(query.queryKey, (current) => {
+      if (!current) return current;
+
+      const observations = [
+        observation,
+        ...current.observations.filter((item) => item.id !== observation.id),
+      ]
+        .sort(newestObservationFirst)
+        .slice(0, MAX_HISTORY_WINDOW_OBSERVATIONS);
+
+      return { ...current, observations };
+    });
+  }
 }
 
 export function useServices(
@@ -82,16 +129,29 @@ export function useService(
   });
 }
 
+export type ServiceDetailStreamPayload = {
+  service: Service;
+  observation?: unknown;
+};
+
+export function applyServiceDetailStreamPayload(
+  queryClient: QueryClient,
+  id: number,
+  payload: ServiceDetailStreamPayload,
+) {
+  queryClient.setQueryData(["services", "detail", id], { service: payload.service });
+
+  const observation = toHistoryObservation(payload.observation);
+  if (observation) updateServiceHistoryCaches(queryClient, id, observation);
+}
+
 export function useServiceDetailStream(id: number, options?: { enabled?: boolean }) {
   const qc = useQueryClient();
 
-  useSSE<{ service: Service }>({
+  useSSE<ServiceDetailStreamPayload>({
     enabled: (options?.enabled ?? true) && id > 0,
     path: `/services/${id}/stream`,
-    onMessage: (payload) => {
-      qc.setQueryData(["services", "detail", id], payload);
-      void refreshServiceHistoryLatestPage(qc, id);
-    },
+    onMessage: (payload) => applyServiceDetailStreamPayload(qc, id, payload),
   });
 }
 

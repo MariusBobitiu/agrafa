@@ -113,70 +113,85 @@ func (s *ServiceReadService) List(ctx context.Context, filters types.ServiceList
 }
 
 func (s *ServiceReadService) GetByID(ctx context.Context, serviceID int64) (types.ServiceDetailData, error) {
+	snapshot, err := s.GetStreamSnapshot(ctx, serviceID)
+	if err != nil {
+		return types.ServiceDetailData{}, err
+	}
+
+	return snapshot.Service, nil
+}
+
+func (s *ServiceReadService) GetStreamSnapshot(ctx context.Context, serviceID int64) (types.ServiceStreamData, error) {
 	if serviceID <= 0 {
-		return types.ServiceDetailData{}, types.ErrInvalidServiceID
+		return types.ServiceStreamData{}, types.ErrInvalidServiceID
 	}
 
 	service, err := s.serviceRepo.GetByID(ctx, serviceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return types.ServiceDetailData{}, types.ErrServiceNotFound
+			return types.ServiceStreamData{}, types.ErrServiceNotFound
 		}
 
-		return types.ServiceDetailData{}, fmt.Errorf("get service: %w", err)
+		return types.ServiceStreamData{}, fmt.Errorf("get service: %w", err)
 	}
 
 	node, err := s.nodeRepo.GetByID(ctx, service.NodeID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return types.ServiceDetailData{}, types.ErrNodeNotFound
+			return types.ServiceStreamData{}, types.ErrNodeNotFound
 		}
 
-		return types.ServiceDetailData{}, fmt.Errorf("get service node: %w", err)
+		return types.ServiceStreamData{}, fmt.Errorf("get service node: %w", err)
 	}
 
 	activeAlertCount, err := s.alertInstanceRepo.CountActiveByServiceID(ctx, serviceID)
 	if err != nil {
-		return types.ServiceDetailData{}, fmt.Errorf("count active service alerts: %w", err)
+		return types.ServiceStreamData{}, fmt.Errorf("count active service alerts: %w", err)
 	}
 
 	activeAlerts, err := s.alertInstanceRepo.ListActiveDetailsByServiceID(ctx, serviceID)
 	if err != nil {
-		return types.ServiceDetailData{}, fmt.Errorf("list active service alerts: %w", err)
+		return types.ServiceStreamData{}, fmt.Errorf("list active service alerts: %w", err)
 	}
 
 	var latestHealthCheck *types.HealthCheckSummaryData
+	var latestObservation *types.ServiceHistoryEntryData
 	healthCheck, err := s.healthCheckRepo.GetLatestByServiceID(ctx, serviceID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			return types.ServiceDetailData{}, fmt.Errorf("get latest health check: %w", err)
+			return types.ServiceStreamData{}, fmt.Errorf("get latest health check: %w", err)
 		}
 	} else {
+		observation := mapServiceHistoryEntry(healthCheck)
+		latestObservation = &observation
 		latestHealthCheck = &types.HealthCheckSummaryData{
-			ObservedAt:     healthCheck.ObservedAt,
-			IsSuccess:      healthCheck.IsSuccess,
-			StatusCode:     nullInt32Ptr(healthCheck.StatusCode),
-			ResponseTimeMs: nullInt32Ptr(healthCheck.ResponseTimeMs),
-			Message:        healthCheck.Message,
+			ObservedAt:     observation.ObservedAt,
+			IsSuccess:      observation.IsSuccess,
+			StatusCode:     observation.StatusCode,
+			ResponseTimeMs: observation.ResponseTimeMs,
+			Message:        observation.Message,
 		}
 	}
 
-	return types.ServiceDetailData{
-		ID:                  service.ID,
-		ProjectID:           service.ProjectID,
-		NodeID:              service.NodeID,
-		ExecutionMode:       executionModeFromNodeType(node.NodeType),
-		Name:                service.Name,
-		CheckType:           service.CheckType,
-		CheckTarget:         service.CheckTarget,
-		Status:              service.CurrentState,
-		LastCheckedAt:       nullTimePtr(service.LastCheckAt),
-		ConsecutiveFailures: service.ConsecutiveFailures,
-		ActiveAlertCount:    activeAlertCount,
-		ActiveAlerts:        mapServiceActiveAlerts(activeAlerts),
-		LatestHealthCheck:   latestHealthCheck,
-		CreatedAt:           service.CreatedAt,
-		UpdatedAt:           service.UpdatedAt,
+	return types.ServiceStreamData{
+		Service: types.ServiceDetailData{
+			ID:                  service.ID,
+			ProjectID:           service.ProjectID,
+			NodeID:              service.NodeID,
+			ExecutionMode:       executionModeFromNodeType(node.NodeType),
+			Name:                service.Name,
+			CheckType:           service.CheckType,
+			CheckTarget:         service.CheckTarget,
+			Status:              service.CurrentState,
+			LastCheckedAt:       nullTimePtr(service.LastCheckAt),
+			ConsecutiveFailures: service.ConsecutiveFailures,
+			ActiveAlertCount:    activeAlertCount,
+			ActiveAlerts:        mapServiceActiveAlerts(activeAlerts),
+			LatestHealthCheck:   latestHealthCheck,
+			CreatedAt:           service.CreatedAt,
+			UpdatedAt:           service.UpdatedAt,
+		},
+		Observation: latestObservation,
 	}, nil
 }
 
@@ -214,19 +229,7 @@ func (s *ServiceReadService) ListHistory(ctx context.Context, serviceID int64, f
 
 	entries := make([]types.ServiceHistoryEntryData, 0, len(rows))
 	for _, row := range rows {
-		entries = append(entries, types.ServiceHistoryEntryData{
-			ID:             row.ID,
-			ServiceID:      row.ServiceID,
-			NodeID:         row.NodeID,
-			CheckType:      row.CheckType,
-			Source:         row.Source,
-			ObservedAt:     row.ObservedAt,
-			IsSuccess:      row.IsSuccess,
-			StatusCode:     nullInt32Ptr(row.StatusCode),
-			ResponseTimeMs: nullInt32Ptr(row.ResponseTimeMs),
-			Message:        row.Message,
-			Metadata:       normalizeJSONValue(rawJSONValue(row.Payload)),
-		})
+		entries = append(entries, mapServiceHistoryEntry(row))
 	}
 
 	page := types.ServiceHistoryPageData{Entries: entries}
@@ -236,6 +239,22 @@ func (s *ServiceReadService) ListHistory(ctx context.Context, serviceID int64, f
 	}
 
 	return page, nil
+}
+
+func mapServiceHistoryEntry(row generated.HealthCheckResult) types.ServiceHistoryEntryData {
+	return types.ServiceHistoryEntryData{
+		ID:             row.ID,
+		ServiceID:      row.ServiceID,
+		NodeID:         row.NodeID,
+		CheckType:      row.CheckType,
+		Source:         row.Source,
+		ObservedAt:     row.ObservedAt,
+		IsSuccess:      row.IsSuccess,
+		StatusCode:     nullInt32Ptr(row.StatusCode),
+		ResponseTimeMs: nullInt32Ptr(row.ResponseTimeMs),
+		Message:        row.Message,
+		Metadata:       normalizeJSONValue(rawJSONValue(row.Payload)),
+	}
 }
 
 func (s *ServiceReadService) listNodeExecutionModes(ctx context.Context, projectID *int64) (map[int64]string, error) {

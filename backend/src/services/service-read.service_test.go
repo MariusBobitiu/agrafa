@@ -109,6 +109,80 @@ func TestServiceReadServiceListHistoryOrdersMapsAndPaginates(t *testing.T) {
 	}
 }
 
+func TestServiceReadServiceStreamSnapshotUsesCanonicalPersistedHistoryEntry(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.August, 23, 12, 30, 0, 0, time.UTC)
+	statusOK := sql.NullInt32{Int32: 200, Valid: true}
+	latency := sql.NullInt32{Int32: 14, Valid: true}
+
+	testCases := []struct {
+		name         string
+		checkType    string
+		statusCode   sql.NullInt32
+		responseTime sql.NullInt32
+	}{
+		{name: "HTTP with nullable latency", checkType: "http", statusCode: statusOK},
+		{name: "TCP without HTTP status", checkType: "tcp", responseTime: latency},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			persisted := generated.HealthCheckResult{
+				ID:             91,
+				ServiceID:      7,
+				NodeID:         8,
+				CheckType:      testCase.checkType,
+				Source:         types.HealthCheckSourceManaged,
+				ObservedAt:     observedAt,
+				IsSuccess:      true,
+				StatusCode:     testCase.statusCode,
+				ResponseTimeMs: testCase.responseTime,
+				Message:        "ok",
+				Payload:        []byte(`{"runner":"managed"}`),
+			}
+			healthRepo := &fakeServiceReadHealthCheckRepository{
+				latest:      persisted,
+				historyRows: []generated.HealthCheckResult{persisted},
+			}
+			service := &ServiceReadService{
+				serviceRepo: &fakeServiceReadRepository{serviceByID: generated.Service{
+					ID: 7, ProjectID: 2, NodeID: 8, CheckType: testCase.checkType,
+				}},
+				nodeRepo:          &fakeServiceReadNodeRepository{node: generated.Node{ID: 8, NodeType: types.NodeTypeManaged}},
+				healthCheckRepo:   healthRepo,
+				alertInstanceRepo: &fakeServiceReadAlertInstanceRepository{},
+			}
+
+			snapshot, err := service.GetStreamSnapshot(context.Background(), 7)
+			if err != nil {
+				t.Fatalf("GetStreamSnapshot() error = %v", err)
+			}
+			page, err := service.ListHistory(context.Background(), 7, types.ServiceHistoryFilters{Limit: 20})
+			if err != nil {
+				t.Fatalf("ListHistory() error = %v", err)
+			}
+			if snapshot.Observation == nil {
+				t.Fatal("expected stream observation")
+			}
+			if len(page.Entries) != 1 || !reflect.DeepEqual(*snapshot.Observation, page.Entries[0]) {
+				t.Fatalf("stream observation = %#v, history observation = %#v", snapshot.Observation, page.Entries)
+			}
+			if snapshot.Observation.CheckType != testCase.checkType {
+				t.Fatalf("check_type = %q, want %q", snapshot.Observation.CheckType, testCase.checkType)
+			}
+			if testCase.checkType == "http" && snapshot.Observation.ResponseTimeMs != nil {
+				t.Fatalf("response_time_ms = %#v, want nil", snapshot.Observation.ResponseTimeMs)
+			}
+			if testCase.checkType == "tcp" && snapshot.Observation.StatusCode != nil {
+				t.Fatalf("status_code = %#v, want nil", snapshot.Observation.StatusCode)
+			}
+		})
+	}
+}
+
 func TestServiceReadServiceListHistoryCapsRepositoryLimit(t *testing.T) {
 	t.Parallel()
 
