@@ -17,6 +17,14 @@ type errorLoggingResponseWriter struct {
 	body   bytes.Buffer
 }
 
+type errorLoggingFlusherResponseWriter struct {
+	*errorLoggingResponseWriter
+}
+
+func (w *errorLoggingFlusherResponseWriter) Flush() {
+	w.ResponseWriter.(http.Flusher).Flush()
+}
+
 func (w *errorLoggingResponseWriter) WriteHeader(status int) {
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
@@ -42,7 +50,12 @@ func (w *errorLoggingResponseWriter) Write(data []byte) (int, error) {
 func ErrorLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writer := &errorLoggingResponseWriter{ResponseWriter: w}
-		next.ServeHTTP(writer, r)
+		var responseWriter http.ResponseWriter = writer
+		if _, ok := w.(http.Flusher); ok {
+			responseWriter = &errorLoggingFlusherResponseWriter{errorLoggingResponseWriter: writer}
+		}
+
+		next.ServeHTTP(responseWriter, r)
 
 		if writer.status < http.StatusInternalServerError {
 			return

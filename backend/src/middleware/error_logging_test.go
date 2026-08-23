@@ -60,3 +60,36 @@ func TestErrorLoggingSkipsNonServerErrors(t *testing.T) {
 		t.Fatalf("expected no logs for non-5xx response, got %q", logs.String())
 	}
 }
+
+func TestErrorLoggingPreservesSSEStreaming(t *testing.T) {
+	handler := ErrorLogging(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, `{"error":"streaming not supported"}`, http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {\"status\":\"healthy\"}\n\n"))
+		flusher.Flush()
+	}))
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/services/12/stream", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %q", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
+		t.Fatalf("content-type = %q, want %q", got, "text/event-stream")
+	}
+	if !recorder.Flushed {
+		t.Fatal("expected flush to reach the underlying response writer")
+	}
+	if got := recorder.Body.String(); !strings.Contains(got, `data: {"status":"healthy"}`) {
+		t.Fatalf("expected SSE event in body, got %q", got)
+	}
+}
