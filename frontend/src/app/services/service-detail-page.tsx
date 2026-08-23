@@ -41,12 +41,11 @@ import {
   ServiceHealthLoadingState,
   ServiceHistoryEmptyState,
   ServiceHistoryRefreshError,
+  ServiceHistorySummaryMetrics,
+  ServiceHistorySuccessCount,
 } from "./components/service-history.tsx";
 import {
-  calculateHistoryMetrics,
   deduplicateHistory,
-  formatLatency,
-  formatUptime,
   SERVICE_HISTORY_RANGES,
   type ServiceHistoryRangeHours,
 } from "./service-history-utils.ts";
@@ -138,7 +137,7 @@ export function ServiceDetailPage() {
     () => deduplicateHistory(historyList.data?.pages.flatMap((page) => page.observations) ?? []),
     [historyList.data],
   );
-  const metrics = calculateHistoryMetrics(rangeObservations);
+  const summary = historyWindow.data?.summary;
 
   useMeta({
     title: service ? `${service.name} Details` : "Service Details",
@@ -344,7 +343,7 @@ export function ServiceDetailPage() {
                 Try again
               </Button>
             </div>
-          ) : rangeObservations.length === 0 ? (
+          ) : summary?.totalChecks === 0 ? (
             <ServiceHistoryEmptyState
               refreshError={historyWindow.isError}
               onRetry={() => void historyWindow.refetch()}
@@ -364,10 +363,7 @@ export function ServiceDetailPage() {
                   >
                     {stateLabel(service)}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    {rangeObservations.filter((observation) => observation.isSuccess).length} of{" "}
-                    {rangeObservations.length} checks successful
-                  </p>
+                  {summary ? <ServiceHistorySuccessCount summary={summary} /> : null}
                 </div>
                 <div className="min-w-0 space-y-2 md:max-w-[55%]">
                   <p className="text-right text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
@@ -377,37 +373,12 @@ export function ServiceDetailPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 divide-x divide-border rounded-lg border border-border bg-card">
-                <div className="px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Uptime
-                  </p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                    {formatUptime(metrics.uptimePercent)}
-                  </p>
-                </div>
-                <div className="px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Avg latency
-                  </p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                    {formatLatency(metrics.averageLatencyMs)}
-                  </p>
-                </div>
-                <div className="px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Last checked
-                  </p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                    <RelativeTime value={metrics.lastCheckedAt} />
-                  </p>
-                </div>
-              </div>
+              {summary ? <ServiceHistorySummaryMetrics summary={summary} /> : null}
 
               <LatencyChart observations={rangeObservations} rangeHours={rangeHours} />
               {historyWindow.data?.isTruncated ? (
                 <p className="text-xs text-muted-foreground">
-                  Summary uses the latest 2,000 observations in this range.
+                  Chart shows the latest 2,000 observations; metrics include the full range.
                 </p>
               ) : null}
             </div>

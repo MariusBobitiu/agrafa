@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
@@ -27,6 +28,37 @@ type serviceReadHealthCheckRepository interface {
 	ListByServiceIDAfterID(ctx context.Context, serviceID int64, afterID int64) ([]generated.HealthCheckResult, error)
 	ListLatestForRead(ctx context.Context, filters types.ServiceListFilters) ([]generated.HealthCheckResult, error)
 	ListHistoryByServiceID(ctx context.Context, serviceID int64, filters types.ServiceHistoryFilters) ([]generated.HealthCheckResult, error)
+	SummarizeHistoryByServiceID(ctx context.Context, serviceID int64, historyRange types.ServiceHistoryRange) (generated.SummarizeHealthCheckHistoryByServiceIDRow, error)
+}
+
+func (s *ServiceReadService) SummarizeHistory(ctx context.Context, serviceID int64, historyRange types.ServiceHistoryRange) (types.ServiceHistorySummaryData, error) {
+	if serviceID <= 0 {
+		return types.ServiceHistorySummaryData{}, types.ErrInvalidServiceID
+	}
+
+	row, err := s.healthCheckRepo.SummarizeHistoryByServiceID(ctx, serviceID, historyRange)
+	if err != nil {
+		return types.ServiceHistorySummaryData{}, fmt.Errorf("summarize service history: %w", err)
+	}
+
+	result := types.ServiceHistorySummaryData{
+		From:             historyRange.From.UTC(),
+		To:               historyRange.To.UTC(),
+		TotalChecks:      row.TotalChecks,
+		SuccessfulChecks: row.SuccessfulChecks,
+	}
+	if row.TotalChecks > 0 {
+		uptime := 100 * float64(row.SuccessfulChecks) / float64(row.TotalChecks)
+		result.UptimePercent = &uptime
+		lastCheckedAt := time.Unix(0, row.LastCheckedUnixNano).UTC()
+		result.LastCheckedAt = &lastCheckedAt
+	}
+	if row.MeasuredLatencyChecks > 0 {
+		averageLatency := float64(row.TotalLatencyMs) / float64(row.MeasuredLatencyChecks)
+		result.AverageLatencyMs = &averageLatency
+	}
+
+	return result, nil
 }
 
 func (s *ServiceReadService) ListStreamObservations(ctx context.Context, serviceID int64, afterID int64) ([]types.ServiceHistoryEntryData, error) {

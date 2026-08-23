@@ -3256,6 +3256,18 @@ const docTemplate = `{
                         "description": "Opaque cursor returned as next_cursor",
                         "name": "before",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inclusive range start (RFC3339; requires to)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inclusive range end (RFC3339; requires from)",
+                        "name": "to",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3263,6 +3275,79 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/types.ServiceHistoryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/types.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/services/{id}/history/summary": {
+            "get": {
+                "description": "Computes full-range check counts, uptime, average successful-check latency, and latest observation directly in PostgreSQL.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "inventory"
+                ],
+                "summary": "Summarize service check history",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Service ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inclusive range start (RFC3339)",
+                        "name": "from",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inclusive range end (RFC3339, not in the future)",
+                        "name": "to",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/types.ServiceHistorySummaryData"
                         }
                     },
                     "400": {
@@ -5193,6 +5278,32 @@ const docTemplate = `{
                 },
                 "pagination": {
                     "$ref": "#/definitions/types.ServiceHistoryPaginationDocument"
+                }
+            }
+        },
+        "types.ServiceHistorySummaryData": {
+            "type": "object",
+            "properties": {
+                "average_latency_ms": {
+                    "type": "number"
+                },
+                "from": {
+                    "type": "string"
+                },
+                "last_checked_at": {
+                    "type": "string"
+                },
+                "successful_checks": {
+                    "type": "integer"
+                },
+                "to": {
+                    "type": "string"
+                },
+                "total_checks": {
+                    "type": "integer"
+                },
+                "uptime_percent": {
+                    "type": "number"
                 }
             }
         },

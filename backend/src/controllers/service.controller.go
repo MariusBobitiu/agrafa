@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -26,7 +27,10 @@ type serviceReader interface {
 	GetStreamSnapshot(ctx context.Context, serviceID int64) (types.ServiceStreamData, error)
 	ListStreamObservations(ctx context.Context, serviceID int64, afterID int64) ([]types.ServiceHistoryEntryData, error)
 	ListHistory(ctx context.Context, serviceID int64, filters types.ServiceHistoryFilters) (types.ServiceHistoryPageData, error)
+	SummarizeHistory(ctx context.Context, serviceID int64, historyRange types.ServiceHistoryRange) (types.ServiceHistorySummaryData, error)
 }
+
+const maxServiceHistoryRange = 31 * 24 * time.Hour
 
 type ServiceController struct {
 	serviceService     serviceWriter
@@ -139,6 +143,8 @@ func (c *ServiceController) Get(w http.ResponseWriter, r *http.Request) {
 // @Param        id      path   int     true   "Service ID"
 // @Param        limit   query  int     false  "Number of observations (default 100, maximum 500)"
 // @Param        before  query  string  false  "Opaque cursor returned as next_cursor"
+// @Param        from    query  string  false  "Inclusive range start (RFC3339; requires to)"
+// @Param        to      query  string  false  "Inclusive range end (RFC3339; requires from)"
 // @Success      200  {object}  types.ServiceHistoryResponse
 // @Failure      400  {object}  types.ErrorResponse
 // @Failure      401  {object}  types.ErrorResponse
@@ -172,9 +178,17 @@ func (c *ServiceController) History(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	historyRange, hasRange, err := parseServiceHistoryRange(r)
+	if err != nil {
+		utils.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	page, err := c.serviceReadService.ListHistory(r.Context(), id, types.ServiceHistoryFilters{
 		Limit:  limit,
 		Before: before,
+		From:   timePointerIf(hasRange, historyRange.From),
+		To:     timePointerIf(hasRange, historyRange.To),
 	})
 	if err != nil {
 		if utils.WriteDomainError(w, err) {
@@ -203,6 +217,90 @@ func (c *ServiceController) History(w http.ResponseWriter, r *http.Request) {
 			"next_cursor": nextCursor,
 		},
 	})
+}
+
+// HistorySummary returns authoritative aggregates for a bounded service-history range.
+//
+// @Summary      Summarize service check history
+// @Description  Computes full-range check counts, uptime, average successful-check latency, and latest observation directly in PostgreSQL.
+// @Tags         inventory
+// @Produce      json
+// @Param        id    path   int     true  "Service ID"
+// @Param        from  query  string  true  "Inclusive range start (RFC3339)"
+// @Param        to    query  string  true  "Inclusive range end (RFC3339, not in the future)"
+// @Success      200  {object}  types.ServiceHistorySummaryData
+// @Failure      400  {object}  types.ErrorResponse
+// @Failure      401  {object}  types.ErrorResponse
+// @Failure      403  {object}  types.ErrorResponse
+// @Failure      404  {object}  types.ErrorResponse
+// @Failure      500  {object}  types.ErrorResponse
+// @Router       /services/{id}/history/summary [get]
+func (c *ServiceController) HistorySummary(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		utils.WriteError(w, http.StatusBadRequest, "id must be a positive integer")
+		return
+	}
+
+	historyRange, hasRange, err := parseServiceHistoryRange(r)
+	if err != nil {
+		utils.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !hasRange {
+		utils.WriteError(w, http.StatusBadRequest, "from and to are required")
+		return
+	}
+
+	summary, err := c.serviceReadService.SummarizeHistory(r.Context(), id, historyRange)
+	if err != nil {
+		if utils.WriteDomainError(w, err) {
+			return
+		}
+		utils.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, summary)
+}
+
+func parseServiceHistoryRange(r *http.Request) (types.ServiceHistoryRange, bool, error) {
+	rawFrom := r.URL.Query().Get("from")
+	rawTo := r.URL.Query().Get("to")
+	if rawFrom == "" && rawTo == "" {
+		return types.ServiceHistoryRange{}, false, nil
+	}
+	if rawFrom == "" || rawTo == "" {
+		return types.ServiceHistoryRange{}, false, fmt.Errorf("from and to must be provided together")
+	}
+
+	from, err := time.Parse(time.RFC3339Nano, rawFrom)
+	if err != nil {
+		return types.ServiceHistoryRange{}, false, fmt.Errorf("from must be an RFC3339 timestamp")
+	}
+	to, err := time.Parse(time.RFC3339Nano, rawTo)
+	if err != nil {
+		return types.ServiceHistoryRange{}, false, fmt.Errorf("to must be an RFC3339 timestamp")
+	}
+	from, to = from.UTC(), to.UTC()
+	if from.After(to) {
+		return types.ServiceHistoryRange{}, false, fmt.Errorf("from must be before or equal to to")
+	}
+	if to.After(time.Now().UTC()) {
+		return types.ServiceHistoryRange{}, false, fmt.Errorf("to must not be in the future")
+	}
+	if to.Sub(from) > maxServiceHistoryRange {
+		return types.ServiceHistoryRange{}, false, fmt.Errorf("history range must not exceed 31 days")
+	}
+
+	return types.ServiceHistoryRange{From: from, To: to}, true, nil
+}
+
+func timePointerIf(ok bool, value time.Time) *time.Time {
+	if !ok {
+		return nil
+	}
+	return &value
 }
 
 type serviceHistoryCursorPayload struct {

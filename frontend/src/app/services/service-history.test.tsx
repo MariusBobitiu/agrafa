@@ -30,8 +30,11 @@ import {
   ServiceHistoryEmptyState,
   ServiceHistoryRefreshError,
   ServiceHistoryRow,
+  ServiceHistorySummaryMetrics,
+  ServiceHistorySuccessCount,
 } from "./components/service-history.tsx";
 import {
+  buildHistoryChartData,
   calculateHistoryMetrics,
   deduplicateHistory,
   formatLatency,
@@ -67,6 +70,30 @@ function historyPage(ids: number[], nextCursor: string | null = null): ServiceHi
       hasMore: nextCursor != null,
       nextCursor,
     },
+  };
+}
+
+function historyWindow(
+  observations: ServiceHistoryObservation[],
+  overrides: Partial<ServiceHistoryWindow> = {},
+): ServiceHistoryWindow {
+  const successfulChecks = observations.filter((item) => item.isSuccess).length;
+  return {
+    observations,
+    isTruncated: false,
+    from: "2026-08-16T00:00:00Z",
+    to: "2026-08-24T00:00:00Z",
+    summary: {
+      from: "2026-08-16T00:00:00Z",
+      to: "2026-08-24T00:00:00Z",
+      totalChecks: observations.length,
+      successfulChecks,
+      uptimePercent:
+        observations.length > 0 ? (successfulChecks / observations.length) * 100 : null,
+      averageLatencyMs: observations[0]?.latencyMs ?? null,
+      lastCheckedAt: observations[0]?.observedAt ?? null,
+    },
+    ...overrides,
   };
 }
 
@@ -113,14 +140,8 @@ afterEach(() => {
 
 describe("service history loading states", () => {
   it("is pending without data on first load and retains the previous range while refetching", async () => {
-    const firstWindow: ServiceHistoryWindow = {
-      observations: [observation(1)],
-      isTruncated: false,
-    };
-    const secondWindow: ServiceHistoryWindow = {
-      observations: [observation(2)],
-      isTruncated: false,
-    };
+    const firstWindow = historyWindow([observation(1)]);
+    const secondWindow = historyWindow([observation(2)]);
     let resolveSecond: ((value: ServiceHistoryWindow) => void) | undefined;
     let requestCount = 0;
 
@@ -164,10 +185,7 @@ describe("service history loading states", () => {
   });
 
   it("retains range data and offers retry after a background refresh error", async () => {
-    const staleWindow: ServiceHistoryWindow = {
-      observations: [observation(1)],
-      isTruncated: false,
-    };
+    const staleWindow = historyWindow([observation(1)]);
     vi.spyOn(servicesApi, "historyWindow")
       .mockResolvedValueOnce(staleWindow)
       .mockRejectedValueOnce(new Error("offline"));
@@ -193,7 +211,7 @@ describe("service history loading states", () => {
   });
 
   it("keeps an empty stale range visible with its refresh retry", async () => {
-    const emptyWindow: ServiceHistoryWindow = { observations: [], isTruncated: false };
+    const emptyWindow = historyWindow([]);
     vi.spyOn(servicesApi, "historyWindow")
       .mockResolvedValueOnce(emptyWindow)
       .mockRejectedValueOnce(new Error("offline"));
@@ -310,12 +328,14 @@ describe("service history SSE refresh", () => {
     const client = new QueryClient();
     const rangeKey = serviceHistoryKeys.window(7, 24);
     const streamedAt = new Date();
-    const rangeData: ServiceHistoryWindow = {
-      observations: [
-        observation(1, { observedAt: new Date(streamedAt.getTime() - 60_000).toISOString() }),
-      ],
-      isTruncated: false,
-    };
+    const rangeData = historyWindow(
+      [observation(1, { observedAt: new Date(streamedAt.getTime() - 60_000).toISOString() })],
+      {
+        from: new Date(streamedAt.getTime() - 24 * 60 * 60 * 1_000).toISOString(),
+        to: new Date(streamedAt.getTime() + 60_000).toISOString(),
+      },
+    );
+    rangeData.summary = { ...rangeData.summary, totalChecks: 4_000, successfulChecks: 3_999 };
     client.setQueryData(rangeKey, rangeData);
     const streamed = observation(62, { observedAt: streamedAt.toISOString() });
 
@@ -334,8 +354,26 @@ describe("service history SSE refresh", () => {
 
     const updated = client.getQueryData<ServiceHistoryWindow>(rangeKey);
     expect(updated?.observations[0]).toMatchObject({ id: 62, checkType: "tcp", latencyMs: null });
+    expect(updated?.summary).toEqual(rangeData.summary);
     expect(client.getQueryData(serviceHistoryKeys.window(7, 6))).toBeUndefined();
     expect(client.getQueryData(serviceHistoryKeys.list(8, 20))).toBeUndefined();
+    client.clear();
+  });
+
+  it("does not add a future-dated observation to a bounded range cache", async () => {
+    const client = new QueryClient();
+    const rangeKey = serviceHistoryKeys.window(7, 24);
+    const range = historyWindow([observation(1)]);
+    client.setQueryData(rangeKey, range);
+
+    await applyServiceDetailStreamPayload(client, 7, {
+      service: serviceSnapshot(),
+      observation: historyEntry(
+        observation(99, { observedAt: "2026-08-25T00:00:00Z", latencyMs: null }),
+      ),
+    });
+
+    expect(client.getQueryData<ServiceHistoryWindow>(rangeKey)).toEqual(range);
     client.clear();
   });
 
@@ -344,10 +382,7 @@ describe("service history SSE refresh", () => {
     const recentKey = serviceHistoryKeys.list(7, 20);
     const rangeKey = serviceHistoryKeys.window(7, 24);
     const initialPage = historyPage([2, 1]);
-    const initialRange: ServiceHistoryWindow = {
-      observations: [observation(2), observation(1)],
-      isTruncated: false,
-    };
+    const initialRange = historyWindow([observation(2), observation(1)]);
     let resolveRecent: ((page: ServiceHistoryPage) => void) | undefined;
     let resolveRange: ((window: ServiceHistoryWindow) => void) | undefined;
     const recentObserver = new InfiniteQueryObserver(client, {
@@ -406,14 +441,16 @@ describe("service history SSE refresh", () => {
     vi.setSystemTime(startedAt);
     const client = new QueryClient();
     const rangeKey = serviceHistoryKeys.window(7, 24);
-    client.setQueryData<ServiceHistoryWindow>(rangeKey, {
-      observations: [],
-      isTruncated: false,
-    });
-    const authoritativeFetch = vi.spyOn(servicesApi, "historyWindow").mockResolvedValue({
-      observations: [observation(100)],
-      isTruncated: false,
-    });
+    client.setQueryData<ServiceHistoryWindow>(
+      rangeKey,
+      historyWindow([], {
+        from: new Date(startedAt.getTime() - 24 * 60 * 60 * 1_000).toISOString(),
+        to: new Date(startedAt.getTime() + 60_000).toISOString(),
+      }),
+    );
+    const authoritativeFetch = vi
+      .spyOn(servicesApi, "historyWindow")
+      .mockResolvedValue(historyWindow([observation(100)]));
     const observer = new QueryObserver(client, {
       ...serviceHistoryWindowQueryOptions(7, 24),
       staleTime: Infinity,
@@ -446,10 +483,13 @@ describe("service history SSE refresh", () => {
     const cached = Array.from({ length: 2_000 }, (_, index) =>
       observation(index + 1, { observedAt: new Date(Date.now() - index * 1_000).toISOString() }),
     );
-    client.setQueryData<ServiceHistoryWindow>(rangeKey, {
-      observations: cached,
-      isTruncated: false,
-    });
+    client.setQueryData<ServiceHistoryWindow>(
+      rangeKey,
+      historyWindow(cached, {
+        from: new Date(Date.now() - 168 * 60 * 60 * 1_000).toISOString(),
+        to: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    );
     const streamed = observation(2_001, { observedAt: new Date().toISOString() });
 
     await applyServiceDetailStreamPayload(client, 7, {
@@ -487,6 +527,37 @@ describe("service history SSE refresh", () => {
 });
 
 describe("service history metrics", () => {
+  it("renders authoritative KPI values independently of a bounded observation count", () => {
+    const window = historyWindow([observation(1), observation(2)], {
+      isTruncated: true,
+    });
+    window.summary = {
+      ...window.summary,
+      totalChecks: 2_505,
+      successfulChecks: 2_004,
+      uptimePercent: 80,
+      averageLatencyMs: 15,
+    };
+
+    const markup = renderToStaticMarkup(<ServiceHistorySummaryMetrics summary={window.summary} />);
+    const countMarkup = renderToStaticMarkup(
+      <ServiceHistorySuccessCount summary={window.summary} />,
+    );
+    expect(markup).toContain("80.00%");
+    expect(markup).toContain("15 ms");
+    expect(countMarkup).toContain("2004 of 2505 checks successful");
+    expect(window.observations).toHaveLength(2);
+    expect(window.summary.totalChecks).toBe(2_505);
+  });
+
+  it("keeps missing failed latency out of chart values while retaining exact zero", () => {
+    const points = buildHistoryChartData([
+      observation(1, { isSuccess: false, latencyMs: null }),
+      observation(2, { isSuccess: false, latencyMs: 0 }),
+    ]);
+    expect(points.map((point) => point.failureLatency)).toEqual([null, 0]);
+  });
+
   it("formats zero, sub-millisecond, and normal latency values without losing their meaning", () => {
     expect(formatLatency(0)).toBe("0 ms");
     expect(formatLatency(0.5)).toBe("<1 ms");

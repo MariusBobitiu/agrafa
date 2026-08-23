@@ -109,7 +109,7 @@ func TestServiceServiceCreateManagedAutoCreatesManagedNode(t *testing.T) {
 		ProjectID:     3,
 		ExecutionMode: types.ExecutionModeManaged,
 		Name:          "api",
-		CheckType:     "http",
+		CheckType:     " HTTP ",
 		CheckTarget:   "https://example.com/health",
 	})
 	if err != nil {
@@ -123,6 +123,9 @@ func TestServiceServiceCreateManagedAutoCreatesManagedNode(t *testing.T) {
 	}
 	if repo.createParams.NodeID != 88 {
 		t.Fatalf("createParams.NodeID = %d, want 88", repo.createParams.NodeID)
+	}
+	if repo.createParams.CheckType != "http" {
+		t.Fatalf("createParams.CheckType = %q, want http", repo.createParams.CheckType)
 	}
 	if nodeRepo.ensureManagedProject != 3 {
 		t.Fatalf("ensureManagedProject = %d, want 3", nodeRepo.ensureManagedProject)
@@ -319,7 +322,7 @@ func TestServiceServiceUpdateAllowedFieldsOnly(t *testing.T) {
 	}
 
 	name := "api-v2"
-	checkType := "tcp"
+	checkType := " TCP "
 	checkTarget := "api.internal:9000"
 	updated, err := service.Update(context.Background(), 9, types.UpdateServiceInput{
 		Name:        &name,
@@ -332,11 +335,35 @@ func TestServiceServiceUpdateAllowedFieldsOnly(t *testing.T) {
 	if repo.updateID != 9 {
 		t.Fatalf("updateID = %d, want 9", repo.updateID)
 	}
-	if repo.updateName != name || repo.updateCheckType != checkType || repo.updateTarget != checkTarget {
+	if repo.updateName != name || repo.updateCheckType != "tcp" || repo.updateTarget != checkTarget {
 		t.Fatalf("unexpected update values: %#v", repo)
 	}
 	if updated.CheckTarget != checkTarget {
 		t.Fatalf("updated.CheckTarget = %q, want %q", updated.CheckTarget, checkTarget)
+	}
+}
+
+func TestServiceServiceRejectsUnsupportedCheckTypes(t *testing.T) {
+	t.Parallel()
+
+	service := &ServiceService{
+		serviceRepo: &fakeServiceServiceRepo{service: generated.Service{ID: 9, CheckType: "http"}},
+		projectRepo: &fakeServiceServiceProjectRepo{},
+		nodeRepo:    &fakeServiceServiceNodeRepo{},
+	}
+
+	_, err := service.Create(context.Background(), types.CreateServiceInput{
+		ProjectID: 3, ExecutionMode: types.ExecutionModeManaged, Name: "api",
+		CheckType: "smtp", CheckTarget: "smtp.example.com:25",
+	})
+	if !errors.Is(err, types.ErrInvalidCheckType) {
+		t.Fatalf("Create() error = %v, want ErrInvalidCheckType", err)
+	}
+
+	unsupported := "smtp"
+	_, err = service.Update(context.Background(), 9, types.UpdateServiceInput{CheckType: &unsupported})
+	if !errors.Is(err, types.ErrInvalidCheckType) {
+		t.Fatalf("Update() error = %v, want ErrInvalidCheckType", err)
 	}
 }
 

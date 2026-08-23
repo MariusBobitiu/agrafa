@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/repositories"
@@ -70,8 +71,8 @@ func (s *ServiceService) Create(
 		return generated.Service{}, types.ErrInvalidName
 	}
 
-	checkType := utils.NormalizeRequiredString(input.CheckType)
-	if checkType == "" {
+	checkType, ok := normalizeCheckType(input.CheckType)
+	if !ok {
 		return generated.Service{}, types.ErrInvalidCheckType
 	}
 
@@ -211,8 +212,9 @@ func (s *ServiceService) Update(ctx context.Context, serviceID int64, input type
 
 	if input.CheckType != nil {
 		hasChanges = true
-		checkType = utils.NormalizeRequiredString(*input.CheckType)
-		if checkType == "" {
+		var ok bool
+		checkType, ok = normalizeCheckType(*input.CheckType)
+		if !ok {
 			return generated.Service{}, types.ErrInvalidCheckType
 		}
 	}
@@ -239,4 +241,9 @@ func (s *ServiceService) Update(ctx context.Context, serviceID int64, input type
 	}
 
 	return updatedService, nil
+}
+
+func normalizeCheckType(value string) (string, bool) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return normalized, normalized == "http" || normalized == "tcp"
 }

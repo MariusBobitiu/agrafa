@@ -36,6 +36,19 @@ export type ServiceHistoryPage = {
 export type ServiceHistoryWindow = {
   observations: ServiceHistoryObservation[];
   isTruncated: boolean;
+  from: string;
+  to: string;
+  summary: ServiceHistorySummary;
+};
+
+export type ServiceHistorySummary = {
+  from: string;
+  to: string;
+  totalChecks: number;
+  successfulChecks: number;
+  uptimePercent: number | null;
+  averageLatencyMs: number | null;
+  lastCheckedAt: string | null;
 };
 
 export type ServiceAlertSeverity = "critical" | "warning" | "info";

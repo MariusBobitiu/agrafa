@@ -117,18 +117,26 @@ FROM app.health_check_results
 WHERE service_id = $1
   AND (
       NOT $2::boolean
-      OR observed_at < $3::timestamptz
+      OR observed_at BETWEEN $3::timestamptz
+                         AND $4::timestamptz
+  )
+  AND (
+      NOT $5::boolean
+      OR observed_at < $6::timestamptz
       OR (
-          observed_at = $3::timestamptz
-          AND id < $4::bigint
+          observed_at = $6::timestamptz
+          AND id < $7::bigint
       )
   )
 ORDER BY observed_at DESC, id DESC
-LIMIT $5
+LIMIT $8
 `
 
 type ListHealthCheckHistoryByServiceIDParams struct {
 	ServiceID        int64     `json:"service_id"`
+	HasRange         bool      `json:"has_range"`
+	FromObservedAt   time.Time `json:"from_observed_at"`
+	ToObservedAt     time.Time `json:"to_observed_at"`
 	HasBefore        bool      `json:"has_before"`
 	BeforeObservedAt time.Time `json:"before_observed_at"`
 	BeforeID         int64     `json:"before_id"`
@@ -138,6 +146,9 @@ type ListHealthCheckHistoryByServiceIDParams struct {
 func (q *Queries) ListHealthCheckHistoryByServiceID(ctx context.Context, arg ListHealthCheckHistoryByServiceIDParams) ([]AppHealthCheckResult, error) {
 	rows, err := q.db.QueryContext(ctx, listHealthCheckHistoryByServiceID,
 		arg.ServiceID,
+		arg.HasRange,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
 		arg.HasBefore,
 		arg.BeforeObservedAt,
 		arg.BeforeID,
@@ -375,4 +386,44 @@ func (q *Queries) ListLatestHealthCheckResultsForRead(ctx context.Context, arg L
 		return nil, err
 	}
 	return items, nil
+}
+
+const summarizeHealthCheckHistoryByServiceID = `-- name: SummarizeHealthCheckHistoryByServiceID :one
+SELECT
+    COUNT(*)::bigint AS total_checks,
+    COUNT(*) FILTER (WHERE is_success)::bigint AS successful_checks,
+    COUNT(response_time_ms) FILTER (WHERE is_success)::bigint AS measured_latency_checks,
+    COALESCE(SUM(response_time_ms) FILTER (WHERE is_success), 0)::bigint AS total_latency_ms,
+    COALESCE(EXTRACT(EPOCH FROM MAX(observed_at)) * 1000000000, 0)::bigint AS last_checked_unix_nano
+FROM app.health_check_results
+WHERE service_id = $1
+  AND observed_at BETWEEN $2::timestamptz
+                      AND $3::timestamptz
+`
+
+type SummarizeHealthCheckHistoryByServiceIDParams struct {
+	ServiceID      int64     `json:"service_id"`
+	FromObservedAt time.Time `json:"from_observed_at"`
+	ToObservedAt   time.Time `json:"to_observed_at"`
+}
+
+type SummarizeHealthCheckHistoryByServiceIDRow struct {
+	TotalChecks           int64 `json:"total_checks"`
+	SuccessfulChecks      int64 `json:"successful_checks"`
+	MeasuredLatencyChecks int64 `json:"measured_latency_checks"`
+	TotalLatencyMs        int64 `json:"total_latency_ms"`
+	LastCheckedUnixNano   int64 `json:"last_checked_unix_nano"`
+}
+
+func (q *Queries) SummarizeHealthCheckHistoryByServiceID(ctx context.Context, arg SummarizeHealthCheckHistoryByServiceIDParams) (SummarizeHealthCheckHistoryByServiceIDRow, error) {
+	row := q.db.QueryRowContext(ctx, summarizeHealthCheckHistoryByServiceID, arg.ServiceID, arg.FromObservedAt, arg.ToObservedAt)
+	var i SummarizeHealthCheckHistoryByServiceIDRow
+	err := row.Scan(
+		&i.TotalChecks,
+		&i.SuccessfulChecks,
+		&i.MeasuredLatencyChecks,
+		&i.TotalLatencyMs,
+		&i.LastCheckedUnixNano,
+	)
+	return i, err
 }

@@ -51,9 +51,24 @@ func (r *HealthCheckRepository) ListHistoryByServiceID(ctx context.Context, serv
 		params.BeforeObservedAt = filters.Before.ObservedAt
 		params.BeforeID = filters.Before.ID
 	}
+	if filters.From != nil && filters.To != nil {
+		params.HasRange = true
+		params.FromObservedAt = filters.From.UTC()
+		params.ToObservedAt = filters.To.UTC()
+	}
 
 	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.HealthCheckResult, error) {
 		return queries.ListHealthCheckHistoryByServiceID(ctx, params)
+	})
+}
+
+func (r *HealthCheckRepository) SummarizeHistoryByServiceID(ctx context.Context, serviceID int64, historyRange types.ServiceHistoryRange) (generated.SummarizeHealthCheckHistoryByServiceIDRow, error) {
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.SummarizeHealthCheckHistoryByServiceIDRow, error) {
+		return queries.SummarizeHealthCheckHistoryByServiceID(ctx, generated.SummarizeHealthCheckHistoryByServiceIDParams{
+			ServiceID:      serviceID,
+			FromObservedAt: historyRange.From.UTC(),
+			ToObservedAt:   historyRange.To.UTC(),
+		})
 	})
 }
 

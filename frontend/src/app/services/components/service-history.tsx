@@ -16,31 +16,54 @@ import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { formatDate, cn } from "@/lib/utils.ts";
-import type { ServiceHistoryObservation } from "@/types/service.ts";
+import type { ServiceHistoryObservation, ServiceHistorySummary } from "@/types/service.ts";
 import {
+  buildHistoryChartData,
+  formatLatency,
   formatObservationTooltipTime,
+  formatUptime,
   getHistoryRowPresentation,
+  type ServiceHistoryChartPoint,
   type ServiceHistoryRangeHours,
 } from "../service-history-utils.ts";
 
-type ChartPoint = {
-  id: number;
-  timestamp: number;
-  successLatency: number | null;
-  failureLatency: number | null;
-  observation: ServiceHistoryObservation;
-};
+export function ServiceHistorySummaryMetrics({ summary }: { summary: ServiceHistorySummary }) {
+  return (
+    <div className="grid grid-cols-3 divide-x divide-border rounded-lg border border-border bg-card">
+      <div className="px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Uptime
+        </p>
+        <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
+          {formatUptime(summary.uptimePercent)}
+        </p>
+      </div>
+      <div className="px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Avg latency
+        </p>
+        <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
+          {formatLatency(summary.averageLatencyMs)}
+        </p>
+      </div>
+      <div className="px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Last checked
+        </p>
+        <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
+          <RelativeTime value={summary.lastCheckedAt} />
+        </p>
+      </div>
+    </div>
+  );
+}
 
-function buildChartData(observations: ServiceHistoryObservation[]): ChartPoint[] {
-  return [...observations]
-    .sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt))
-    .map((observation) => ({
-      id: observation.id,
-      timestamp: Date.parse(observation.observedAt),
-      successLatency: observation.isSuccess ? observation.latencyMs : null,
-      failureLatency: observation.isSuccess ? null : (observation.latencyMs ?? 0),
-      observation,
-    }));
+export function ServiceHistorySuccessCount({ summary }: { summary: ServiceHistorySummary }) {
+  return (
+    <p className="text-sm text-muted-foreground">
+      {summary.successfulChecks} of {summary.totalChecks} checks successful
+    </p>
+  );
 }
 
 function tickTime(timestamp: number, rangeHours: ServiceHistoryRangeHours): string {
@@ -82,7 +105,7 @@ function LatencyTooltip({
   rangeHours,
 }: {
   active?: boolean;
-  payload?: ReadonlyArray<{ payload: ChartPoint }>;
+  payload?: ReadonlyArray<{ payload: ServiceHistoryChartPoint }>;
   rangeHours: ServiceHistoryRangeHours;
 }) {
   const observation = payload?.[0]?.payload.observation;
@@ -103,10 +126,8 @@ export function LatencyChart({
   rangeHours: ServiceHistoryRangeHours;
 }) {
   const gradientId = `latency-fill-${useId().replaceAll(":", "")}`;
-  const chartData = buildChartData(observations);
-  const hasChartData = observations.some(
-    (observation) => observation.latencyMs != null || !observation.isSuccess,
-  );
+  const chartData = buildHistoryChartData(observations);
+  const hasChartData = observations.some((observation) => observation.latencyMs != null);
 
   if (!hasChartData) {
     return (

@@ -49,6 +49,11 @@ SELECT *
 FROM app.health_check_results
 WHERE service_id = sqlc.arg(service_id)
   AND (
+      NOT sqlc.arg(has_range)::boolean
+      OR observed_at BETWEEN sqlc.arg(from_observed_at)::timestamptz
+                         AND sqlc.arg(to_observed_at)::timestamptz
+  )
+  AND (
       NOT sqlc.arg(has_before)::boolean
       OR observed_at < sqlc.arg(before_observed_at)::timestamptz
       OR (
@@ -58,6 +63,18 @@ WHERE service_id = sqlc.arg(service_id)
   )
 ORDER BY observed_at DESC, id DESC
 LIMIT sqlc.arg(limit_rows);
+
+-- name: SummarizeHealthCheckHistoryByServiceID :one
+SELECT
+    COUNT(*)::bigint AS total_checks,
+    COUNT(*) FILTER (WHERE is_success)::bigint AS successful_checks,
+    COUNT(response_time_ms) FILTER (WHERE is_success)::bigint AS measured_latency_checks,
+    COALESCE(SUM(response_time_ms) FILTER (WHERE is_success), 0)::bigint AS total_latency_ms,
+    COALESCE(EXTRACT(EPOCH FROM MAX(observed_at)) * 1000000000, 0)::bigint AS last_checked_unix_nano
+FROM app.health_check_results
+WHERE service_id = sqlc.arg(service_id)
+  AND observed_at BETWEEN sqlc.arg(from_observed_at)::timestamptz
+                      AND sqlc.arg(to_observed_at)::timestamptz;
 
 -- name: ListLatestHealthCheckResultsByProject :many
 SELECT DISTINCT ON (h.service_id)

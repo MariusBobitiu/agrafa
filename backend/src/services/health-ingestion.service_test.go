@@ -64,11 +64,12 @@ func TestHealthIngestStoresHTTPAndTCPObservationsBeforeUpdatingState(t *testing.
 	testCases := []struct {
 		name       string
 		checkType  string
+		storedType string
 		isSuccess  bool
 		statusCode *int32
 		message    string
 	}{
-		{name: "successful HTTP", checkType: "http", isSuccess: true, statusCode: &statusOK, message: "200 OK"},
+		{name: "successful HTTP", checkType: " HTTP ", storedType: "http", isSuccess: true, statusCode: &statusOK, message: "200 OK"},
 		{name: "failed HTTP", checkType: "http", isSuccess: false, statusCode: &statusUnavailable, message: "503 Service Unavailable"},
 		{name: "successful TCP", checkType: "tcp", isSuccess: true, message: "tcp connection succeeded"},
 		{name: "failed TCP", checkType: "tcp", isSuccess: false, message: "connection refused"},
@@ -114,7 +115,11 @@ func TestHealthIngestStoresHTTPAndTCPObservationsBeforeUpdatingState(t *testing.
 			}
 
 			stored := healthCheckRepo.params[0]
-			if stored.ServiceID != 11 || stored.NodeID != 99 || stored.CheckType != testCase.checkType {
+			expectedCheckType := testCase.storedType
+			if expectedCheckType == "" {
+				expectedCheckType = testCase.checkType
+			}
+			if stored.ServiceID != 11 || stored.NodeID != 99 || stored.CheckType != expectedCheckType {
 				t.Fatalf("unexpected stored identity: %#v", stored)
 			}
 			if stored.Source != types.HealthCheckSourceManaged || !stored.ObservedAt.Equal(observedAt) {
