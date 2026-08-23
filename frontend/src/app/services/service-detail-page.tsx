@@ -4,8 +4,8 @@ import {
   AlertTriangleIcon,
   ArrowLeftIcon,
   ChevronRightIcon,
-  ClockIcon,
   GlobeIcon,
+  LoaderCircleIcon,
   NetworkIcon,
   PencilIcon,
   SirenIcon,
@@ -34,8 +34,10 @@ import { useMeta } from "@/hooks/use-meta.ts";
 import {
   HistoryLoadingState,
   LatencyChart,
+  RecentChecksHeading,
+  RecentChecksList,
   RecentCheckStrip,
-  ServiceHistoryRow,
+  ServiceHealthLoadingState,
 } from "./components/service-history.tsx";
 import {
   calculateHistoryMetrics,
@@ -289,9 +291,19 @@ export function ServiceDetailPage() {
         {/* ── 2. Service health — visual section ── */}
         <section>
           <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Service Health
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Service Health
+              </h2>
+              <span className="inline-flex size-3.5 items-center justify-center" aria-live="polite">
+                {historyWindow.isFetching && !historyWindow.isPending ? (
+                  <LoaderCircleIcon
+                    className="size-3 animate-spin text-muted-foreground"
+                    aria-label={`Loading ${rangeHours === 168 ? "7D" : `${rangeHours}H`} history`}
+                  />
+                ) : null}
+              </span>
+            </div>
             <div
               className="inline-flex rounded-md border border-border bg-card p-0.5"
               aria-label="History time range"
@@ -316,7 +328,7 @@ export function ServiceDetailPage() {
           </div>
 
           {historyWindow.isPending ? (
-            <HistoryLoadingState rows={4} />
+            <ServiceHealthLoadingState />
           ) : historyWindow.isError ? (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-4">
               <p className="text-sm text-destructive">Failed to load service history.</p>
@@ -397,17 +409,9 @@ export function ServiceDetailPage() {
 
         {/* ── 3. Recent checks — dense list section ── */}
         <section>
-          <SectionHeading
-            icon={<ClockIcon size={13} />}
-            label="Recent Checks"
-            aside={
-              historyObservations.length > 0 ? (
-                <span className="text-xs text-muted-foreground">{historyObservations.length}</span>
-              ) : undefined
-            }
-          />
+          <RecentChecksHeading />
           {historyList.isPending ? (
-            <HistoryLoadingState rows={4} />
+            <HistoryLoadingState rows={10} />
           ) : historyList.isError ? (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-4">
               <p className="text-sm text-destructive">Failed to load recent checks.</p>
@@ -426,11 +430,7 @@ export function ServiceDetailPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="overflow-hidden rounded-lg border border-border bg-card divide-y divide-border">
-                {historyObservations.map((observation) => (
-                  <ServiceHistoryRow key={observation.id} observation={observation} />
-                ))}
-              </div>
+              <RecentChecksList observations={historyObservations} />
               {historyList.hasNextPage ? (
                 <div className="flex justify-center">
                   <Button

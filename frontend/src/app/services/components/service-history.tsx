@@ -1,14 +1,17 @@
-import { CheckCircle2Icon, XCircleIcon } from "lucide-react";
+import { useId } from "react";
+import { CheckCircle2Icon, ClockIcon, XCircleIcon } from "lucide-react";
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip as ChartTooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { RelativeTime } from "@/components/relative-time.tsx";
+import { SectionHeading } from "@/components/section-heading.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { formatDate, cn } from "@/lib/utils.ts";
@@ -74,6 +77,7 @@ export function LatencyChart({
   observations: ServiceHistoryObservation[];
   rangeHours: ServiceHistoryRangeHours;
 }) {
+  const gradientId = `latency-fill-${useId().replaceAll(":", "")}`;
   const chartData = buildChartData(observations);
   const hasChartData = observations.some(
     (observation) => observation.latencyMs != null || !observation.isSuccess,
@@ -90,7 +94,14 @@ export function LatencyChart({
   return (
     <div className="h-56 w-full" aria-label="Latency over time">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 10, right: 8, bottom: 0, left: -18 }}>
+        <AreaChart data={chartData} margin={{ top: 10, right: 8, bottom: 0, left: -18 }}>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.6} />
+              <stop offset="55%" stopColor="var(--primary)" stopOpacity={0.3} />
+              <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 5" />
           <XAxis
             dataKey="timestamp"
@@ -114,11 +125,13 @@ export function LatencyChart({
             content={<LatencyTooltip />}
             cursor={{ stroke: "var(--muted-foreground)", strokeDasharray: "3 3", opacity: 0.35 }}
           />
-          <Line
-            type="monotone"
+          <Area
+            type="linear"
             dataKey="successLatency"
             stroke="var(--primary)"
             strokeWidth={1.75}
+            fill={`url(#${gradientId})`}
+            fillOpacity={1}
             connectNulls={false}
             dot={{ r: 2, fill: "var(--primary)", strokeWidth: 0 }}
             activeDot={{
@@ -148,7 +161,7 @@ export function LatencyChart({
             }}
             isAnimationActive={false}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
@@ -201,7 +214,7 @@ export function ServiceHistoryRow({ observation }: { observation: ServiceHistory
   const presentation = getHistoryRowPresentation(observation);
 
   return (
-    <div className="flex items-stretch">
+    <div className="flex items-stretch" data-history-observation-id={observation.id}>
       <div
         className={cn("w-0.5 shrink-0", observation.isSuccess ? "bg-primary" : "bg-destructive")}
       />
@@ -233,10 +246,68 @@ export function ServiceHistoryRow({ observation }: { observation: ServiceHistory
 
 export function HistoryLoadingState({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="space-y-2" aria-label="Loading check history">
+    <div
+      className="max-h-[480px] overflow-hidden rounded-lg border border-border bg-card divide-y divide-border"
+      aria-label="Loading recent checks"
+    >
       {Array.from({ length: rows }).map((_, index) => (
-        <Skeleton key={index} className="h-10 w-full" />
+        <div key={index} className="flex h-[45px] items-center gap-3 px-4">
+          <Skeleton className="size-3.5 shrink-0 rounded-full" />
+          <Skeleton className="h-3.5 w-36 max-w-[45%]" />
+          <Skeleton className="ml-auto h-3 w-10" />
+          <Skeleton className="h-3 w-20" />
+        </div>
       ))}
     </div>
   );
+}
+
+export function ServiceHealthLoadingState() {
+  return (
+    <div className="space-y-5" aria-label="Loading service health">
+      <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-9 w-36" />
+          <Skeleton className="h-4 w-44" />
+        </div>
+        <div className="space-y-2 md:max-w-[55%]">
+          <Skeleton className="ml-auto h-3 w-24" />
+          <div className="flex justify-end gap-1">
+            {Array.from({ length: 16 }).map((_, index) => (
+              <Skeleton key={index} className="size-3 rounded-full" />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 divide-x divide-border rounded-lg border border-border bg-card">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="space-y-2 px-4 py-3">
+            <Skeleton className="h-3 w-20 max-w-full" />
+            <Skeleton className="h-6 w-24 max-w-full" />
+          </div>
+        ))}
+      </div>
+
+      <Skeleton className="h-56 w-full rounded-lg" />
+    </div>
+  );
+}
+
+export function RecentChecksList({ observations }: { observations: ServiceHistoryObservation[] }) {
+  return (
+    <div
+      className="max-h-[480px] overflow-y-auto overscroll-contain rounded-lg border border-border bg-card divide-y divide-border"
+      aria-label="Recent checks history"
+      tabIndex={0}
+    >
+      {observations.map((observation) => (
+        <ServiceHistoryRow key={observation.id} observation={observation} />
+      ))}
+    </div>
+  );
+}
+
+export function RecentChecksHeading() {
+  return <SectionHeading icon={<ClockIcon size={13} />} label="Recent Checks" />;
 }

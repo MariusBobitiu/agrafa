@@ -1,7 +1,16 @@
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { servicesApi } from "@/data/services.ts";
 import type { CheckType, ServiceHistoryObservation } from "@/types/service.ts";
-import { ServiceHistoryRow } from "./components/service-history.tsx";
+import type { ServiceHistoryWindow } from "@/types/service.ts";
+import { serviceHistoryWindowQueryOptions } from "@/hooks/use-services.ts";
+import {
+  RecentChecksHeading,
+  RecentChecksList,
+  ServiceHealthLoadingState,
+  ServiceHistoryRow,
+} from "./components/service-history.tsx";
 import {
   calculateHistoryMetrics,
   deduplicateHistory,
@@ -27,6 +36,63 @@ function observation(
     ...overrides,
   };
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("service history loading states", () => {
+  it("is pending without data on first load and retains the previous range while refetching", async () => {
+    const firstWindow: ServiceHistoryWindow = {
+      observations: [observation(1)],
+      isTruncated: false,
+    };
+    const secondWindow: ServiceHistoryWindow = {
+      observations: [observation(2)],
+      isTruncated: false,
+    };
+    let resolveSecond: ((value: ServiceHistoryWindow) => void) | undefined;
+    let requestCount = 0;
+
+    vi.spyOn(servicesApi, "historyWindow").mockImplementation(() => {
+      requestCount += 1;
+      if (requestCount === 1) return Promise.resolve(firstWindow);
+      return new Promise((resolve) => {
+        resolveSecond = resolve;
+      });
+    });
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const observer = new QueryObserver(client, serviceHistoryWindowQueryOptions(7, 1));
+    const unsubscribe = observer.subscribe(() => {});
+
+    expect(observer.getCurrentResult().isPending).toBe(true);
+    expect(observer.getCurrentResult().data).toBeUndefined();
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().data).toEqual(firstWindow));
+    observer.setOptions(serviceHistoryWindowQueryOptions(7, 6));
+
+    const refetching = observer.getCurrentResult();
+    expect(refetching.isPending).toBe(false);
+    expect(refetching.isFetching).toBe(true);
+    expect(refetching.isPlaceholderData).toBe(true);
+    expect(refetching.data).toEqual(firstWindow);
+
+    resolveSecond?.(secondWindow);
+    await vi.waitFor(() => expect(observer.getCurrentResult().data).toEqual(secondWindow));
+
+    unsubscribe();
+    client.clear();
+  });
+
+  it("uses a service-health-shaped skeleton for the initial range load", () => {
+    const markup = renderToStaticMarkup(<ServiceHealthLoadingState />);
+
+    expect(markup).toContain('aria-label="Loading service health"');
+    expect(markup).toContain("grid-cols-3");
+    expect(markup).toContain("h-56");
+  });
+});
 
 describe("service history metrics", () => {
   it("calculates uptime from all observations and average latency from measured successes", () => {
@@ -119,5 +185,27 @@ describe("history pagination", () => {
     const combined = deduplicateHistory([...firstPage, ...secondPage]);
 
     expect(combined.map((item) => item.id)).toEqual([3, 2, 1]);
+  });
+
+  it("renders deduplicated appended checks inside the bounded history container", () => {
+    const combined = deduplicateHistory([
+      observation(3),
+      observation(2),
+      observation(2),
+      observation(1),
+    ]);
+    const markup = renderToStaticMarkup(<RecentChecksList observations={combined} />);
+
+    expect(markup).toContain('aria-label="Recent checks history"');
+    expect(markup).toContain("max-h-[480px]");
+    expect(markup).toContain("overflow-y-auto");
+    expect(markup.match(/data-history-observation-id=/g)).toHaveLength(3);
+  });
+
+  it("does not render the loaded item count as a recent-check total", () => {
+    const markup = renderToStaticMarkup(<RecentChecksHeading />);
+
+    expect(markup).toContain("Recent Checks");
+    expect(markup).toMatch(/Recent Checks<\/h2><\/div><\/div>$/);
   });
 });

@@ -1,4 +1,11 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  queryOptions,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { servicesApi } from "@/data/services.ts";
 import { useSSE } from "@/hooks/use-sse.ts";
 import type { Service, ServiceCreateInput, ServiceUpdateInput } from "@/types/service.ts";
@@ -57,12 +64,17 @@ export function useServiceHistory(id: number, limit = 20) {
 }
 
 export function useServiceHistoryWindow(id: number, rangeHours: number) {
-  return useQuery({
+  return useQuery(serviceHistoryWindowQueryOptions(id, rangeHours));
+}
+
+export function serviceHistoryWindowQueryOptions(id: number, rangeHours: number) {
+  return queryOptions({
     queryKey: ["services", "history", id, "window", rangeHours],
     queryFn: () =>
       servicesApi.historyWindow(id, new Date(Date.now() - rangeHours * 60 * 60 * 1_000)),
     enabled: id > 0,
     refetchInterval: 60_000,
+    placeholderData: keepPreviousData,
   });
 }
 
