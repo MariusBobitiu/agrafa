@@ -1,15 +1,26 @@
-import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import {
+  InfiniteQueryObserver,
+  QueryClient,
+  QueryObserver,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { servicesApi } from "@/data/services.ts";
-import type { CheckType, ServiceHistoryObservation } from "@/types/service.ts";
+import type { CheckType, ServiceHistoryObservation, ServiceHistoryPage } from "@/types/service.ts";
 import type { ServiceHistoryWindow } from "@/types/service.ts";
-import { serviceHistoryWindowQueryOptions } from "@/hooks/use-services.ts";
+import {
+  refreshServiceHistoryLatestPage,
+  serviceHistoryKeys,
+  serviceHistoryWindowQueryOptions,
+} from "@/hooks/use-services.ts";
 import {
   ObservationTooltip,
   RecentChecksHeading,
   RecentChecksList,
+  RecentChecksPagination,
   ServiceHealthLoadingState,
+  ServiceHistoryRefreshError,
   ServiceHistoryRow,
 } from "./components/service-history.tsx";
 import {
@@ -36,6 +47,17 @@ function observation(
     message: "200 OK",
     metadata: {},
     ...overrides,
+  };
+}
+
+function historyPage(ids: number[], nextCursor: string | null = null): ServiceHistoryPage {
+  return {
+    observations: ids.map((id) => observation(id)),
+    pagination: {
+      limit: 20,
+      hasMore: nextCursor != null,
+      nextCursor,
+    },
   };
 }
 
@@ -93,6 +115,89 @@ describe("service history loading states", () => {
     expect(markup).toContain('aria-label="Loading service health"');
     expect(markup).toContain("grid-cols-3");
     expect(markup).toContain("h-56");
+  });
+
+  it("retains range data and offers retry after a background refresh error", async () => {
+    const staleWindow: ServiceHistoryWindow = {
+      observations: [observation(1)],
+      isTruncated: false,
+    };
+    vi.spyOn(servicesApi, "historyWindow")
+      .mockResolvedValueOnce(staleWindow)
+      .mockRejectedValueOnce(new Error("offline"));
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const observer = new QueryObserver(client, serviceHistoryWindowQueryOptions(7, 24));
+    const unsubscribe = observer.subscribe(() => {});
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().data).toBe(staleWindow));
+    await observer.refetch();
+
+    const failedRefresh = observer.getCurrentResult();
+    expect(failedRefresh.isError).toBe(true);
+    expect(failedRefresh.data).toBe(staleWindow);
+    expect(failedRefresh.data?.observations).toHaveLength(1);
+
+    const markup = renderToStaticMarkup(<ServiceHistoryRefreshError onRetry={() => {}} />);
+    expect(markup).toContain("Showing saved data");
+    expect(markup).toContain("Try again");
+
+    unsubscribe();
+    client.clear();
+  });
+});
+
+describe("service history SSE refresh", () => {
+  it("replaces only the newest active list page and preserves every loaded older page", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = serviceHistoryKeys.list(7, 20);
+    const olderPage = historyPage([40, 39], "cursor-2");
+    const oldestPage = historyPage([20, 19]);
+    const cached: InfiniteData<ServiceHistoryPage, string | null> = {
+      pages: [historyPage([60, 59], "cursor-1"), olderPage, oldestPage],
+      pageParams: [null, "cursor-1", "cursor-2"],
+    };
+    client.setQueryData(key, cached);
+    const observer = new QueryObserver(client, {
+      queryKey: key,
+      queryFn: () => Promise.resolve(cached),
+      staleTime: Infinity,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+    const latestPage = historyPage([61, 60], "cursor-1");
+    const historyRequest = vi.spyOn(servicesApi, "history").mockResolvedValue(latestPage);
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    await refreshServiceHistoryLatestPage(client, 7);
+
+    const refreshed = client.getQueryData<InfiniteData<ServiceHistoryPage, string | null>>(key);
+    expect(historyRequest).toHaveBeenCalledTimes(1);
+    expect(historyRequest).toHaveBeenCalledWith(7, { limit: 20 });
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(refreshed?.pages[0]).toEqual(latestPage);
+    expect(refreshed?.pages[1]).toBe(olderPage);
+    expect(refreshed?.pages[2]).toBe(oldestPage);
+    expect(refreshed?.pageParams).toBe(cached.pageParams);
+
+    unsubscribe();
+    client.clear();
+  });
+
+  it("does not refetch or modify any range query", async () => {
+    const client = new QueryClient();
+    const rangeKey = serviceHistoryKeys.window(7, 168);
+    const rangeData: ServiceHistoryWindow = {
+      observations: [observation(1)],
+      isTruncated: false,
+    };
+    client.setQueryData(rangeKey, rangeData);
+    const rangeRequest = vi.spyOn(servicesApi, "historyWindow");
+
+    await refreshServiceHistoryLatestPage(client, 7);
+
+    expect(rangeRequest).not.toHaveBeenCalled();
+    expect(client.getQueryData(rangeKey)).toBe(rangeData);
+    client.clear();
   });
 });
 
@@ -219,6 +324,19 @@ describe("service history rows", () => {
     expect(markup).toContain("text-destructive");
     expect(markup).not.toContain("internal diagnostic details");
   });
+
+  it("includes the date in multi-day chart tooltips without cluttering short ranges", () => {
+    const multiDay = renderToStaticMarkup(
+      <ObservationTooltip observation={observation(1)} rangeHours={168} />,
+    );
+    const shortRange = renderToStaticMarkup(
+      <ObservationTooltip observation={observation(1)} rangeHours={6} />,
+    );
+
+    expect(multiDay).toMatch(/23 Aug, \d{2}:00:01/);
+    expect(shortRange).toMatch(/\d{2}:00:01/);
+    expect(shortRange).not.toContain("23 Aug");
+  });
 });
 
 describe("history pagination", () => {
@@ -251,5 +369,51 @@ describe("history pagination", () => {
 
     expect(markup).toContain("Recent Checks");
     expect(markup).toMatch(/Recent Checks<\/h2><\/div><\/div>$/);
+  });
+
+  it("keeps loaded pages after load-more failure and succeeds when retried", async () => {
+    let nextPageAttempts = 0;
+    const firstPage = historyPage([3, 2], "cursor-1");
+    const secondPage = historyPage([1]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const observer = new InfiniteQueryObserver(client, {
+      queryKey: serviceHistoryKeys.list(7, 20),
+      queryFn: ({ pageParam }) => {
+        if (pageParam == null) return Promise.resolve(firstPage);
+        nextPageAttempts += 1;
+        return nextPageAttempts === 1
+          ? Promise.reject(new Error("offline"))
+          : Promise.resolve(secondPage);
+      },
+      initialPageParam: null as string | null,
+      getNextPageParam: (lastPage) => lastPage.pagination.nextCursor ?? undefined,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+    await vi.waitFor(() => expect(observer.getCurrentResult().data?.pages).toHaveLength(1));
+
+    await observer.fetchNextPage();
+
+    const failedLoadMore = observer.getCurrentResult();
+    expect(failedLoadMore.isFetchNextPageError).toBe(true);
+    expect(failedLoadMore.data?.pages).toEqual([firstPage]);
+    const errorMarkup = renderToStaticMarkup(
+      <RecentChecksPagination
+        hasNextPage={true}
+        isFetchingNextPage={false}
+        isFetchNextPageError={true}
+        onLoadMore={() => {}}
+      />,
+    );
+    expect(errorMarkup).toContain("Couldn’t load older checks.");
+    expect(errorMarkup).toContain("Try again");
+
+    await observer.fetchNextPage();
+
+    expect(nextPageAttempts).toBe(2);
+    expect(observer.getCurrentResult().isFetchNextPageError).toBe(false);
+    expect(observer.getCurrentResult().data?.pages).toEqual([firstPage, secondPage]);
+
+    unsubscribe();
+    client.clear();
   });
 });

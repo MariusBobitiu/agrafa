@@ -34,10 +34,12 @@ import { useMeta } from "@/hooks/use-meta.ts";
 import {
   HistoryLoadingState,
   LatencyChart,
+  RecentChecksPagination,
   RecentChecksHeading,
   RecentChecksList,
   RecentCheckStrip,
   ServiceHealthLoadingState,
+  ServiceHistoryRefreshError,
 } from "./components/service-history.tsx";
 import {
   calculateHistoryMetrics,
@@ -329,7 +331,7 @@ export function ServiceDetailPage() {
 
           {historyWindow.isPending ? (
             <ServiceHealthLoadingState />
-          ) : historyWindow.isError ? (
+          ) : historyWindow.isError && !historyWindow.data ? (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-4">
               <p className="text-sm text-destructive">Failed to load service history.</p>
               <Button
@@ -347,6 +349,9 @@ export function ServiceDetailPage() {
             </div>
           ) : (
             <div className="space-y-5">
+              {historyWindow.isError ? (
+                <ServiceHistoryRefreshError onRetry={() => void historyWindow.refetch()} />
+              ) : null}
               <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
                 <div className="space-y-1">
                   <p
@@ -366,7 +371,7 @@ export function ServiceDetailPage() {
                   <p className="text-right text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
                     Recent Checks
                   </p>
-                  <RecentCheckStrip observations={rangeObservations} />
+                  <RecentCheckStrip observations={rangeObservations} rangeHours={rangeHours} />
                 </div>
               </div>
 
@@ -412,7 +417,7 @@ export function ServiceDetailPage() {
           <RecentChecksHeading />
           {historyList.isPending ? (
             <HistoryLoadingState rows={10} />
-          ) : historyList.isError ? (
+          ) : historyList.isError && !historyList.data ? (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-4">
               <p className="text-sm text-destructive">Failed to load recent checks.</p>
               <Button
@@ -431,19 +436,12 @@ export function ServiceDetailPage() {
           ) : (
             <div className="space-y-3">
               <RecentChecksList observations={historyObservations} />
-              {historyList.hasNextPage ? (
-                <div className="flex justify-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={historyList.isFetchingNextPage}
-                    onClick={() => void historyList.fetchNextPage()}
-                    className="text-xs text-muted-foreground"
-                  >
-                    {historyList.isFetchingNextPage ? "Loading older checks…" : "Load older checks"}
-                  </Button>
-                </div>
-              ) : null}
+              <RecentChecksPagination
+                hasNextPage={historyList.hasNextPage}
+                isFetchingNextPage={historyList.isFetchingNextPage}
+                isFetchNextPageError={historyList.isFetchNextPageError}
+                onLoadMore={() => void historyList.fetchNextPage()}
+              />
             </div>
           )}
         </section>
