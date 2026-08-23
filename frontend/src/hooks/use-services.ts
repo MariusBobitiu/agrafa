@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { servicesApi } from "@/data/services.ts";
 import { useSSE } from "@/hooks/use-sse.ts";
 import type { Service, ServiceCreateInput, ServiceUpdateInput } from "@/types/service.ts";
@@ -41,7 +41,28 @@ export function useServiceDetailStream(id: number, options?: { enabled?: boolean
     path: `/services/${id}/stream`,
     onMessage: (payload) => {
       qc.setQueryData(["services", "detail", id], payload);
+      void qc.invalidateQueries({ queryKey: ["services", "history", id] });
     },
+  });
+}
+
+export function useServiceHistory(id: number, limit = 20) {
+  return useInfiniteQuery({
+    queryKey: ["services", "history", id, "list", limit],
+    queryFn: ({ pageParam }) => servicesApi.history(id, { limit, before: pageParam ?? undefined }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.pagination.nextCursor ?? undefined,
+    enabled: id > 0,
+  });
+}
+
+export function useServiceHistoryWindow(id: number, rangeHours: number) {
+  return useQuery({
+    queryKey: ["services", "history", id, "window", rangeHours],
+    queryFn: () =>
+      servicesApi.historyWindow(id, new Date(Date.now() - rangeHours * 60 * 60 * 1_000)),
+    enabled: id > 0,
+    refetchInterval: 60_000,
   });
 }
 
