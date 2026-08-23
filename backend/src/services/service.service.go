@@ -243,6 +243,8 @@ func (s *ServiceService) Update(ctx context.Context, serviceID int64, input type
 	return updatedService, nil
 }
 
+// normalizeCheckType trims and lowercases a check type, then reports whether it is supported.
+// It returns the normalized check type and true for "http" or "tcp"; otherwise, it returns the normalized value and false.
 func normalizeCheckType(value string) (string, bool) {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	return normalized, normalized == "http" || normalized == "tcp"

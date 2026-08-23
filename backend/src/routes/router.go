@@ -11,6 +11,8 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
+// NewRouter constructs the application's HTTP router with public, agent-authenticated, and session-authenticated API routes.
+func NewRouter?
 func NewRouter(
 	authController *controllers.AuthController,
 	agentController *controllers.AgentController,

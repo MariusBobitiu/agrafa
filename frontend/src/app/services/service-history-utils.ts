@@ -76,6 +76,12 @@ export type ServiceHistoryChartPoint = {
   observation: ServiceHistoryObservation;
 };
 
+/**
+ * Builds chronologically ordered chart points from service history observations.
+ *
+ * @param observations - The observations to convert into chart data
+ * @returns Chart points with latency values separated into success and failure series
+ */
 export function buildHistoryChartData(
   observations: ServiceHistoryObservation[],
 ): ServiceHistoryChartPoint[] {

@@ -115,7 +115,9 @@ function PageSkeleton() {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+/**
+ * Displays service health, recent check history, active alerts, and configuration details.
+ */
 
 export function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();

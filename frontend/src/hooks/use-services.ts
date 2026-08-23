@@ -46,6 +46,12 @@ function newestObservationFirst(left: ServiceHistoryObservation, right: ServiceH
   return timestampDifference || right.id - left.id;
 }
 
+/**
+ * Updates active service history caches with a valid observation that falls within each cached time window.
+ *
+ * @param id - The service identifier associated with the observation
+ * @param observation - The observation to add or update in the caches
+ */
 export function updateServiceHistoryCaches(
   queryClient: QueryClient,
   id: number,
@@ -141,6 +147,13 @@ export type ServiceDetailStreamPayload = {
   observation?: unknown;
 };
 
+/**
+ * Applies a service detail stream payload to the service detail and history caches.
+ *
+ * @param queryClient - The query client whose caches are updated
+ * @param id - The service identifier
+ * @param payload - The streamed service detail payload
+ */
 export async function applyServiceDetailStreamPayload(
   queryClient: QueryClient,
   id: number,
@@ -196,6 +209,12 @@ export function useServiceHistoryWindow(id: number, rangeHours: number) {
   return useQuery(serviceHistoryWindowQueryOptions(id, rangeHours));
 }
 
+/**
+ * Configures a query for service observations within a rolling time window.
+ *
+ * @param rangeHours - The number of hours included in the window
+ * @returns Query options for fetching the service history window
+ */
 export function serviceHistoryWindowQueryOptions(id: number, rangeHours: number) {
   return queryOptions({
     queryKey: serviceHistoryKeys.window(id, rangeHours),

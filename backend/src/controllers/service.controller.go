@@ -267,10 +267,14 @@ func (c *ServiceController) HistorySummary(w http.ResponseWriter, r *http.Reques
 	utils.WriteJSON(w, http.StatusOK, summary)
 }
 
+// parseServiceHistoryRange parses and validates the optional history time range from the request.
+// It returns the range, whether a range was provided, and any validation error.
 func parseServiceHistoryRange(r *http.Request) (types.ServiceHistoryRange, bool, error) {
 	return parseServiceHistoryRangeAt(r, time.Now().UTC())
 }
 
+// parseServiceHistoryRangeAt parses and validates an optional history range using the supplied current time.
+// It returns whether a range was provided and clamps timestamps within the allowed clock-skew tolerance to the current time.
 func parseServiceHistoryRangeAt(r *http.Request, now time.Time) (types.ServiceHistoryRange, bool, error) {
 	rawFrom := r.URL.Query().Get("from")
 	rawTo := r.URL.Query().Get("to")
@@ -310,6 +314,7 @@ func parseServiceHistoryRangeAt(r *http.Request, now time.Time) (types.ServiceHi
 	return types.ServiceHistoryRange{From: from, To: to}, true, nil
 }
 
+// timePointerIf returns a pointer to value when ok is true; otherwise, it returns nil.
 func timePointerIf(ok bool, value time.Time) *time.Time {
 	if !ok {
 		return nil

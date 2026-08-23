@@ -76,6 +76,12 @@ export function toHistoryObservation(entry: unknown): ServiceHistoryObservation 
   };
 }
 
+/**
+ * Removes duplicate history observations by ID, retaining the last occurrence of each ID.
+ *
+ * @param observations - The history observations to deduplicate
+ * @returns The observations with duplicate IDs removed
+ */
 function deduplicateObservations(
   observations: ServiceHistoryObservation[],
 ): ServiceHistoryObservation[] {
@@ -84,6 +90,14 @@ function deduplicateObservations(
   );
 }
 
+/**
+ * Fetches service history observations within a date range subject to pagination and observation limits.
+ *
+ * @param id - The service ID
+ * @param from - The start of the observation date range
+ * @param to - The end of the observation date range
+ * @returns The observations in the range and whether additional history pages remain
+ */
 async function fetchBoundedHistoryObservations(
   id: number,
   from: Date,

@@ -27,6 +27,11 @@ import {
   type ServiceHistoryRangeHours,
 } from "../service-history-utils.ts";
 
+/**
+ * Displays uptime, average latency, and the relative time of the latest check.
+ *
+ * @param summary - Service history metrics to display
+ */
 export function ServiceHistorySummaryMetrics({ summary }: { summary: ServiceHistorySummary }) {
   return (
     <div className="grid grid-cols-3 divide-x divide-border rounded-lg border border-border bg-card">
@@ -58,6 +63,11 @@ export function ServiceHistorySummaryMetrics({ summary }: { summary: ServiceHist
   );
 }
 
+/**
+ * Displays the number of successful checks and the total number of checks.
+ *
+ * @param summary - Service history summary containing successful and total check counts
+ */
 export function ServiceHistorySuccessCount({ summary }: { summary: ServiceHistorySummary }) {
   return (
     <p className="text-sm text-muted-foreground">
@@ -66,6 +76,13 @@ export function ServiceHistorySuccessCount({ summary }: { summary: ServiceHistor
   );
 }
 
+/**
+ * Formats a chart timestamp based on the selected history range.
+ *
+ * @param timestamp - The timestamp to format.
+ * @param rangeHours - The history range duration in hours.
+ * @returns A month-and-day label for ranges longer than 24 hours, or an hour-and-minute label otherwise.
+ */
 function tickTime(timestamp: number, rangeHours: ServiceHistoryRangeHours): string {
   return new Intl.DateTimeFormat(
     "en",
@@ -99,6 +116,14 @@ export function ObservationTooltip({
   );
 }
 
+/**
+ * Renders the tooltip for a latency chart observation when chart data is active.
+ *
+ * @param active - Whether the chart tooltip is active
+ * @param payload - Chart data containing the observation to display
+ * @param rangeHours - Time range used to format the observation timestamp
+ * @returns The formatted observation tooltip, or `null` when no active observation exists
+ */
 function LatencyTooltip({
   active,
   payload,
@@ -118,6 +143,13 @@ function LatencyTooltip({
   );
 }
 
+/**
+ * Displays latency measurements over time for a service history range.
+ *
+ * @param observations - The service observations plotted in the chart.
+ * @param rangeHours - The selected time range used to format the chart timestamps.
+ * @returns A latency chart, or an empty-state message when no latency measurements exist.
+ */
 export function LatencyChart({
   observations,
   rangeHours,
