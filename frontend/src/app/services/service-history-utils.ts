@@ -79,7 +79,9 @@ export function formatUptime(value: number | null): string {
 }
 
 export function formatLatency(value: number | null): string {
-  return value == null ? "—" : `${Math.round(value)} ms`;
+  if (value == null) return "—";
+  if (value > 0 && value < 1) return "<1 ms";
+  return `${Math.round(value)} ms`;
 }
 
 function conciseMessage(message: string | null): string | null {

@@ -6,6 +6,7 @@ import type { CheckType, ServiceHistoryObservation } from "@/types/service.ts";
 import type { ServiceHistoryWindow } from "@/types/service.ts";
 import { serviceHistoryWindowQueryOptions } from "@/hooks/use-services.ts";
 import {
+  ObservationTooltip,
   RecentChecksHeading,
   RecentChecksList,
   ServiceHealthLoadingState,
@@ -14,6 +15,7 @@ import {
 import {
   calculateHistoryMetrics,
   deduplicateHistory,
+  formatLatency,
   getHistoryRowPresentation,
 } from "./service-history-utils.ts";
 
@@ -95,6 +97,12 @@ describe("service history loading states", () => {
 });
 
 describe("service history metrics", () => {
+  it("formats zero, sub-millisecond, and normal latency values without losing their meaning", () => {
+    expect(formatLatency(0)).toBe("0 ms");
+    expect(formatLatency(0.5)).toBe("<1 ms");
+    expect(formatLatency(12)).toBe("12 ms");
+  });
+
   it("calculates uptime from all observations and average latency from measured successes", () => {
     const metrics = calculateHistoryMetrics([
       observation(1, { latencyMs: 10 }),
@@ -174,6 +182,42 @@ describe("service history rows", () => {
 
     expect(tcp.result).toBe("Connection timed out");
     expect(http.result).toBe("Request timed out");
+  });
+
+  it("renders a TCP refusal as a prominent normalized failure", () => {
+    const markup = renderToStaticMarkup(
+      <ServiceHistoryRow
+        observation={observation(1, {
+          checkType: "tcp",
+          isSuccess: false,
+          statusCode: null,
+          latencyMs: 4,
+          message: "dial tcp 10.0.0.2:443: connect: connection refused",
+        })}
+      />,
+    );
+
+    expect(markup).toContain("Connection refused");
+    expect(markup).toContain("4 ms");
+    expect(markup).toContain("text-destructive");
+  });
+
+  it("uses the same concise failure presentation in tooltips", () => {
+    const markup = renderToStaticMarkup(
+      <ObservationTooltip
+        observation={observation(1, {
+          isSuccess: false,
+          statusCode: 503,
+          latencyMs: 84,
+          message: "upstream returned internal diagnostic details",
+        })}
+      />,
+    );
+
+    expect(markup).toContain("503 Service Unavailable");
+    expect(markup).toContain("84 ms");
+    expect(markup).toContain("text-destructive");
+    expect(markup).not.toContain("internal diagnostic details");
   });
 });
 

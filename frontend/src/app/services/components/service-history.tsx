@@ -17,7 +17,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatDate, cn } from "@/lib/utils.ts";
 import type { ServiceHistoryObservation } from "@/types/service.ts";
 import {
-  formatLatency,
   getHistoryRowPresentation,
   type ServiceHistoryRangeHours,
 } from "../service-history-utils.ts";
@@ -29,6 +28,13 @@ type ChartPoint = {
   failureLatency: number | null;
   observation: ServiceHistoryObservation;
 };
+
+const TOOLTIP_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
 
 function buildChartData(observations: ServiceHistoryObservation[]): ChartPoint[] {
   return [...observations]
@@ -49,6 +55,28 @@ function tickTime(timestamp: number, rangeHours: ServiceHistoryRangeHours): stri
   ).format(timestamp);
 }
 
+function tooltipTime(observedAt: string): string {
+  return TOOLTIP_TIME_FORMATTER.format(Date.parse(observedAt));
+}
+
+export function ObservationTooltip({ observation }: { observation: ServiceHistoryObservation }) {
+  const presentation = getHistoryRowPresentation(observation);
+  return (
+    <div className="space-y-0.5 text-xs tabular-nums">
+      <p className="text-muted-foreground">{tooltipTime(observation.observedAt)}</p>
+      <p
+        className={cn(
+          "font-medium",
+          observation.isSuccess ? "text-popover-foreground" : "text-destructive",
+        )}
+      >
+        {presentation.result}
+      </p>
+      <p className="text-muted-foreground">{presentation.latency}</p>
+    </div>
+  );
+}
+
 function LatencyTooltip({
   active,
   payload,
@@ -59,13 +87,9 @@ function LatencyTooltip({
   const observation = payload?.[0]?.payload.observation;
   if (!active || !observation) return null;
 
-  const presentation = getHistoryRowPresentation(observation);
   return (
     <div className="rounded-md border border-border bg-popover px-3 py-2 text-xs shadow-md">
-      <p className="font-medium text-popover-foreground">{presentation.result}</p>
-      <p className="mt-1 text-muted-foreground">
-        {formatLatency(observation.latencyMs)} · {formatDate(observation.observedAt)}
-      </p>
+      <ObservationTooltip observation={observation} />
     </div>
   );
 }
@@ -98,7 +122,7 @@ export function LatencyChart({
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.6} />
-              <stop offset="55%" stopColor="var(--primary)" stopOpacity={0.3} />
+              <stop offset="45%" stopColor="var(--primary)" stopOpacity={0.3} />
               <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
             </linearGradient>
           </defs>
@@ -148,10 +172,10 @@ export function LatencyChart({
             stroke="transparent"
             connectNulls={false}
             dot={{
-              r: 3,
+              r: 4,
               fill: "var(--destructive)",
               stroke: "var(--background)",
-              strokeWidth: 1.5,
+              strokeWidth: 2,
             }}
             activeDot={{
               r: 4,
@@ -163,22 +187,6 @@ export function LatencyChart({
           />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
-  );
-}
-
-function ObservationTooltip({ observation }: { observation: ServiceHistoryObservation }) {
-  const presentation = getHistoryRowPresentation(observation);
-  return (
-    <div className="space-y-0.5 text-xs">
-      <p className="font-medium">{formatDate(observation.observedAt)}</p>
-      <p>
-        {observation.isSuccess ? "Success" : "Failed"}: {presentation.result}
-      </p>
-      <p>Latency: {presentation.latency}</p>
-      {observation.checkType === "http" && observation.statusCode != null ? (
-        <p>HTTP status: {observation.statusCode}</p>
-      ) : null}
     </div>
   );
 }
