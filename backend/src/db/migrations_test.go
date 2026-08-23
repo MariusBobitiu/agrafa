@@ -154,6 +154,7 @@ func TestServiceCheckHistoryCorrectionUsesOnlyCanonicalPayloadMetadata(t *testin
 	for _, expected := range []string{
 		"payload ->> 'check_type'",
 		"payload ->> 'type'",
+		"E' \\t\\n\\r\\f\\013'",
 		"IN ('http', 'tcp')",
 		"ELSE check_type",
 	} {
@@ -163,5 +164,8 @@ func TestServiceCheckHistoryCorrectionUsesOnlyCanonicalPayloadMetadata(t *testin
 	}
 	if strings.Contains(sql, "FROM app.services") {
 		t.Fatalf("corrective migration must not guess from current service definitions:\n%s", sql)
+	}
+	if strings.Contains(sql, "BTRIM(payload ->> 'check_type')") || strings.Contains(sql, "BTRIM(payload ->> 'type')") {
+		t.Fatalf("corrective migration must use the explicit supported-whitespace character set:\n%s", sql)
 	}
 }

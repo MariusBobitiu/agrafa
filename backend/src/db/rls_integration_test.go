@@ -140,10 +140,11 @@ func TestProjectScopeRLSMembershipBackedAuthorization(t *testing.T) {
 					id, service_id, node_id, check_type, source, observed_at,
 					is_success, message, payload
 				) VALUES
-					(-5001, -3001, -2001, 'http', 'managed', NOW(), TRUE, 'ok', '{"check_type":" TCP "}'::jsonb),
-					(-5002, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"type":"HTTP"}'::jsonb),
-					(-5003, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"type":"smtp"}'::jsonb),
-					(-5004, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"check_type":"smtp","type":"http"}'::jsonb)
+					(-5001, -3001, -2001, 'http', 'managed', NOW(), TRUE, 'ok', '{"check_type":"\tTCP\t"}'::jsonb),
+					(-5002, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"check_type":"\nHTTP\n"}'::jsonb),
+					(-5003, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"type":"\t\nHTTP\n\t"}'::jsonb),
+					(-5004, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"check_type":"\tSMTP\n"}'::jsonb),
+					(-5005, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"check_type":"smtp","type":"http"}'::jsonb)
 			`); err != nil {
 				t.Fatalf("insert corrective migration fixtures: %v", err)
 			}
@@ -159,7 +160,7 @@ func TestProjectScopeRLSMembershipBackedAuthorization(t *testing.T) {
 			rows, err := tx.QueryContext(ctx, `
 				SELECT id, check_type
 				FROM app.health_check_results
-				WHERE id BETWEEN -5004 AND -5001
+				WHERE id BETWEEN -5005 AND -5001
 				ORDER BY id
 			`)
 			if err != nil {
@@ -178,7 +179,7 @@ func TestProjectScopeRLSMembershipBackedAuthorization(t *testing.T) {
 			if err := rows.Err(); err != nil {
 				t.Fatalf("iterate corrected history: %v", err)
 			}
-			want := map[int64]string{-5001: "tcp", -5002: "http", -5003: "tcp", -5004: "tcp"}
+			want := map[int64]string{-5001: "tcp", -5002: "http", -5003: "http", -5004: "tcp", -5005: "tcp"}
 			for id, checkType := range want {
 				if got[id] != checkType {
 					t.Fatalf("row %d check_type = %q, want %q", id, got[id], checkType)

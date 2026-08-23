@@ -146,8 +146,8 @@ func (c *ServiceController) Get(w http.ResponseWriter, r *http.Request) {
 // @Param        id      path   int     true   "Service ID"
 // @Param        limit   query  int     false  "Number of observations (default 100, maximum 500)"
 // @Param        before  query  string  false  "Opaque cursor returned as next_cursor"
-// @Param        from    query  string  false  "Inclusive range start (RFC3339; requires to)"
-// @Param        to      query  string  false  "Inclusive range end (RFC3339; requires from; small future clock skew is clamped to server time)"
+// @Param        from    query  string  false  "Inclusive range start (RFC3339; requires to; maximum requested history range is 31 days)"
+// @Param        to      query  string  false  "Inclusive range end (RFC3339; requires from; maximum requested history range is 31 days; small future clock skew is clamped to server time)"
 // @Success      200  {object}  types.ServiceHistoryResponse
 // @Failure      400  {object}  types.ErrorResponse
 // @Failure      401  {object}  types.ErrorResponse
@@ -229,8 +229,8 @@ func (c *ServiceController) History(w http.ResponseWriter, r *http.Request) {
 // @Tags         inventory
 // @Produce      json
 // @Param        id    path   int     true  "Service ID"
-// @Param        from  query  string  true  "Inclusive range start (RFC3339)"
-// @Param        to    query  string  true  "Inclusive range end (RFC3339; small future clock skew is clamped to server time)"
+// @Param        from  query  string  true  "Inclusive range start (RFC3339; paired with to; maximum requested history range is 31 days)"
+// @Param        to    query  string  true  "Inclusive range end (RFC3339; paired with from; maximum requested history range is 31 days; small future clock skew is clamped to server time)"
 // @Success      200  {object}  types.ServiceHistorySummaryData
 // @Failure      400  {object}  types.ErrorResponse
 // @Failure      401  {object}  types.ErrorResponse

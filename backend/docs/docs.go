@@ -3259,13 +3259,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Inclusive range start (RFC3339; requires to)",
+                        "description": "Inclusive range start (RFC3339; requires to; maximum requested history range is 31 days)",
                         "name": "from",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Inclusive range end (RFC3339; requires from; small future clock skew is clamped to server time)",
+                        "description": "Inclusive range end (RFC3339; requires from; maximum requested history range is 31 days; small future clock skew is clamped to server time)",
                         "name": "to",
                         "in": "query"
                     }
@@ -3330,14 +3330,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Inclusive range start (RFC3339)",
+                        "description": "Inclusive range start (RFC3339; paired with to; maximum requested history range is 31 days)",
                         "name": "from",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Inclusive range end (RFC3339; small future clock skew is clamped to server time)",
+                        "description": "Inclusive range end (RFC3339; paired with from; maximum requested history range is 31 days; small future clock skew is clamped to server time)",
                         "name": "to",
                         "in": "query",
                         "required": true
@@ -5285,25 +5285,31 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "average_latency_ms": {
-                    "type": "number"
+                    "type": "number",
+                    "x-nullable": true
                 },
                 "from": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "last_checked_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "x-nullable": true
                 },
                 "successful_checks": {
                     "type": "integer"
                 },
                 "to": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "total_checks": {
                     "type": "integer"
                 },
                 "uptime_percent": {
-                    "type": "number"
+                    "type": "number",
+                    "x-nullable": true
                 }
             }
         },
