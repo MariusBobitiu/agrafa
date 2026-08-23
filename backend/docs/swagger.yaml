@@ -159,6 +159,18 @@ definitions:
       is_enabled:
         example: false
         type: boolean
+      node_id:
+        example: 1
+        type: integer
+      service_id:
+        example: 1
+        type: integer
+      severity:
+        example: warning
+        type: string
+      threshold_value:
+        example: 90
+        type: number
     type: object
   types.AlertRulesResponse:
     properties:
@@ -1225,6 +1237,62 @@ definitions:
         example: healthy
         type: string
     type: object
+  types.ServiceHistoryEntryDocument:
+    properties:
+      check_type:
+        example: http
+        type: string
+      id:
+        example: 301
+        type: integer
+      is_success:
+        example: true
+        type: boolean
+      message:
+        example: 200 OK
+        type: string
+      metadata:
+        type: object
+      node_id:
+        example: 12
+        type: integer
+      observed_at:
+        format: date-time
+        type: string
+      response_time_ms:
+        example: 42
+        type: integer
+      service_id:
+        example: 101
+        type: integer
+      source:
+        example: managed
+        type: string
+      status_code:
+        example: 200
+        type: integer
+    type: object
+  types.ServiceHistoryPaginationDocument:
+    properties:
+      has_more:
+        example: true
+        type: boolean
+      limit:
+        example: 100
+        type: integer
+      next_cursor:
+        example: eyJvYnNlcnZlZF9hdCI6IjIwMjYtMDgtMjNUMTI6MDA6MDBaIiwiaWQiOjMwMX0
+        type: string
+    type: object
+  types.ServiceHistoryResponse:
+    properties:
+      history:
+        items:
+          $ref: '#/definitions/types.ServiceHistoryEntryDocument'
+        type: array
+      pagination:
+        $ref: '#/definitions/types.ServiceHistoryPaginationDocument'
+    type: object
   types.ServiceResponseDocument:
     properties:
       check_target:
@@ -1649,7 +1717,8 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Updates the enabled state of an alert rule.
+      description: Updates the target, threshold, severity, and enabled state of an
+        alert rule.
       parameters:
       - description: Alert rule ID
         in: path
@@ -2390,6 +2459,44 @@ paths:
           schema:
             $ref: '#/definitions/types.ErrorResponse'
       summary: Regenerate node agent token
+      tags:
+      - inventory
+  /nodes/{id}/stream:
+    get:
+      description: Streams the current node detail payload over Server-Sent Events
+        for a node the current user can read.
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Stream node detail
       tags:
       - inventory
   /notification-deliveries:
@@ -3440,6 +3547,92 @@ paths:
           schema:
             $ref: '#/definitions/types.ErrorResponse'
       summary: Update service
+      tags:
+      - inventory
+  /services/{id}/history:
+    get:
+      description: Returns append-only HTTP or TCP check observations newest-first.
+        Use next_cursor as before for keyset pagination.
+      parameters:
+      - description: Service ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Number of observations (default 100, maximum 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque cursor returned as next_cursor
+        in: query
+        name: before
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ServiceHistoryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get service check history
+      tags:
+      - inventory
+  /services/{id}/stream:
+    get:
+      description: Streams the current service detail payload over Server-Sent Events
+        for a service the current user can read.
+      parameters:
+      - description: Service ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Stream service detail
       tags:
       - inventory
 schemes:

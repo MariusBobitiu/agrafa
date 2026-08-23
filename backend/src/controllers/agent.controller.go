@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	agentmiddleware "github.com/MariusBobitiu/agrafa-backend/src/middleware"
 	"github.com/MariusBobitiu/agrafa-backend/src/services"
@@ -270,9 +271,10 @@ func (c *AgentController) IngestHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	service, err := c.healthIngestionService.Ingest(r.Context(), types.HealthCheckInput{
+	service, err := c.healthIngestionService.Ingest(appdb.WithInternalRLSBypass(r.Context()), types.HealthCheckInput{
 		AuthenticatedNodeID: authenticatedNode.ID,
 		ServiceID:           request.ServiceID,
+		Source:              types.HealthCheckSourceAgent,
 		ObservedAt:          observedAt,
 		IsSuccess:           *request.IsSuccess,
 		StatusCode:          request.StatusCode,

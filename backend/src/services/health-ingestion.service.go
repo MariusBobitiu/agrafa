@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
@@ -56,11 +57,23 @@ func (s *HealthIngestionService) Ingest(ctx context.Context, input types.HealthC
 		return generated.Service{}, types.ErrServiceNodeMismatch
 	}
 
+	source := strings.TrimSpace(input.Source)
+	if source == "" {
+		source = "unknown"
+	}
+	statusCode := input.StatusCode
+	if strings.EqualFold(strings.TrimSpace(service.CheckType), "tcp") {
+		statusCode = nil
+	}
+
 	if _, err := s.healthCheckRepo.Create(ctx, generated.CreateHealthCheckResultParams{
 		ServiceID:      input.ServiceID,
+		NodeID:         service.NodeID,
+		CheckType:      service.CheckType,
+		Source:         source,
 		ObservedAt:     input.ObservedAt,
 		IsSuccess:      input.IsSuccess,
-		StatusCode:     utils.ToNullInt32(input.StatusCode),
+		StatusCode:     utils.ToNullInt32(statusCode),
 		ResponseTimeMs: utils.ToNullInt32(input.ResponseTimeMs),
 		Message:        input.Message,
 		Payload:        utils.NormalizeJSON(input.Payload),

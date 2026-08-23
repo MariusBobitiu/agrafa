@@ -2,11 +2,14 @@ package controllers
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
+	"github.com/MariusBobitiu/agrafa-backend/src/services"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
 	"github.com/MariusBobitiu/agrafa-backend/src/utils"
 	"github.com/go-chi/chi/v5"
@@ -20,6 +23,7 @@ type serviceWriter interface {
 
 type serviceReader interface {
 	GetByID(ctx context.Context, serviceID int64) (types.ServiceDetailData, error)
+	ListHistory(ctx context.Context, serviceID int64, filters types.ServiceHistoryFilters) (types.ServiceHistoryPageData, error)
 }
 
 type ServiceController struct {
@@ -122,6 +126,112 @@ func (c *ServiceController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteJSON(w, http.StatusOK, map[string]any{"service": service})
+}
+
+// History returns historical observations for a service.
+//
+// @Summary      Get service check history
+// @Description  Returns append-only HTTP or TCP check observations newest-first. Use next_cursor as before for keyset pagination.
+// @Tags         inventory
+// @Produce      json
+// @Param        id      path   int     true   "Service ID"
+// @Param        limit   query  int     false  "Number of observations (default 100, maximum 500)"
+// @Param        before  query  string  false  "Opaque cursor returned as next_cursor"
+// @Success      200  {object}  types.ServiceHistoryResponse
+// @Failure      400  {object}  types.ErrorResponse
+// @Failure      401  {object}  types.ErrorResponse
+// @Failure      403  {object}  types.ErrorResponse
+// @Failure      404  {object}  types.ErrorResponse
+// @Failure      500  {object}  types.ErrorResponse
+// @Router       /services/{id}/history [get]
+func (c *ServiceController) History(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		utils.WriteError(w, http.StatusBadRequest, "id must be a positive integer")
+		return
+	}
+
+	limit := services.DefaultServiceHistoryLimit
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		parsedLimit, parseErr := strconv.ParseInt(rawLimit, 10, 32)
+		if parseErr != nil || parsedLimit <= 0 || parsedLimit > int64(services.MaxServiceHistoryLimit) {
+			utils.WriteError(w, http.StatusBadRequest, "limit must be between 1 and 500")
+			return
+		}
+		limit = int32(parsedLimit)
+	}
+
+	var before *types.ServiceHistoryCursor
+	if rawBefore := r.URL.Query().Get("before"); rawBefore != "" {
+		before, err = decodeServiceHistoryCursor(rawBefore)
+		if err != nil {
+			utils.WriteError(w, http.StatusBadRequest, "before must be a valid history cursor")
+			return
+		}
+	}
+
+	page, err := c.serviceReadService.ListHistory(r.Context(), id, types.ServiceHistoryFilters{
+		Limit:  limit,
+		Before: before,
+	})
+	if err != nil {
+		if utils.WriteDomainError(w, err) {
+			return
+		}
+
+		utils.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	var nextCursor *string
+	if page.NextCursor != nil {
+		encoded, encodeErr := encodeServiceHistoryCursor(*page.NextCursor)
+		if encodeErr != nil {
+			utils.WriteError(w, http.StatusInternalServerError, "encode service history cursor")
+			return
+		}
+		nextCursor = &encoded
+	}
+
+	utils.WriteJSON(w, http.StatusOK, map[string]any{
+		"history": page.Entries,
+		"pagination": map[string]any{
+			"limit":       limit,
+			"has_more":    nextCursor != nil,
+			"next_cursor": nextCursor,
+		},
+	})
+}
+
+type serviceHistoryCursorPayload struct {
+	ObservedAt time.Time `json:"observed_at"`
+	ID         int64     `json:"id"`
+}
+
+func encodeServiceHistoryCursor(cursor types.ServiceHistoryCursor) (string, error) {
+	payload, err := json.Marshal(serviceHistoryCursorPayload(cursor))
+	if err != nil {
+		return "", err
+	}
+
+	return base64.RawURLEncoding.EncodeToString(payload), nil
+}
+
+func decodeServiceHistoryCursor(encoded string) (*types.ServiceHistoryCursor, error) {
+	payload, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, err
+	}
+
+	var cursor serviceHistoryCursorPayload
+	if err := json.Unmarshal(payload, &cursor); err != nil {
+		return nil, err
+	}
+	if cursor.ID <= 0 || cursor.ObservedAt.IsZero() {
+		return nil, strconv.ErrSyntax
+	}
+
+	return &types.ServiceHistoryCursor{ObservedAt: cursor.ObservedAt.UTC(), ID: cursor.ID}, nil
 }
 
 // Stream streams service detail snapshots over SSE.

@@ -108,4 +108,8 @@ func TestManagedServiceCheckJobRunOnceChecksManagedServicesOnly(t *testing.T) {
 	if healthIngester.inputs[0].AuthenticatedNodeID != 101 || healthIngester.inputs[1].AuthenticatedNodeID != 101 {
 		t.Fatalf("expected health ingestions to authenticate as managed node 101: %#v", healthIngester.inputs)
 	}
+
+	if healthIngester.inputs[0].Source != types.HealthCheckSourceManaged || healthIngester.inputs[1].Source != types.HealthCheckSourceManaged {
+		t.Fatalf("expected managed source metadata: %#v", healthIngester.inputs)
+	}
 }

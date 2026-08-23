@@ -15,6 +15,9 @@ import (
 const createHealthCheckResult = `-- name: CreateHealthCheckResult :one
 INSERT INTO app.health_check_results (
     service_id,
+    node_id,
+    check_type,
+    source,
     observed_at,
     is_success,
     status_code,
@@ -28,13 +31,19 @@ INSERT INTO app.health_check_results (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8,
+    $9,
+    $10
 )
-RETURNING id, service_id, observed_at, is_success, status_code, response_time_ms, message, payload, created_at
+RETURNING id, service_id, node_id, check_type, source, observed_at, is_success, status_code, response_time_ms, message, payload, created_at
 `
 
 type CreateHealthCheckResultParams struct {
 	ServiceID      int64           `json:"service_id"`
+	NodeID         int64           `json:"node_id"`
+	CheckType      string          `json:"check_type"`
+	Source         string          `json:"source"`
 	ObservedAt     time.Time       `json:"observed_at"`
 	IsSuccess      bool            `json:"is_success"`
 	StatusCode     sql.NullInt32   `json:"status_code"`
@@ -46,6 +55,9 @@ type CreateHealthCheckResultParams struct {
 func (q *Queries) CreateHealthCheckResult(ctx context.Context, arg CreateHealthCheckResultParams) (AppHealthCheckResult, error) {
 	row := q.db.QueryRowContext(ctx, createHealthCheckResult,
 		arg.ServiceID,
+		arg.NodeID,
+		arg.CheckType,
+		arg.Source,
 		arg.ObservedAt,
 		arg.IsSuccess,
 		arg.StatusCode,
@@ -57,6 +69,9 @@ func (q *Queries) CreateHealthCheckResult(ctx context.Context, arg CreateHealthC
 	err := row.Scan(
 		&i.ID,
 		&i.ServiceID,
+		&i.NodeID,
+		&i.CheckType,
+		&i.Source,
 		&i.ObservedAt,
 		&i.IsSuccess,
 		&i.StatusCode,
@@ -69,7 +84,7 @@ func (q *Queries) CreateHealthCheckResult(ctx context.Context, arg CreateHealthC
 }
 
 const getLatestHealthCheckResultByServiceID = `-- name: GetLatestHealthCheckResultByServiceID :one
-SELECT id, service_id, observed_at, is_success, status_code, response_time_ms, message, payload, created_at
+SELECT id, service_id, node_id, check_type, source, observed_at, is_success, status_code, response_time_ms, message, payload, created_at
 FROM app.health_check_results
 WHERE service_id = $1
 ORDER BY observed_at DESC, id DESC
@@ -82,6 +97,9 @@ func (q *Queries) GetLatestHealthCheckResultByServiceID(ctx context.Context, ser
 	err := row.Scan(
 		&i.ID,
 		&i.ServiceID,
+		&i.NodeID,
+		&i.CheckType,
+		&i.Source,
 		&i.ObservedAt,
 		&i.IsSuccess,
 		&i.StatusCode,
@@ -93,9 +111,75 @@ func (q *Queries) GetLatestHealthCheckResultByServiceID(ctx context.Context, ser
 	return i, err
 }
 
+const listHealthCheckHistoryByServiceID = `-- name: ListHealthCheckHistoryByServiceID :many
+SELECT id, service_id, node_id, check_type, source, observed_at, is_success, status_code, response_time_ms, message, payload, created_at
+FROM app.health_check_results
+WHERE service_id = $1
+  AND (
+      NOT $2::boolean
+      OR observed_at < $3::timestamptz
+      OR (
+          observed_at = $3::timestamptz
+          AND id < $4::bigint
+      )
+  )
+ORDER BY observed_at DESC, id DESC
+LIMIT $5
+`
+
+type ListHealthCheckHistoryByServiceIDParams struct {
+	ServiceID        int64     `json:"service_id"`
+	HasBefore        bool      `json:"has_before"`
+	BeforeObservedAt time.Time `json:"before_observed_at"`
+	BeforeID         int64     `json:"before_id"`
+	LimitRows        int32     `json:"limit_rows"`
+}
+
+func (q *Queries) ListHealthCheckHistoryByServiceID(ctx context.Context, arg ListHealthCheckHistoryByServiceIDParams) ([]AppHealthCheckResult, error) {
+	rows, err := q.db.QueryContext(ctx, listHealthCheckHistoryByServiceID,
+		arg.ServiceID,
+		arg.HasBefore,
+		arg.BeforeObservedAt,
+		arg.BeforeID,
+		arg.LimitRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppHealthCheckResult{}
+	for rows.Next() {
+		var i AppHealthCheckResult
+		if err := rows.Scan(
+			&i.ID,
+			&i.ServiceID,
+			&i.NodeID,
+			&i.CheckType,
+			&i.Source,
+			&i.ObservedAt,
+			&i.IsSuccess,
+			&i.StatusCode,
+			&i.ResponseTimeMs,
+			&i.Message,
+			&i.Payload,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLatestHealthCheckResults = `-- name: ListLatestHealthCheckResults :many
 SELECT DISTINCT ON (h.service_id)
-    h.id, h.service_id, h.observed_at, h.is_success, h.status_code, h.response_time_ms, h.message, h.payload, h.created_at
+    h.id, h.service_id, h.node_id, h.check_type, h.source, h.observed_at, h.is_success, h.status_code, h.response_time_ms, h.message, h.payload, h.created_at
 FROM app.health_check_results AS h
 ORDER BY h.service_id, h.observed_at DESC, h.id DESC
 `
@@ -112,6 +196,9 @@ func (q *Queries) ListLatestHealthCheckResults(ctx context.Context) ([]AppHealth
 		if err := rows.Scan(
 			&i.ID,
 			&i.ServiceID,
+			&i.NodeID,
+			&i.CheckType,
+			&i.Source,
 			&i.ObservedAt,
 			&i.IsSuccess,
 			&i.StatusCode,
@@ -135,7 +222,7 @@ func (q *Queries) ListLatestHealthCheckResults(ctx context.Context) ([]AppHealth
 
 const listLatestHealthCheckResultsByProject = `-- name: ListLatestHealthCheckResultsByProject :many
 SELECT DISTINCT ON (h.service_id)
-    h.id, h.service_id, h.observed_at, h.is_success, h.status_code, h.response_time_ms, h.message, h.payload, h.created_at
+    h.id, h.service_id, h.node_id, h.check_type, h.source, h.observed_at, h.is_success, h.status_code, h.response_time_ms, h.message, h.payload, h.created_at
 FROM app.health_check_results AS h
 JOIN app.services AS s ON s.id = h.service_id
 WHERE s.project_id = $1
@@ -154,6 +241,9 @@ func (q *Queries) ListLatestHealthCheckResultsByProject(ctx context.Context, pro
 		if err := rows.Scan(
 			&i.ID,
 			&i.ServiceID,
+			&i.NodeID,
+			&i.CheckType,
+			&i.Source,
 			&i.ObservedAt,
 			&i.IsSuccess,
 			&i.StatusCode,
@@ -177,7 +267,7 @@ func (q *Queries) ListLatestHealthCheckResultsByProject(ctx context.Context, pro
 
 const listLatestHealthCheckResultsForRead = `-- name: ListLatestHealthCheckResultsForRead :many
 SELECT DISTINCT ON (h.service_id)
-    h.id, h.service_id, h.observed_at, h.is_success, h.status_code, h.response_time_ms, h.message, h.payload, h.created_at
+    h.id, h.service_id, h.node_id, h.check_type, h.source, h.observed_at, h.is_success, h.status_code, h.response_time_ms, h.message, h.payload, h.created_at
 FROM app.health_check_results AS h
 JOIN app.services AS s ON s.id = h.service_id
 WHERE (NOT $1::boolean OR s.project_id = $2)
@@ -214,6 +304,9 @@ func (q *Queries) ListLatestHealthCheckResultsForRead(ctx context.Context, arg L
 		if err := rows.Scan(
 			&i.ID,
 			&i.ServiceID,
+			&i.NodeID,
+			&i.CheckType,
+			&i.Source,
 			&i.ObservedAt,
 			&i.IsSuccess,
 			&i.StatusCode,

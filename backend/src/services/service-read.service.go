@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	"github.com/MariusBobitiu/agrafa-backend/src/types"
@@ -24,7 +25,13 @@ type serviceReadNodeRepository interface {
 type serviceReadHealthCheckRepository interface {
 	GetLatestByServiceID(ctx context.Context, serviceID int64) (generated.HealthCheckResult, error)
 	ListLatestForRead(ctx context.Context, filters types.ServiceListFilters) ([]generated.HealthCheckResult, error)
+	ListHistoryByServiceID(ctx context.Context, serviceID int64, filters types.ServiceHistoryFilters) ([]generated.HealthCheckResult, error)
 }
+
+const (
+	DefaultServiceHistoryLimit int32 = 100
+	MaxServiceHistoryLimit     int32 = 500
+)
 
 type serviceReadAlertInstanceRepository interface {
 	CountActiveByServiceID(ctx context.Context, serviceID int64) (int64, error)
@@ -171,6 +178,64 @@ func (s *ServiceReadService) GetByID(ctx context.Context, serviceID int64) (type
 		CreatedAt:           service.CreatedAt,
 		UpdatedAt:           service.UpdatedAt,
 	}, nil
+}
+
+func (s *ServiceReadService) ListHistory(ctx context.Context, serviceID int64, filters types.ServiceHistoryFilters) (types.ServiceHistoryPageData, error) {
+	if serviceID <= 0 {
+		return types.ServiceHistoryPageData{}, types.ErrInvalidServiceID
+	}
+
+	limit := filters.Limit
+	if limit <= 0 {
+		limit = DefaultServiceHistoryLimit
+	}
+	if limit > MaxServiceHistoryLimit {
+		limit = MaxServiceHistoryLimit
+	}
+
+	queryFilters := filters
+	queryFilters.Limit = limit + 1
+	rows, err := s.healthCheckRepo.ListHistoryByServiceID(ctx, serviceID, queryFilters)
+	if err != nil {
+		return types.ServiceHistoryPageData{}, fmt.Errorf("list service history: %w", err)
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].ObservedAt.Equal(rows[j].ObservedAt) {
+			return rows[i].ID > rows[j].ID
+		}
+		return rows[i].ObservedAt.After(rows[j].ObservedAt)
+	})
+
+	hasMore := len(rows) > int(limit)
+	if hasMore {
+		rows = rows[:limit]
+	}
+
+	entries := make([]types.ServiceHistoryEntryData, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, types.ServiceHistoryEntryData{
+			ID:             row.ID,
+			ServiceID:      row.ServiceID,
+			NodeID:         row.NodeID,
+			CheckType:      row.CheckType,
+			Source:         row.Source,
+			ObservedAt:     row.ObservedAt,
+			IsSuccess:      row.IsSuccess,
+			StatusCode:     nullInt32Ptr(row.StatusCode),
+			ResponseTimeMs: nullInt32Ptr(row.ResponseTimeMs),
+			Message:        row.Message,
+			Metadata:       normalizeJSONValue(rawJSONValue(row.Payload)),
+		})
+	}
+
+	page := types.ServiceHistoryPageData{Entries: entries}
+	if hasMore && len(entries) > 0 {
+		last := entries[len(entries)-1]
+		page.NextCursor = &types.ServiceHistoryCursor{ObservedAt: last.ObservedAt, ID: last.ID}
+	}
+
+	return page, nil
 }
 
 func (s *ServiceReadService) listNodeExecutionModes(ctx context.Context, projectID *int64) (map[int64]string, error) {

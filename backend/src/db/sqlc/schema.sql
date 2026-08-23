@@ -95,6 +95,9 @@ CREATE TABLE app.heartbeats (
 CREATE TABLE app.health_check_results (
     id BIGSERIAL PRIMARY KEY,
     service_id BIGINT NOT NULL REFERENCES app.services(id) ON DELETE CASCADE,
+    node_id BIGINT NOT NULL REFERENCES app.nodes(id) ON DELETE CASCADE,
+    check_type TEXT NOT NULL,
+    source TEXT NOT NULL,
     observed_at TIMESTAMPTZ NOT NULL,
     is_success BOOLEAN NOT NULL,
     status_code INTEGER,
@@ -287,7 +290,8 @@ CREATE UNIQUE INDEX idx_nodes_agent_token_hash
     WHERE agent_token_hash IS NOT NULL;
 CREATE INDEX idx_services_node_state ON app.services(node_id, current_state);
 CREATE INDEX idx_heartbeats_node_observed_at ON app.heartbeats(node_id, observed_at DESC);
-CREATE INDEX idx_health_checks_service_observed_at ON app.health_check_results(service_id, observed_at DESC);
+CREATE INDEX idx_health_checks_service_observed_at
+    ON app.health_check_results(service_id, observed_at DESC, id DESC);
 CREATE INDEX idx_metric_samples_node_observed_at ON app.metric_samples(node_id, observed_at DESC);
 CREATE INDEX idx_events_occurred_at ON app.events(occurred_at DESC);
 CREATE INDEX idx_alert_rules_project_id ON app.alert_rules(project_id);

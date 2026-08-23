@@ -143,6 +143,7 @@ func (j *ManagedServiceCheckJob) runOnce(ctx context.Context) {
 			if _, err := j.health.Ingest(ctx, types.HealthCheckInput{
 				AuthenticatedNodeID: service.NodeID,
 				ServiceID:           service.ID,
+				Source:              types.HealthCheckSourceManaged,
 				ObservedAt:          result.observedAt,
 				IsSuccess:           result.isSuccess,
 				StatusCode:          result.statusCode,

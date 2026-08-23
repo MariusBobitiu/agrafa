@@ -66,6 +66,7 @@ func (c *ManagedServiceBootstrapChecker) CheckNow(ctx context.Context, service g
 	if _, err := c.health.Ingest(ctx, types.HealthCheckInput{
 		AuthenticatedNodeID: service.NodeID,
 		ServiceID:           service.ID,
+		Source:              types.HealthCheckSourceManaged,
 		ObservedAt:          result.observedAt,
 		IsSuccess:           result.isSuccess,
 		StatusCode:          result.statusCode,
