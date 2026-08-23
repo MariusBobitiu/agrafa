@@ -135,3 +135,37 @@ func TestServiceCheckHistoryMigrationAddsMetadataIndexAndRLS(t *testing.T) {
 		}
 	}
 }
+
+func TestServiceCheckHistoryCorrectionUsesOnlyCanonicalPayloadMetadata(t *testing.T) {
+	t.Parallel()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+
+	migrationPath := filepath.Join(filepath.Dir(currentFile), "migrations", "app", "000015_correct_service_history_check_types.up.sql")
+	contents, err := os.ReadFile(migrationPath)
+	if err != nil {
+		t.Fatalf("read migration file: %v", err)
+	}
+
+	sql := string(contents)
+	for _, expected := range []string{
+		"payload ->> 'check_type'",
+		"payload ->> 'type'",
+		"E' \\t\\n\\r\\f\\013'",
+		"IN ('http', 'tcp')",
+		"ELSE check_type",
+	} {
+		if !strings.Contains(sql, expected) {
+			t.Fatalf("expected corrective migration to contain %q:\n%s", expected, sql)
+		}
+	}
+	if strings.Contains(sql, "FROM app.services") {
+		t.Fatalf("corrective migration must not guess from current service definitions:\n%s", sql)
+	}
+	if strings.Contains(sql, "BTRIM(payload ->> 'check_type')") || strings.Contains(sql, "BTRIM(payload ->> 'type')") {
+		t.Fatalf("corrective migration must use the explicit supported-whitespace character set:\n%s", sql)
+	}
+}

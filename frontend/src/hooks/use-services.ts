@@ -85,14 +85,14 @@ export function updateServiceHistoryCaches(
     .filter((query) => query.state.data != null);
 
   for (const query of rangeQueries) {
-    const rangeHours = query.queryKey.at(-1);
-    if (typeof rangeHours !== "number" || rangeHours <= 0) continue;
-    if (Date.parse(observation.observedAt) < Date.now() - rangeHours * 60 * 60 * 1_000) continue;
-
     queryClient.setQueryData<ServiceHistoryWindow>(
       query.queryKey,
       (current) => {
         if (!current) return current;
+        const observedAt = Date.parse(observation.observedAt);
+        if (observedAt < Date.parse(current.from) || observedAt > Date.parse(current.to)) {
+          return current;
+        }
 
         const observations = [
           observation,
@@ -159,11 +159,9 @@ export async function applyServiceDetailStreamPayload(
       if (query.queryKey[3] === "list") return query.getObserversCount() > 0;
       if (query.queryKey[3] !== "window") return false;
 
-      const rangeHours = query.queryKey[4];
-      return (
-        typeof rangeHours === "number" &&
-        Date.parse(observation.observedAt) >= Date.now() - rangeHours * 60 * 60 * 1_000
-      );
+      const current = query.state.data as ServiceHistoryWindow;
+      const observedAt = Date.parse(observation.observedAt);
+      return observedAt >= Date.parse(current.from) && observedAt <= Date.parse(current.to);
     });
 
   await Promise.all(
@@ -201,8 +199,11 @@ export function useServiceHistoryWindow(id: number, rangeHours: number) {
 export function serviceHistoryWindowQueryOptions(id: number, rangeHours: number) {
   return queryOptions({
     queryKey: serviceHistoryKeys.window(id, rangeHours),
-    queryFn: () =>
-      servicesApi.historyWindow(id, new Date(Date.now() - rangeHours * 60 * 60 * 1_000)),
+    queryFn: () => {
+      const to = new Date();
+      const from = new Date(to.getTime() - rangeHours * 60 * 60 * 1_000);
+      return servicesApi.historyWindow(id, from, to);
+    },
     enabled: id > 0,
     refetchInterval: (query) => serviceHistoryRangeRefetchInterval(query.state),
     placeholderData: keepPreviousData,

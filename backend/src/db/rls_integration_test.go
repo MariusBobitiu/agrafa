@@ -7,8 +7,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	appdb "github.com/MariusBobitiu/agrafa-backend/src/db"
+	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -79,6 +81,109 @@ func TestProjectScopeRLSMembershipBackedAuthorization(t *testing.T) {
 			}
 			if count != 0 {
 				t.Fatalf("count = %d, want 0", count)
+			}
+		})
+	})
+
+	t.Run("full-range aggregate handles more than 2000 rows boundaries null latency and future timestamps", func(t *testing.T) {
+		withSeededRLSTx(t, ctx, db, func(tx *sql.Tx) {
+			from := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+			to := from.Add(2504 * time.Second)
+			setRLSContext(t, ctx, tx, "", nil, nil, true)
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO app.health_check_results (
+					id, service_id, node_id, check_type, source, observed_at,
+					is_success, status_code, response_time_ms, message, payload
+				)
+				SELECT
+					-10000 - g, -3001, -2001, 'http', 'agent', $1::timestamptz + (g - 1) * interval '1 second',
+					g <= 2004, CASE WHEN g <= 2004 THEN 200 ELSE 503 END,
+					CASE WHEN g = 2 THEN NULL WHEN g <= 2004 THEN CASE WHEN g = 1 THEN 0 ELSE 10 END ELSE NULL END,
+					'ok', '{}'::jsonb
+				FROM generate_series(1, 2505) AS g
+			`, from); err != nil {
+				t.Fatalf("insert aggregate history: %v", err)
+			}
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO app.health_check_results (
+					id, service_id, node_id, check_type, source, observed_at,
+					is_success, status_code, response_time_ms, message, payload
+				) VALUES (-20000, -3001, -2001, 'http', 'agent', $1, FALSE, 503, 9999, 'future', '{}'::jsonb)
+			`, to.Add(time.Hour)); err != nil {
+				t.Fatalf("insert future history: %v", err)
+			}
+
+			setRLSContext(t, ctx, tx, "usr_viewer", int64Ptr(-1001), stringPtr("viewer"), false)
+			row, err := generated.New(tx).SummarizeHealthCheckHistoryByServiceID(ctx, generated.SummarizeHealthCheckHistoryByServiceIDParams{
+				ServiceID: -3001, FromObservedAt: from, ToObservedAt: to,
+			})
+			if err != nil {
+				t.Fatalf("summarize history: %v", err)
+			}
+			if row.TotalChecks != 2505 || row.SuccessfulChecks != 2004 {
+				t.Fatalf("aggregate counts = %d/%d, want 2004/2505", row.SuccessfulChecks, row.TotalChecks)
+			}
+			if row.MeasuredLatencyChecks != 2003 || row.TotalLatencyMs != 20020 {
+				t.Fatalf("latency aggregate = count %d total %d, want 2003/20020", row.MeasuredLatencyChecks, row.TotalLatencyMs)
+			}
+			if row.LastCheckedUnixNano != to.UnixNano() {
+				t.Fatalf("last checked unix nano = %d, want %d", row.LastCheckedUnixNano, to.UnixNano())
+			}
+		})
+	})
+
+	t.Run("corrective history migration updates only trustworthy type metadata", func(t *testing.T) {
+		withSeededRLSTx(t, ctx, db, func(tx *sql.Tx) {
+			setRLSContext(t, ctx, tx, "", nil, nil, true)
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO app.health_check_results (
+					id, service_id, node_id, check_type, source, observed_at,
+					is_success, message, payload
+				) VALUES
+					(-5001, -3001, -2001, 'http', 'managed', NOW(), TRUE, 'ok', '{"check_type":"\tTCP\t"}'::jsonb),
+					(-5002, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"check_type":"\nHTTP\n"}'::jsonb),
+					(-5003, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"type":"\t\nHTTP\n\t"}'::jsonb),
+					(-5004, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"check_type":"\tSMTP\n"}'::jsonb),
+					(-5005, -3001, -2001, 'tcp', 'agent', NOW(), TRUE, 'ok', '{"check_type":"smtp","type":"http"}'::jsonb)
+			`); err != nil {
+				t.Fatalf("insert corrective migration fixtures: %v", err)
+			}
+			migration, err := os.ReadFile("migrations/app/000015_correct_service_history_check_types.up.sql")
+			if err != nil {
+				t.Fatalf("read corrective migration: %v", err)
+			}
+			if _, err := tx.ExecContext(ctx, string(migration)); err != nil {
+				t.Fatalf("execute corrective migration: %v", err)
+			}
+
+			setRLSContext(t, ctx, tx, "usr_viewer", int64Ptr(-1001), stringPtr("viewer"), false)
+			rows, err := tx.QueryContext(ctx, `
+				SELECT id, check_type
+				FROM app.health_check_results
+				WHERE id BETWEEN -5005 AND -5001
+				ORDER BY id
+			`)
+			if err != nil {
+				t.Fatalf("read corrected history: %v", err)
+			}
+			defer rows.Close()
+			got := map[int64]string{}
+			for rows.Next() {
+				var id int64
+				var checkType string
+				if err := rows.Scan(&id, &checkType); err != nil {
+					t.Fatalf("scan corrected history: %v", err)
+				}
+				got[id] = checkType
+			}
+			if err := rows.Err(); err != nil {
+				t.Fatalf("iterate corrected history: %v", err)
+			}
+			want := map[int64]string{-5001: "tcp", -5002: "http", -5003: "http", -5004: "tcp", -5005: "tcp"}
+			for id, checkType := range want {
+				if got[id] != checkType {
+					t.Fatalf("row %d check_type = %q, want %q", id, got[id], checkType)
+				}
 			}
 		})
 	})

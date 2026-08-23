@@ -360,6 +360,23 @@ type ServiceHistoryCursor struct {
 type ServiceHistoryFilters struct {
 	Limit  int32
 	Before *ServiceHistoryCursor
+	From   *time.Time
+	To     *time.Time
+}
+
+type ServiceHistoryRange struct {
+	From time.Time
+	To   time.Time
+}
+
+type ServiceHistorySummaryData struct {
+	From             time.Time  `json:"from" swaggertype:"string" format:"date-time"`
+	To               time.Time  `json:"to" swaggertype:"string" format:"date-time"`
+	TotalChecks      int64      `json:"total_checks"`
+	SuccessfulChecks int64      `json:"successful_checks"`
+	UptimePercent    *float64   `json:"uptime_percent" extensions:"x-nullable"`
+	AverageLatencyMs *float64   `json:"average_latency_ms" extensions:"x-nullable"`
+	LastCheckedAt    *time.Time `json:"last_checked_at" swaggertype:"string" format:"date-time" extensions:"x-nullable"`
 }
 
 type ServiceHistoryEntryData struct {

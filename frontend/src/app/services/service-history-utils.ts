@@ -68,6 +68,28 @@ export type HistoryRowPresentation = {
   latency: string;
 };
 
+export type ServiceHistoryChartPoint = {
+  id: number;
+  timestamp: number;
+  successLatency: number | null;
+  failureLatency: number | null;
+  observation: ServiceHistoryObservation;
+};
+
+export function buildHistoryChartData(
+  observations: ServiceHistoryObservation[],
+): ServiceHistoryChartPoint[] {
+  return [...observations]
+    .sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt))
+    .map((observation) => ({
+      id: observation.id,
+      timestamp: Date.parse(observation.observedAt),
+      successLatency: observation.isSuccess ? observation.latencyMs : null,
+      failureLatency: observation.isSuccess ? null : observation.latencyMs,
+      observation,
+    }));
+}
+
 const HTTP_STATUS_TEXT: Record<number, string> = {
   200: "OK",
   201: "Created",

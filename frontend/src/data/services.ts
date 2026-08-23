@@ -4,6 +4,7 @@ import type {
   ServiceCreateInput,
   ServiceHistoryObservation,
   ServiceHistoryPage,
+  ServiceHistorySummary,
   ServiceHistoryWindow,
   ServiceUpdateInput,
 } from "@/types/service.ts";
@@ -20,6 +21,8 @@ type ServiceHistoryResponse = {
 export type ServiceHistoryParams = {
   limit?: number;
   before?: string;
+  from?: Date;
+  to?: Date;
 };
 
 const HISTORY_WINDOW_PAGE_SIZE = 500;
@@ -81,6 +84,45 @@ function deduplicateObservations(
   );
 }
 
+async function fetchBoundedHistoryObservations(
+  id: number,
+  from: Date,
+  to: Date,
+): Promise<Pick<ServiceHistoryWindow, "observations" | "isTruncated">> {
+  const fromMs = from.getTime();
+  const toMs = to.getTime();
+  let before: string | undefined;
+  let hasMore = true;
+  let pagesFetched = 0;
+  let observations: ServiceHistoryObservation[] = [];
+
+  while (
+    hasMore &&
+    pagesFetched < MAX_HISTORY_WINDOW_PAGES &&
+    observations.length < MAX_HISTORY_WINDOW_OBSERVATIONS
+  ) {
+    const page = await servicesApi.history(id, {
+      limit: HISTORY_WINDOW_PAGE_SIZE,
+      before,
+      from,
+      to,
+    });
+    pagesFetched += 1;
+    observations = deduplicateObservations([...observations, ...page.observations]);
+    hasMore = page.pagination.hasMore;
+    before = page.pagination.nextCursor ?? undefined;
+    if (page.observations.length === 0 || !before) break;
+  }
+
+  return {
+    observations: observations.filter((observation) => {
+      const observedAt = Date.parse(observation.observedAt);
+      return observedAt >= fromMs && observedAt <= toMs;
+    }),
+    isTruncated: hasMore,
+  };
+}
+
 export const servicesApi = {
   list: (projectId: number): Promise<{ services: Service[] }> =>
     api.get(`/services?project_id=${projectId}`),
@@ -91,6 +133,8 @@ export const servicesApi = {
     const search = new URLSearchParams();
     if (params.limit != null) search.set("limit", String(params.limit));
     if (params.before) search.set("before", params.before);
+    if (params.from) search.set("from", params.from.toISOString());
+    if (params.to) search.set("to", params.to.toISOString());
 
     const query = search.size > 0 ? `?${search.toString()}` : "";
     const response = await api.get<ServiceHistoryResponse>(`/services/${id}/history${query}`);
@@ -107,40 +151,65 @@ export const servicesApi = {
     };
   },
 
-  async historyWindow(id: number, since: Date): Promise<ServiceHistoryWindow> {
-    const sinceMs = since.getTime();
-    let before: string | undefined;
-    let hasMore = true;
-    let crossedCutoff = false;
-    let pagesFetched = 0;
-    let observations: ServiceHistoryObservation[] = [];
-
-    // TODO(api): replace this bounded cursor walk with a server-side `since` filter when available.
-    while (
-      hasMore &&
-      pagesFetched < MAX_HISTORY_WINDOW_PAGES &&
-      observations.length < MAX_HISTORY_WINDOW_OBSERVATIONS
+  async historySummary(id: number, from: Date, to: Date): Promise<ServiceHistorySummary> {
+    const search = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+    const response = await api.get<Record<string, unknown>>(
+      `/services/${id}/history/summary?${search.toString()}`,
+    );
+    const totalChecks = response["total_checks"];
+    const successfulChecks = response["successful_checks"];
+    const uptimePercent = response["uptime_percent"];
+    const averageLatencyMs = response["average_latency_ms"];
+    const lastCheckedAt = response["last_checked_at"];
+    if (
+      typeof response["from"] !== "string" ||
+      !Number.isFinite(Date.parse(response["from"])) ||
+      typeof response["to"] !== "string" ||
+      !Number.isFinite(Date.parse(response["to"])) ||
+      typeof totalChecks !== "number" ||
+      !Number.isInteger(totalChecks) ||
+      totalChecks < 0 ||
+      typeof successfulChecks !== "number" ||
+      !Number.isInteger(successfulChecks) ||
+      successfulChecks < 0 ||
+      successfulChecks > totalChecks ||
+      (uptimePercent !== null &&
+        (typeof uptimePercent !== "number" || !Number.isFinite(uptimePercent))) ||
+      (averageLatencyMs !== null &&
+        (typeof averageLatencyMs !== "number" || !Number.isFinite(averageLatencyMs))) ||
+      (lastCheckedAt !== null &&
+        (typeof lastCheckedAt !== "string" || !Number.isFinite(Date.parse(lastCheckedAt))))
     ) {
-      const page = await servicesApi.history(id, {
-        limit: HISTORY_WINDOW_PAGE_SIZE,
-        before,
-      });
-      pagesFetched += 1;
-      observations = deduplicateObservations([...observations, ...page.observations]);
-      crossedCutoff = page.observations.some(
-        (observation) => new Date(observation.observedAt).getTime() < sinceMs,
-      );
-      hasMore = page.pagination.hasMore;
-      before = page.pagination.nextCursor ?? undefined;
-
-      if (crossedCutoff || page.observations.length === 0 || !before) break;
+      throw new Error("Invalid service history summary response");
     }
+    return {
+      from: response["from"],
+      to: response["to"],
+      totalChecks,
+      successfulChecks,
+      uptimePercent,
+      averageLatencyMs,
+      lastCheckedAt,
+    };
+  },
+
+  async historyWindow(id: number, since: Date, to = new Date()): Promise<ServiceHistoryWindow> {
+    const [boundedHistory, summary] = await Promise.all([
+      fetchBoundedHistoryObservations(id, since, to),
+      servicesApi.historySummary(id, since, to),
+    ]);
+    const effectiveFromMs = Date.parse(summary.from);
+    const effectiveToMs = Date.parse(summary.to);
 
     return {
-      observations: observations.filter(
-        (observation) => new Date(observation.observedAt).getTime() >= sinceMs,
-      ),
-      isTruncated: hasMore && !crossedCutoff,
+      ...boundedHistory,
+      observations: boundedHistory.observations.filter((observation) => {
+        const observedAt = Date.parse(observation.observedAt);
+        return observedAt >= effectiveFromMs && observedAt <= effectiveToMs;
+      }),
+      from: summary.from,
+      to: summary.to,
+      summary,
     };
   },
 

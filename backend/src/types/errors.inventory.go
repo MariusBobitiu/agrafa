@@ -23,7 +23,7 @@ var (
 	ErrInvalidCredentials              = errors.New("invalid email or password")
 	ErrInvalidVerificationToken        = errors.New("invalid or expired token")
 	ErrInvalidProjectInvitation        = errors.New("invalid or expired invitation")
-	ErrInvalidCheckType                = errors.New("check_type is required")
+	ErrInvalidCheckType                = errors.New("check_type must be http or tcp")
 	ErrInvalidCheckTarget              = errors.New("check_target is required")
 	ErrInvalidExecutionMode            = errors.New("execution_mode must be managed or agent")
 	ErrAgentExecutionRequiresNodeID    = errors.New("node_id is required when execution_mode=agent")

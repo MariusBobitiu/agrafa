@@ -47,14 +47,21 @@ func (r *fakeServiceReadNodeRepository) ListByProject(_ context.Context, _ int64
 }
 
 type fakeServiceReadHealthCheckRepository struct {
-	rows        []generated.HealthCheckResult
-	historyRows []generated.HealthCheckResult
-	streamRows  []generated.HealthCheckResult
-	latest      generated.HealthCheckResult
-	lastFilters types.ServiceListFilters
-	lastHistory types.ServiceHistoryFilters
-	serviceID   int64
-	returnedErr error
+	rows         []generated.HealthCheckResult
+	historyRows  []generated.HealthCheckResult
+	streamRows   []generated.HealthCheckResult
+	latest       generated.HealthCheckResult
+	lastFilters  types.ServiceListFilters
+	lastHistory  types.ServiceHistoryFilters
+	serviceID    int64
+	returnedErr  error
+	summary      generated.SummarizeHealthCheckHistoryByServiceIDRow
+	summaryRange types.ServiceHistoryRange
+}
+
+func (r *fakeServiceReadHealthCheckRepository) SummarizeHistoryByServiceID(_ context.Context, _ int64, historyRange types.ServiceHistoryRange) (generated.SummarizeHealthCheckHistoryByServiceIDRow, error) {
+	r.summaryRange = historyRange
+	return r.summary, r.returnedErr
 }
 
 func (r *fakeServiceReadHealthCheckRepository) GetLatestByServiceID(_ context.Context, _ int64) (generated.HealthCheckResult, error) {
@@ -118,6 +125,47 @@ func TestServiceReadServiceListHistoryOrdersMapsAndPaginates(t *testing.T) {
 	}
 	if page.NextCursor == nil || page.NextCursor.ID != 2 || !page.NextCursor.ObservedAt.Equal(middle) {
 		t.Fatalf("next cursor = %#v, want middle row", page.NextCursor)
+	}
+}
+
+func TestServiceReadServiceSummarizesFullRangeAndPreservesZeroLatency(t *testing.T) {
+	t.Parallel()
+
+	from := time.Date(2026, time.August, 22, 12, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+	repo := &fakeServiceReadHealthCheckRepository{summary: generated.SummarizeHealthCheckHistoryByServiceIDRow{
+		TotalChecks: 2505, SuccessfulChecks: 2004, MeasuredLatencyChecks: 2,
+		TotalLatencyMs: 10, LastCheckedUnixNano: to.UnixNano(),
+	}}
+	service := &ServiceReadService{healthCheckRepo: repo}
+
+	summary, err := service.SummarizeHistory(context.Background(), 7, types.ServiceHistoryRange{From: from, To: to})
+	if err != nil {
+		t.Fatalf("SummarizeHistory() error = %v", err)
+	}
+	if summary.TotalChecks != 2505 || summary.SuccessfulChecks != 2004 {
+		t.Fatalf("unexpected counts: %#v", summary)
+	}
+	if summary.UptimePercent == nil || *summary.UptimePercent != 80 {
+		t.Fatalf("uptime = %#v, want 80", summary.UptimePercent)
+	}
+	if summary.AverageLatencyMs == nil || *summary.AverageLatencyMs != 5 {
+		t.Fatalf("average latency = %#v, want 5", summary.AverageLatencyMs)
+	}
+	if summary.LastCheckedAt == nil || !summary.LastCheckedAt.Equal(to) {
+		t.Fatalf("last checked = %#v, want %v", summary.LastCheckedAt, to)
+	}
+	if repo.summaryRange.From != from || repo.summaryRange.To != to {
+		t.Fatalf("summary range = %#v", repo.summaryRange)
+	}
+
+	repo.summary = generated.SummarizeHealthCheckHistoryByServiceIDRow{
+		TotalChecks: 1, SuccessfulChecks: 1, MeasuredLatencyChecks: 1, TotalLatencyMs: 0,
+		LastCheckedUnixNano: to.UnixNano(),
+	}
+	summary, err = service.SummarizeHistory(context.Background(), 7, types.ServiceHistoryRange{From: from, To: to})
+	if err != nil || summary.AverageLatencyMs == nil || *summary.AverageLatencyMs != 0 {
+		t.Fatalf("exact zero latency was not retained: summary=%#v err=%v", summary, err)
 	}
 }
 

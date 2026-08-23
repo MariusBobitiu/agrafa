@@ -62,14 +62,18 @@ func (s *HealthIngestionService) Ingest(ctx context.Context, input types.HealthC
 		source = "unknown"
 	}
 	statusCode := input.StatusCode
-	if strings.EqualFold(strings.TrimSpace(service.CheckType), "tcp") {
+	checkType, validCheckType := normalizeCheckType(service.CheckType)
+	if !validCheckType {
+		return generated.Service{}, types.ErrInvalidCheckType
+	}
+	if checkType == "tcp" {
 		statusCode = nil
 	}
 
 	if _, err := s.healthCheckRepo.Create(ctx, generated.CreateHealthCheckResultParams{
 		ServiceID:      input.ServiceID,
 		NodeID:         service.NodeID,
-		CheckType:      service.CheckType,
+		CheckType:      checkType,
 		Source:         source,
 		ObservedAt:     input.ObservedAt,
 		IsSuccess:      input.IsSuccess,

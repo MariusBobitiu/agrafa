@@ -1293,6 +1293,29 @@ definitions:
       pagination:
         $ref: '#/definitions/types.ServiceHistoryPaginationDocument'
     type: object
+  types.ServiceHistorySummaryData:
+    properties:
+      average_latency_ms:
+        type: number
+        x-nullable: true
+      from:
+        format: date-time
+        type: string
+      last_checked_at:
+        format: date-time
+        type: string
+        x-nullable: true
+      successful_checks:
+        type: integer
+      to:
+        format: date-time
+        type: string
+      total_checks:
+        type: integer
+      uptime_percent:
+        type: number
+        x-nullable: true
+    type: object
   types.ServiceResponseDocument:
     properties:
       check_target:
@@ -3567,6 +3590,16 @@ paths:
         in: query
         name: before
         type: string
+      - description: Inclusive range start (RFC3339; requires to; maximum requested
+          history range is 31 days)
+        in: query
+        name: from
+        type: string
+      - description: Inclusive range end (RFC3339; requires from; maximum requested
+          history range is 31 days; small future clock skew is clamped to server time)
+        in: query
+        name: to
+        type: string
       produces:
       - application/json
       responses:
@@ -3595,6 +3628,58 @@ paths:
           schema:
             $ref: '#/definitions/types.ErrorResponse'
       summary: Get service check history
+      tags:
+      - inventory
+  /services/{id}/history/summary:
+    get:
+      description: Computes full-range check counts, uptime, average successful-check
+        latency, and latest observation directly in PostgreSQL.
+      parameters:
+      - description: Service ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Inclusive range start (RFC3339; paired with to; maximum requested
+          history range is 31 days)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: Inclusive range end (RFC3339; paired with from; maximum requested
+          history range is 31 days; small future clock skew is clamped to server time)
+        in: query
+        name: to
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ServiceHistorySummaryData'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Summarize service check history
       tags:
       - inventory
   /services/{id}/stream:

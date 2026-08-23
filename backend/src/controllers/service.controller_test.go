@@ -22,6 +22,14 @@ type staticServiceReader struct {
 	err                error
 	calls              int
 	filters            types.ServiceHistoryFilters
+	summary            types.ServiceHistorySummaryData
+	historyRange       types.ServiceHistoryRange
+}
+
+func (r *staticServiceReader) SummarizeHistory(_ context.Context, _ int64, historyRange types.ServiceHistoryRange) (types.ServiceHistorySummaryData, error) {
+	r.calls++
+	r.historyRange = historyRange
+	return r.summary, r.err
 }
 
 func (r *staticServiceReader) ListStreamObservations(_ context.Context, _ int64, afterID int64) ([]types.ServiceHistoryEntryData, error) {
@@ -120,6 +128,132 @@ func TestServiceControllerHistoryRejectsUnboundedLimit(t *testing.T) {
 	}
 	if reader.calls != 0 {
 		t.Fatalf("history reader calls = %d, want 0", reader.calls)
+	}
+}
+
+func TestServiceControllerHistoryPassesInclusiveRange(t *testing.T) {
+	t.Parallel()
+
+	to := time.Now().UTC().Add(-time.Minute).Truncate(time.Second)
+	from := to.Add(-time.Hour)
+	reader := &staticServiceReader{}
+	controller := NewServiceController(nil, reader)
+	request := httptest.NewRequest(http.MethodGet, "/v1/services/21/history?from="+from.Format(time.RFC3339)+"&to="+to.Format(time.RFC3339), nil)
+	routeContext := chi.NewRouteContext()
+	routeContext.URLParams.Add("id", "21")
+	request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, routeContext))
+	recorder := httptest.NewRecorder()
+
+	controller.History(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	if reader.filters.From == nil || reader.filters.To == nil || !reader.filters.From.Equal(from) || !reader.filters.To.Equal(to) {
+		t.Fatalf("range filters = %#v", reader.filters)
+	}
+}
+
+func TestServiceControllerHistorySummaryReturnsAuthoritativeRange(t *testing.T) {
+	t.Parallel()
+
+	to := time.Now().UTC().Add(-time.Minute).Truncate(time.Second)
+	from := to.Add(-24 * time.Hour)
+	uptime := 80.0
+	average := 12.5
+	reader := &staticServiceReader{summary: types.ServiceHistorySummaryData{
+		From: from, To: to, TotalChecks: 2505, SuccessfulChecks: 2004,
+		UptimePercent: &uptime, AverageLatencyMs: &average, LastCheckedAt: &to,
+	}}
+	controller := NewServiceController(nil, reader)
+	request := httptest.NewRequest(http.MethodGet, "/v1/services/21/history/summary?from="+from.Format(time.RFC3339)+"&to="+to.Format(time.RFC3339), nil)
+	routeContext := chi.NewRouteContext()
+	routeContext.URLParams.Add("id", "21")
+	request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, routeContext))
+	recorder := httptest.NewRecorder()
+
+	controller.HistorySummary(recorder, request)
+
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"total_checks":2505`) {
+		t.Fatalf("unexpected response: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if reader.historyRange.From != from || reader.historyRange.To != to {
+		t.Fatalf("summary range = %#v", reader.historyRange)
+	}
+}
+
+func TestParseServiceHistoryRangeAllowsAndClampsClockSkew(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 23, 12, 0, 0, 123456000, time.UTC)
+	requestedDuration := 24 * time.Hour
+
+	t.Run("exact current time is accepted", func(t *testing.T) {
+		from := now.Add(-requestedDuration)
+		request := httptest.NewRequest(http.MethodGet, "/history?from="+from.Format(time.RFC3339Nano)+"&to="+now.Format(time.RFC3339Nano), nil)
+
+		historyRange, hasRange, err := parseServiceHistoryRangeAt(request, now)
+		if err != nil || !hasRange {
+			t.Fatalf("parse range: hasRange=%v err=%v", hasRange, err)
+		}
+		if !historyRange.From.Equal(from) || !historyRange.To.Equal(now) {
+			t.Fatalf("range = %#v, want %v to %v", historyRange, from, now)
+		}
+	})
+
+	t.Run("small future skew is clamped while preserving duration", func(t *testing.T) {
+		requestedTo := now.Add(serviceHistoryClockSkewTolerance)
+		requestedFrom := requestedTo.Add(-requestedDuration)
+		request := httptest.NewRequest(http.MethodGet, "/history?from="+requestedFrom.Format(time.RFC3339Nano)+"&to="+requestedTo.Format(time.RFC3339Nano), nil)
+
+		historyRange, hasRange, err := parseServiceHistoryRangeAt(request, now)
+		if err != nil || !hasRange {
+			t.Fatalf("parse range: hasRange=%v err=%v", hasRange, err)
+		}
+		if !historyRange.To.Equal(now) {
+			t.Fatalf("clamped to = %v, want %v", historyRange.To, now)
+		}
+		if got := historyRange.To.Sub(historyRange.From); got != requestedDuration {
+			t.Fatalf("clamped duration = %v, want %v", got, requestedDuration)
+		}
+		if !historyRange.From.Equal(now.Add(-requestedDuration)) {
+			t.Fatalf("clamped from = %v, want %v", historyRange.From, now.Add(-requestedDuration))
+		}
+	})
+
+	t.Run("future time beyond tolerance is rejected", func(t *testing.T) {
+		requestedTo := now.Add(serviceHistoryClockSkewTolerance + time.Nanosecond)
+		request := httptest.NewRequest(http.MethodGet, "/history?from="+requestedTo.Add(-requestedDuration).Format(time.RFC3339Nano)+"&to="+requestedTo.Format(time.RFC3339Nano), nil)
+
+		_, _, err := parseServiceHistoryRangeAt(request, now)
+		if err == nil || !strings.Contains(err.Error(), "clock-skew tolerance") {
+			t.Fatalf("error = %v, want clock-skew rejection", err)
+		}
+	})
+}
+
+func TestServiceControllerHistoryRejectsFutureAndUnreasonableRanges(t *testing.T) {
+	t.Parallel()
+
+	testCases := []string{
+		"from=" + time.Now().UTC().Add(-time.Hour).Format(time.RFC3339Nano) + "&to=" + time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano),
+		"from=" + time.Now().UTC().Add(-32*24*time.Hour).Format(time.RFC3339Nano) + "&to=" + time.Now().UTC().Add(-time.Minute).Format(time.RFC3339Nano),
+		"from=" + time.Now().UTC().Format(time.RFC3339Nano) + "&to=" + time.Now().UTC().Add(-time.Hour).Format(time.RFC3339Nano),
+		"from=not-a-time&to=also-not-a-time",
+	}
+	for _, query := range testCases {
+		reader := &staticServiceReader{}
+		controller := NewServiceController(nil, reader)
+		request := httptest.NewRequest(http.MethodGet, "/v1/services/21/history?"+query, nil)
+		routeContext := chi.NewRouteContext()
+		routeContext.URLParams.Add("id", "21")
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, routeContext))
+		recorder := httptest.NewRecorder()
+
+		controller.History(recorder, request)
+		if recorder.Code != http.StatusBadRequest || reader.calls != 0 {
+			t.Fatalf("query %q: status=%d calls=%d", query, recorder.Code, reader.calls)
+		}
 	}
 }
 
