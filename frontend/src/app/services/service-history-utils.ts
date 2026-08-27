@@ -154,6 +154,20 @@ export function formatLatency(value: number | null): string {
   return `${Math.round(value)} ms`;
 }
 
+export function latestServiceCheckAt(
+  summaryLastCheckedAt: string | null,
+  liveLastCheckedAt: string | null | undefined,
+): string | null {
+  const summaryTimestamp = summaryLastCheckedAt ? Date.parse(summaryLastCheckedAt) : Number.NaN;
+  const liveTimestamp = liveLastCheckedAt ? Date.parse(liveLastCheckedAt) : Number.NaN;
+
+  if (!Number.isFinite(liveTimestamp)) return summaryLastCheckedAt;
+  if (!Number.isFinite(summaryTimestamp) || liveTimestamp > summaryTimestamp) {
+    return liveLastCheckedAt ?? summaryLastCheckedAt;
+  }
+  return summaryLastCheckedAt;
+}
+
 function conciseMessage(message: string | null): string | null {
   const trimmed = message?.trim();
   if (!trimmed) return null;

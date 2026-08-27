@@ -560,7 +560,12 @@ const docTemplate = `{
         },
         "/alerts": {
             "get": {
-                "description": "Returns newest alerts first, with optional project, status, and limit filters.",
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns authoritative alert-rule and affected-resource presentation data. status=active is an independent read with no history limit; status=resolved uses keyset pagination ordered by triggered_at and id newest-first.",
                 "produces": [
                     "application/json"
                 ],
@@ -586,11 +591,65 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "integer",
+                        "description": "Affected service ID",
+                        "name": "service_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Affected node ID",
+                        "name": "node_id",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "node_offline",
+                            "service_unhealthy",
+                            "cpu_above_threshold",
+                            "memory_above_threshold",
+                            "disk_above_threshold"
+                        ],
+                        "type": "string",
+                        "description": "Alert rule type",
+                        "name": "rule_type",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "info",
+                            "warning",
+                            "critical"
+                        ],
+                        "type": "string",
+                        "description": "Alert severity",
+                        "name": "severity",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "node",
+                            "service",
+                            "metric"
+                        ],
+                        "type": "string",
+                        "description": "Alert category",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
                         "minimum": 1,
                         "type": "integer",
                         "default": 50,
-                        "description": "Maximum number of alerts",
+                        "description": "Resolved/combined page size (default 50, maximum 100)",
                         "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque resolved-history cursor returned as next_cursor; requires status=resolved",
+                        "name": "before",
                         "in": "query"
                     }
                 ],
@@ -3538,11 +3597,22 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string",
-                    "example": "Node 1 is currently offline."
+                    "example": "Health check returned HTTP 503."
                 },
                 "node_id": {
                     "type": "integer",
+                    "x-nullable": true,
                     "example": 1
+                },
+                "node_identifier": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "node_01hxyz"
+                },
+                "node_name": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "edge-01"
                 },
                 "project_id": {
                     "type": "integer",
@@ -3550,11 +3620,26 @@ const docTemplate = `{
                 },
                 "resolved_at": {
                     "type": "string",
-                    "format": "date-time"
+                    "format": "date-time",
+                    "x-nullable": true
+                },
+                "rule_type": {
+                    "type": "string",
+                    "example": "service_unhealthy"
                 },
                 "service_id": {
                     "type": "integer",
+                    "x-nullable": true,
                     "example": 1
+                },
+                "service_name": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "Public API"
+                },
+                "severity": {
+                    "type": "string",
+                    "example": "critical"
                 },
                 "status": {
                     "type": "string",
@@ -3562,11 +3647,29 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string",
-                    "example": "Node 1 is offline"
+                    "example": "Public API is unhealthy"
                 },
                 "triggered_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "types.AlertPaginationDocument": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "eyJ0cmlnZ2VyZWRfYXQiOiIyMDI2LTA4LTIzVDEwOjAwOjAwWiIsImlkIjoxfQ"
                 }
             }
         },
@@ -3700,6 +3803,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/types.AlertDocument"
                     }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/types.AlertPaginationDocument"
                 }
             }
         },
@@ -5434,6 +5540,14 @@ const docTemplate = `{
                     "format": "date-time"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "CookieAuth": {
+            "description": "Agrafa session cookie (` + "`" + `agrafa_session` + "`" + `).",
+            "type": "apiKey",
+            "name": "Cookie",
+            "in": "header"
         }
     }
 }`

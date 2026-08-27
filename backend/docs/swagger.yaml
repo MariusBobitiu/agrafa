@@ -68,29 +68,63 @@ definitions:
         example: 1
         type: integer
       message:
-        example: Node 1 is currently offline.
+        example: Health check returned HTTP 503.
         type: string
       node_id:
         example: 1
         type: integer
+        x-nullable: true
+      node_identifier:
+        example: node_01hxyz
+        type: string
+        x-nullable: true
+      node_name:
+        example: edge-01
+        type: string
+        x-nullable: true
       project_id:
         example: 1
         type: integer
       resolved_at:
         format: date-time
         type: string
+        x-nullable: true
+      rule_type:
+        example: service_unhealthy
+        type: string
       service_id:
         example: 1
         type: integer
+        x-nullable: true
+      service_name:
+        example: Public API
+        type: string
+        x-nullable: true
+      severity:
+        example: critical
+        type: string
       status:
         example: active
         type: string
       title:
-        example: Node 1 is offline
+        example: Public API is unhealthy
         type: string
       triggered_at:
         format: date-time
         type: string
+    type: object
+  types.AlertPaginationDocument:
+    properties:
+      has_more:
+        example: true
+        type: boolean
+      limit:
+        example: 50
+        type: integer
+      next_cursor:
+        example: eyJ0cmlnZ2VyZWRfYXQiOiIyMDI2LTA4LTIzVDEwOjAwOjAwWiIsImlkIjoxfQ
+        type: string
+        x-nullable: true
     type: object
   types.AlertRuleCreateRequest:
     properties:
@@ -185,6 +219,8 @@ definitions:
         items:
           $ref: '#/definitions/types.AlertDocument'
         type: array
+      pagination:
+        $ref: '#/definitions/types.AlertPaginationDocument'
     type: object
   types.AuthForgotPasswordRequest:
     properties:
@@ -1778,8 +1814,9 @@ paths:
       - alerts
   /alerts:
     get:
-      description: Returns newest alerts first, with optional project, status, and
-        limit filters.
+      description: Returns authoritative alert-rule and affected-resource presentation
+        data. status=active is an independent read with no history limit; status=resolved
+        uses keyset pagination ordered by triggered_at and id newest-first.
       parameters:
       - description: Project ID
         in: query
@@ -1792,12 +1829,52 @@ paths:
         in: query
         name: status
         type: string
-      - default: 50
-        description: Maximum number of alerts
+      - description: Affected service ID
         in: query
+        name: service_id
+        type: integer
+      - description: Affected node ID
+        in: query
+        name: node_id
+        type: integer
+      - description: Alert rule type
+        enum:
+        - node_offline
+        - service_unhealthy
+        - cpu_above_threshold
+        - memory_above_threshold
+        - disk_above_threshold
+        in: query
+        name: rule_type
+        type: string
+      - description: Alert severity
+        enum:
+        - info
+        - warning
+        - critical
+        in: query
+        name: severity
+        type: string
+      - description: Alert category
+        enum:
+        - node
+        - service
+        - metric
+        in: query
+        name: category
+        type: string
+      - default: 50
+        description: Resolved/combined page size (default 50, maximum 100)
+        in: query
+        maximum: 100
         minimum: 1
         name: limit
         type: integer
+      - description: Opaque resolved-history cursor returned as next_cursor; requires
+          status=resolved
+        in: query
+        name: before
+        type: string
       produces:
       - application/json
       responses:
@@ -1813,6 +1890,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/types.ErrorResponse'
+      security:
+      - CookieAuth: []
       summary: List alerts
       tags:
       - alerts
@@ -3723,4 +3802,10 @@ paths:
 schemes:
 - http
 - https
+securityDefinitions:
+  CookieAuth:
+    description: Agrafa session cookie (`agrafa_session`).
+    in: header
+    name: Cookie
+    type: apiKey
 swagger: "2.0"

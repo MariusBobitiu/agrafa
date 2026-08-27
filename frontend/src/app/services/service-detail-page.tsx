@@ -373,7 +373,12 @@ export function ServiceDetailPage() {
                 </div>
               </div>
 
-              {summary ? <ServiceHistorySummaryMetrics summary={summary} /> : null}
+              {summary ? (
+                <ServiceHistorySummaryMetrics
+                  summary={summary}
+                  liveLastCheckedAt={service.last_checked_at}
+                />
+              ) : null}
 
               <LatencyChart observations={rangeObservations} rangeHours={rangeHours} />
               {historyWindow.data?.isTruncated ? (

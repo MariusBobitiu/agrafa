@@ -7,8 +7,8 @@ type SectionHeadingProps = {
 
 export function SectionHeading({ icon, label, aside, action }: SectionHeadingProps) {
   return (
-    <div className="mb-3 flex items-center justify-between">
-      <div className="flex items-center gap-2">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <span className="text-muted-foreground">{icon}</span>
         <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           {label}

@@ -85,6 +85,23 @@ func TestProjectScopeRLSMembershipBackedAuthorization(t *testing.T) {
 		})
 	})
 
+	t.Run("member alert reads keep project isolation through presentation joins", func(t *testing.T) {
+		withSeededRLSTx(t, ctx, db, func(tx *sql.Tx) {
+			setRLSContext(t, ctx, tx, "usr_viewer", int64Ptr(-1001), stringPtr("viewer"), false)
+
+			rows, err := generated.New(tx).ListActiveAlertInstancesForRead(ctx, generated.ListActiveAlertInstancesForReadParams{})
+			if err != nil {
+				t.Fatalf("list active alert presentation rows: %v", err)
+			}
+			if len(rows) != 1 || rows[0].ProjectID != -1001 || rows[0].NodeName.String != "Project One Node" {
+				t.Fatalf("visible alert rows = %#v, want only project one", rows)
+			}
+			if rows[0].RuleType != "node_offline" || rows[0].Severity != "critical" {
+				t.Fatalf("authoritative rule fields = %q/%q", rows[0].RuleType, rows[0].Severity)
+			}
+		})
+	})
+
 	t.Run("full-range aggregate handles more than 2000 rows boundaries null latency and future timestamps", func(t *testing.T) {
 		withSeededRLSTx(t, ctx, db, func(tx *sql.Tx) {
 			from := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
@@ -345,6 +362,12 @@ func seedRLSFixture(t *testing.T, ctx context.Context, tx *sql.Tx) {
 		`INSERT INTO app.health_check_results (id, service_id, node_id, check_type, source, observed_at, is_success, status_code, response_time_ms, message, payload) VALUES
 			(-4001, -3001, -2001, 'http', 'agent', NOW(), TRUE, 200, 25, 'ok', '{}'::jsonb),
 			(-4002, -3002, -2002, 'tcp', 'managed', NOW(), FALSE, NULL, 40, 'connection refused', '{}'::jsonb)`,
+		`INSERT INTO app.alert_rules (id, project_id, node_id, service_id, rule_type, severity, is_enabled) VALUES
+			(-5001, -1001, -2001, NULL, 'node_offline', 'critical', TRUE),
+			(-5002, -1002, NULL, -3002, 'service_unhealthy', 'warning', TRUE)`,
+		`INSERT INTO app.alert_instances (id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, title, message) VALUES
+			(-6001, -5001, -1001, -2001, NULL, 'active', NOW(), 'Project one node offline', 'offline'),
+			(-6002, -5002, -1002, NULL, -3002, 'active', NOW(), 'Project two service unhealthy', 'unhealthy')`,
 	}
 
 	for _, statement := range statements {
