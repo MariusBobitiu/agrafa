@@ -1,4 +1,5 @@
 import {
+  focusManager,
   type InfiniteData,
   type QueryClient,
   queryOptions,
@@ -18,6 +19,7 @@ import type {
 } from "@/types/alert.ts";
 
 export const ACTIVE_ALERTS_REFETCH_INTERVAL_MS = 12_000;
+export const ALERT_HISTORY_HEAD_REFETCH_INTERVAL_MS = 45_000;
 
 export const alertHistoryKeys = {
   active: (projectId: number) => ["alerts", projectId, "active"] as const,
@@ -42,9 +44,8 @@ export function replaceAlertHistoryHead(
   current: InfiniteData<AlertPage, string | null> | undefined,
   head: AlertPage,
 ) {
-  if (!current || current.pages.length === 0) return current;
-
   const seen = new Set<number>();
+  const headWasFull = head.pagination.limit > 0 && head.alerts.length >= head.pagination.limit;
   const deduplicatedHead = {
     ...head,
     alerts: head.alerts.filter((alert) => {
@@ -53,11 +54,42 @@ export function replaceAlertHistoryHead(
       return true;
     }),
   };
-
-  return {
-    pages: [deduplicatedHead, ...current.pages.slice(1)],
-    pageParams: current.pageParams,
+  const replacement: InfiniteData<AlertPage, string | null> = {
+    pages: [deduplicatedHead],
+    pageParams: [null],
   };
+
+  if (
+    !current ||
+    current.pages.length < 2 ||
+    headWasFull ||
+    deduplicatedHead.pagination.nextCursor == null
+  ) {
+    return replacement;
+  }
+
+  const firstPreservablePage = current.pageParams.findIndex(
+    (pageParam, index) => index > 0 && pageParam === deduplicatedHead.pagination.nextCursor,
+  );
+  if (firstPreservablePage < 1) return replacement;
+
+  let expectedPageParam: string | null = deduplicatedHead.pagination.nextCursor;
+  for (let index = firstPreservablePage; index < current.pages.length; index += 1) {
+    if (current.pageParams[index] !== expectedPageParam) break;
+
+    const existingPage = current.pages[index];
+    const alerts = existingPage.alerts.filter((alert) => {
+      if (seen.has(alert.id)) return false;
+      seen.add(alert.id);
+      return true;
+    });
+    replacement.pages.push({ ...existingPage, alerts });
+    replacement.pageParams.push(current.pageParams[index] ?? null);
+    expectedPageParam = existingPage.pagination.nextCursor;
+    if (expectedPageParam == null) break;
+  }
+
+  return replacement;
 }
 
 export async function reconcileAlertHistoryHead(
@@ -69,17 +101,20 @@ export async function reconcileAlertHistoryHead(
 ) {
   if (projectId <= 0) return;
 
+  const historyKey = alertHistoryKeys.history(projectId, filters, limit);
   const head = await queryClient.fetchQuery({
     queryKey: alertHistoryKeys.historyHead(projectId, filters, limit),
-    queryFn: () => alertsApi.listHistory(projectId, filters, limit),
+    queryFn: ({ signal }) => alertsApi.listHistory(projectId, filters, limit, undefined, signal),
     staleTime: 0,
     retry: false,
   });
-  if (!shouldApply()) throw new Error("Alert history reconciliation superseded");
+  if (!shouldApply()) return;
 
-  queryClient.setQueryData<InfiniteData<AlertPage, string | null>>(
-    alertHistoryKeys.history(projectId, filters, limit),
-    (current) => replaceAlertHistoryHead(current, head),
+  await queryClient.cancelQueries({ queryKey: historyKey, exact: true }, { silent: true });
+  if (!shouldApply()) return;
+
+  queryClient.setQueryData<InfiniteData<AlertPage, string | null>>(historyKey, (current) =>
+    replaceAlertHistoryHead(current, head),
   );
 }
 
@@ -96,10 +131,6 @@ export class ActiveAlertHistorySync {
   private reconcile: () => Promise<void>;
 
   constructor(reconcile: () => Promise<void>) {
-    this.reconcile = reconcile;
-  }
-
-  setReconcile(reconcile: () => Promise<void>) {
     this.reconcile = reconcile;
   }
 
@@ -132,6 +163,17 @@ export class ActiveAlertHistorySync {
     return this.drain(projectId);
   }
 
+  reconcileNow(projectId: number) {
+    if (projectId <= 0) {
+      this.reset();
+      return Promise.resolve();
+    }
+    if (projectId !== this.projectId) this.reset(projectId);
+
+    this.pendingGeneration += 1;
+    return this.drain(projectId);
+  }
+
   private drain(projectId: number) {
     if (this.inFlight) return this.inFlight;
     if (this.pendingGeneration === this.completedGeneration) return Promise.resolve();
@@ -157,6 +199,24 @@ export class ActiveAlertHistorySync {
     this.completedGeneration = targetGeneration;
     await this.run(projectId);
   }
+}
+
+export function startAlertHistoryHeadReconciliation(
+  sync: ActiveAlertHistorySync,
+  projectId: number,
+) {
+  if (projectId <= 0) return () => {};
+
+  const reconcile = () => void sync.reconcileNow(projectId);
+  const interval = setInterval(reconcile, ALERT_HISTORY_HEAD_REFETCH_INTERVAL_MS);
+  const unsubscribeFocus = focusManager.subscribe((isFocused) => {
+    if (isFocused) reconcile();
+  });
+
+  return () => {
+    clearInterval(interval);
+    unsubscribeFocus();
+  };
 }
 
 export function useAlerts(projectId: number) {
@@ -185,28 +245,42 @@ export function useAlertHistoryHeadSync(
     let shouldApply = true;
     const reconcile = () =>
       reconcileAlertHistoryHead(queryClient, projectId, filters, limit, () => shouldApply);
-    const sync = syncRef.current ?? new ActiveAlertHistorySync(reconcile);
+    const sync = new ActiveAlertHistorySync(reconcile);
     syncRef.current = sync;
-    sync.setReconcile(reconcile);
 
-    if (projectId <= 0 || activePage == null) {
+    if (projectId <= 0) {
       sync.reset(projectId);
       return () => {
         shouldApply = false;
+        if (syncRef.current === sync) syncRef.current = null;
       };
     }
-    void sync.update(projectId, activePage.alerts);
+
+    const stopReconciliation = startAlertHistoryHeadReconciliation(sync, projectId);
     return () => {
       shouldApply = false;
+      stopReconciliation();
+      sync.reset();
+      if (syncRef.current === sync) syncRef.current = null;
     };
-  }, [activeDataUpdatedAt, activePage, filters, limit, projectId, queryClient]);
+  }, [filters, limit, projectId, queryClient]);
+
+  useEffect(() => {
+    const sync = syncRef.current;
+    if (sync == null) return;
+    if (projectId <= 0 || activePage == null) {
+      sync.reset(projectId);
+      return;
+    }
+    void sync.update(projectId, activePage.alerts);
+  }, [activeDataUpdatedAt, activePage, filters, limit, projectId]);
 }
 
 export function useAlertHistory(projectId: number, filters: AlertHistoryFilters, limit = 25) {
   return useInfiniteQuery({
     queryKey: alertHistoryKeys.history(projectId, filters, limit),
-    queryFn: ({ pageParam }) =>
-      alertsApi.listHistory(projectId, filters, limit, pageParam ?? undefined),
+    queryFn: ({ pageParam, signal }) =>
+      alertsApi.listHistory(projectId, filters, limit, pageParam ?? undefined, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.pagination.nextCursor ?? undefined,
     enabled: projectId > 0,

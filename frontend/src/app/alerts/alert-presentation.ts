@@ -1,4 +1,10 @@
-import type { Alert, RuleType } from "@/types/alert.ts";
+import type {
+  Alert,
+  AlertCategory,
+  AlertHistoryFilters,
+  RuleType,
+  Severity,
+} from "@/types/alert.ts";
 import { cn } from "@/lib/utils.ts";
 
 export function historyFilterTriggerClass(selected: boolean, className?: string) {
@@ -39,4 +45,28 @@ export function deduplicateAlerts(alerts: Alert[]) {
     seen.add(alert.id);
     return true;
   });
+}
+
+export type AlertResourceSelection = {
+  projectId: number;
+  value: string;
+};
+
+export function alertResourceForProject(selection: AlertResourceSelection, projectId: number) {
+  return selection.projectId === projectId ? selection.value : "all";
+}
+
+export function buildAlertHistoryFilters(
+  category: AlertCategory | "all",
+  severity: Severity | "all",
+  resource: string,
+) {
+  const filters: AlertHistoryFilters = {};
+  if (category !== "all") filters.category = category;
+  if (severity !== "all") filters.severity = severity;
+  const [resourceType, rawID] = resource.split(":");
+  const resourceID = Number(rawID);
+  if (resourceType === "node" && Number.isInteger(resourceID)) filters.nodeId = resourceID;
+  if (resourceType === "service" && Number.isInteger(resourceID)) filters.serviceId = resourceID;
+  return filters;
 }

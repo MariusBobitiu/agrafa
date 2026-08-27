@@ -1,8 +1,10 @@
 import {
   environmentManager,
+  focusManager,
   type InfiniteData,
   InfiniteQueryObserver,
   QueryClient,
+  QueryClientProvider,
   QueryObserver,
 } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -11,19 +13,28 @@ import {
   ActiveAlertRow,
   AlertHistoryPagination,
   AlertHistoryTable,
+  AlertsPageContent,
   BackgroundRefreshError,
   EmptyState,
   ErrorState,
   TableSkeleton,
 } from "@/app/alerts/alerts-page.tsx";
-import { deduplicateAlerts, historyFilterTriggerClass } from "@/app/alerts/alert-presentation.ts";
+import {
+  alertResourceForProject,
+  buildAlertHistoryFilters,
+  deduplicateAlerts,
+  historyFilterTriggerClass,
+} from "@/app/alerts/alert-presentation.ts";
 import { alertsApi } from "@/data/alerts.ts";
 import {
   ACTIVE_ALERTS_REFETCH_INTERVAL_MS,
+  ALERT_HISTORY_HEAD_REFETCH_INTERVAL_MS,
   ActiveAlertHistorySync,
   activeAlertsQueryOptions,
   alertHistoryKeys,
   reconcileAlertHistoryHead,
+  replaceAlertHistoryHead,
+  startAlertHistoryHeadReconciliation,
 } from "@/hooks/use-alerts.ts";
 import { formatAlertDuration } from "@/lib/alert-duration.ts";
 import type { Alert, AlertPage } from "@/types/alert.ts";
@@ -56,9 +67,21 @@ function page(alerts: Alert[], nextCursor: string | null = null): AlertPage {
   };
 }
 
+function renderAlertsPage(projectId: number | null) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const markup = renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <AlertsPageContent activeProjectId={projectId ?? 0} />
+    </QueryClientProvider>,
+  );
+  client.clear();
+  return markup;
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
+  focusManager.setFocused(undefined);
   environmentManager.setIsServer(() => true);
 });
 
@@ -180,6 +203,70 @@ describe("alert history pagination", () => {
     unsubscribe();
     client.clear();
   });
+
+  it("discards stale later pages and page params when the replacement head is full", () => {
+    const oldPageOne = page([alert({ id: 4 }), alert({ id: 3 })], "cursor-1");
+    const oldPageTwo = page([alert({ id: 2 }), alert({ id: 1 })]);
+    const current: InfiniteData<AlertPage, string | null> = {
+      pages: [page([alert({ id: 6 }), alert({ id: 5 })], "old-cursor"), oldPageOne, oldPageTwo],
+      pageParams: [null, "old-cursor", "cursor-1"],
+    };
+    const replacementHead = page([alert({ id: 8 }), alert({ id: 7 })], "new-cursor");
+
+    const replaced = replaceAlertHistoryHead(current, replacementHead);
+
+    expect(replaced.pages).toEqual([replacementHead]);
+    expect(replaced.pageParams).toEqual([null]);
+  });
+
+  it("loads the next page from a full replacement head's new cursor", async () => {
+    const historyKey = alertHistoryKeys.history(7, {}, 2);
+    const replacementHead = page([alert({ id: 8 }), alert({ id: 7 })], "new-cursor");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData<InfiniteData<AlertPage, string | null>>(historyKey, {
+      pages: [replacementHead],
+      pageParams: [null],
+    });
+    const queryFn = vi.fn((_context: { pageParam: string | null }) =>
+      Promise.resolve(page([alert({ id: 6 }), alert({ id: 5 })])),
+    );
+    const observer = new InfiniteQueryObserver(client, {
+      queryKey: historyKey,
+      queryFn,
+      initialPageParam: null as string | null,
+      getNextPageParam: (lastPage) => lastPage.pagination.nextCursor ?? undefined,
+      staleTime: Infinity,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+
+    await observer.fetchNextPage();
+
+    expect(queryFn).toHaveBeenCalledTimes(1);
+    expect(queryFn.mock.calls[0]?.[0].pageParam).toBe("new-cursor");
+    expect(observer.getCurrentResult().data?.pageParams).toEqual([null, "new-cursor"]);
+
+    unsubscribe();
+    client.clear();
+  });
+
+  it("preserves a valid non-full continuation and deduplicates its alerts", () => {
+    const current: InfiniteData<AlertPage, string | null> = {
+      pages: [
+        page([alert({ id: 5 })], "old-cursor"),
+        page([alert({ id: 4 }), alert({ id: 3 })], "cursor-1"),
+        page([alert({ id: 2 }), alert({ id: 1 })]),
+      ],
+      pageParams: [null, "new-cursor", "cursor-1"],
+    };
+    const replacementHead = page([alert({ id: 6 })], "new-cursor");
+
+    const replaced = replaceAlertHistoryHead(current, replacementHead);
+
+    expect(replaced.pages.flatMap((item) => item.alerts).map((item) => item.id)).toEqual([
+      6, 4, 3, 2, 1,
+    ]);
+    expect(replaced.pageParams).toEqual([null, "new-cursor", "cursor-1"]);
+  });
 });
 
 describe("alert live updates", () => {
@@ -257,11 +344,10 @@ describe("alert live updates", () => {
     );
     expect(observer.getCurrentResult().data?.alerts).toEqual([]);
     expect(historyRequest).toHaveBeenCalledTimes(1);
-    expect(historyRequest).toHaveBeenCalledWith(7, {}, 25);
+    expect(historyRequest.mock.calls[0]?.slice(0, 4)).toEqual([7, {}, 25, undefined]);
     expect(refreshed?.pages[0]?.alerts.map((item) => item.id)).toEqual([8, 5]);
-    expect(refreshed?.pages[1]).toBe(oldPageOne);
-    expect(refreshed?.pages[2]).toBe(oldPageTwo);
-    expect(refreshed?.pageParams).toBe(pageParams);
+    expect(refreshed?.pages).toHaveLength(1);
+    expect(refreshed?.pageParams).toEqual([null]);
 
     unsubscribe();
     client.clear();
@@ -275,6 +361,54 @@ describe("alert live updates", () => {
     await sync.update(7, [alert({ id: 1 }), alert({ id: 2, title: "Updated title" })]);
 
     expect(reconcile).not.toHaveBeenCalled();
+  });
+
+  it("finds an alert that triggers and resolves entirely between active polls", async () => {
+    vi.useFakeTimers();
+    const resolved = alert({
+      id: 8,
+      status: "resolved",
+      resolved_at: "2026-08-23T12:00:10Z",
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData<InfiniteData<AlertPage, string | null>>(
+      alertHistoryKeys.history(7, {}, 25),
+      { pages: [page([])], pageParams: [null] },
+    );
+    const historyRequest = vi.spyOn(alertsApi, "listHistory").mockResolvedValue(page([resolved]));
+    const sync = new ActiveAlertHistorySync(() => reconcileAlertHistoryHead(client, 7, {}, 25));
+    await sync.update(7, []);
+    await sync.update(7, []);
+    expect(historyRequest).not.toHaveBeenCalled();
+    const stop = startAlertHistoryHeadReconciliation(sync, 7);
+
+    await vi.advanceTimersByTimeAsync(ALERT_HISTORY_HEAD_REFETCH_INTERVAL_MS - 1);
+    expect(historyRequest).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(historyRequest).toHaveBeenCalledTimes(1);
+    expect(
+      client
+        .getQueryData<InfiniteData<AlertPage, string | null>>(alertHistoryKeys.history(7, {}, 25))
+        ?.pages[0]?.alerts.map((item) => item.id),
+    ).toEqual([8]);
+
+    stop();
+    client.clear();
+  });
+
+  it("reconciles the history head when the tab regains focus", async () => {
+    vi.useFakeTimers();
+    focusManager.setFocused(false);
+    const reconcile = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const sync = new ActiveAlertHistorySync(reconcile);
+    const stop = startAlertHistoryHeadReconciliation(sync, 7);
+
+    focusManager.setFocused(true);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    stop();
   });
 
   it("handles multiple simultaneous active changes with one bounded reconciliation", async () => {
@@ -307,9 +441,47 @@ describe("alert live updates", () => {
     const refreshed = client.getQueryData<InfiniteData<AlertPage, string | null>>(
       alertHistoryKeys.history(7, filters, 25),
     );
-    expect(historyRequest).toHaveBeenCalledWith(7, filters, 25);
+    expect(historyRequest.mock.calls[0]?.slice(0, 4)).toEqual([7, filters, 25, undefined]);
     expect(refreshed?.pages[0]?.alerts).toEqual([critical, oldCritical]);
     expect(refreshed?.pages[0]?.alerts).not.toContainEqual(warning);
+    client.clear();
+  });
+
+  it("cancels an older in-flight history request before applying a reconciled head", async () => {
+    const historyKey = alertHistoryKeys.history(7, {}, 2);
+    const stale = page([alert({ id: 5 }), alert({ id: 4 })], "old-cursor");
+    const authoritative = page([alert({ id: 8 }), alert({ id: 7 })], "new-cursor");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData<InfiniteData<AlertPage, string | null>>(historyKey, {
+      pages: [stale],
+      pageParams: [null],
+    });
+    let wasAborted = false;
+    const olderRequest = client
+      .fetchInfiniteQuery({
+        queryKey: historyKey,
+        queryFn: ({ signal }) =>
+          new Promise<AlertPage>((_resolve, reject) => {
+            signal.addEventListener("abort", () => {
+              wasAborted = true;
+              reject(new DOMException("Aborted", "AbortError"));
+            });
+          }),
+        initialPageParam: null as string | null,
+        getNextPageParam: (lastPage: AlertPage) => lastPage.pagination.nextCursor ?? undefined,
+      })
+      .catch(() => undefined);
+    await Promise.resolve();
+    vi.spyOn(alertsApi, "listHistory").mockResolvedValue(authoritative);
+
+    await reconcileAlertHistoryHead(client, 7, {}, 2);
+    await olderRequest;
+
+    expect(wasAborted).toBe(true);
+    expect(client.getQueryData<InfiniteData<AlertPage, string | null>>(historyKey)).toEqual({
+      pages: [authoritative],
+      pageParams: [null],
+    });
     client.clear();
   });
 
@@ -334,7 +506,7 @@ describe("alert live updates", () => {
       "Showing saved active alerts",
     );
 
-    const oldPageZero = page([alert({ id: 5, status: "resolved" })]);
+    const oldPageZero = page([alert({ id: 5, status: "resolved" })], "cursor-0");
     const oldPageOne = page([alert({ id: 4, status: "resolved" })]);
     const pageParams = [null, "cursor-0"];
     const cached: InfiniteData<AlertPage, string | null> = {
@@ -342,7 +514,7 @@ describe("alert live updates", () => {
       pageParams,
     };
     client.setQueryData(alertHistoryKeys.history(7, {}, 25), cached);
-    const newHead = page([alert({ id: 8, status: "resolved" })]);
+    const newHead = page([alert({ id: 8, status: "resolved" })], "cursor-0");
     vi.spyOn(alertsApi, "listHistory")
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce(newHead);
@@ -395,5 +567,63 @@ describe("alert live updates", () => {
 
     unsubscribe();
     client.clear();
+  });
+});
+
+describe("alerts page project state", () => {
+  it("drops a previous project's resource ID from the next request", async () => {
+    const selection = { projectId: 7, value: "node:21" };
+    const nextProjectFilters = buildAlertHistoryFilters(
+      "node",
+      "critical",
+      alertResourceForProject(selection, 9),
+    );
+
+    expect(
+      buildAlertHistoryFilters("node", "critical", alertResourceForProject(selection, 7)),
+    ).toEqual({ category: "node", severity: "critical", nodeId: 21 });
+    expect(nextProjectFilters).toEqual({ category: "node", severity: "critical" });
+
+    const fetchRequest = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          alerts: [],
+          pagination: { limit: 25, has_more: false, next_cursor: null },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    await alertsApi.listHistory(9, nextProjectFilters, 25);
+
+    const requestURL = fetchRequest.mock.calls[0]?.[0];
+    expect(typeof requestURL).toBe("string");
+    if (typeof requestURL !== "string") throw new Error("expected a string request URL");
+    expect(requestURL).toContain("project_id=9");
+    expect(requestURL).not.toContain("node_id=");
+    expect(requestURL).not.toContain("service_id=");
+  });
+
+  it("renders a no-project message instead of disabled-query skeletons", () => {
+    const markup = renderAlertsPage(null);
+
+    expect(markup).toContain("Select a project to view alerts.");
+    expect(markup).not.toContain("animate-pulse");
+  });
+
+  it("still renders initial skeletons for a valid project", () => {
+    const markup = renderAlertsPage(7);
+
+    expect(markup).toContain("Active Alerts");
+    expect(markup).toContain("Alert History");
+    expect(markup).toContain("animate-pulse");
+  });
+
+  it("switches from a valid project to the no-project empty state", () => {
+    expect(renderAlertsPage(7)).toContain("animate-pulse");
+
+    const markup = renderAlertsPage(null);
+
+    expect(markup).toContain("Select a project to view alerts.");
+    expect(markup).not.toContain("animate-pulse");
   });
 });

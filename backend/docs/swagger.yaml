@@ -73,27 +73,33 @@ definitions:
       node_id:
         example: 1
         type: integer
+        x-nullable: true
       node_identifier:
         example: node_01hxyz
         type: string
+        x-nullable: true
       node_name:
         example: edge-01
         type: string
+        x-nullable: true
       project_id:
         example: 1
         type: integer
       resolved_at:
         format: date-time
         type: string
+        x-nullable: true
       rule_type:
         example: service_unhealthy
         type: string
       service_id:
         example: 1
         type: integer
+        x-nullable: true
       service_name:
         example: Public API
         type: string
+        x-nullable: true
       severity:
         example: critical
         type: string
@@ -118,6 +124,7 @@ definitions:
       next_cursor:
         example: eyJ0cmlnZ2VyZWRfYXQiOiIyMDI2LTA4LTIzVDEwOjAwOjAwWiIsImlkIjoxfQ
         type: string
+        x-nullable: true
     type: object
   types.AlertRuleCreateRequest:
     properties:

@@ -4,6 +4,9 @@ import { AlertTriangleIcon, ClockIcon, SirenIcon } from "lucide-react";
 import { SectionHeading } from "@/components/section-heading.tsx";
 import {
   alertResourceLabel,
+  alertResourceForProject,
+  type AlertResourceSelection,
+  buildAlertHistoryFilters,
   deduplicateAlerts,
   historyFilterTriggerClass,
   ruleTypeLabel,
@@ -27,7 +30,7 @@ import { useServices } from "@/hooks/use-services.ts";
 import { formatAlertDuration } from "@/lib/alert-duration.ts";
 import { cn, formatRelativeTime } from "@/lib/utils.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
-import type { Alert, AlertCategory, AlertHistoryFilters, Severity } from "@/types/alert.ts";
+import type { Alert, AlertCategory, Severity } from "@/types/alert.ts";
 
 function severityBadgeClass(severity: Severity) {
   switch (severity) {
@@ -380,22 +383,20 @@ function HistoryFilters({
   );
 }
 
-export function AlertsPage() {
-  const activeProjectId = useUIStore((state) => state.activeProjectId) ?? 0;
+export function AlertsPageContent({ activeProjectId }: { activeProjectId: number }) {
+  const hasValidProject = activeProjectId > 0;
   const [category, setCategory] = useState<AlertCategory | "all">("all");
   const [severity, setSeverity] = useState<Severity | "all">("all");
-  const [resource, setResource] = useState("all");
+  const [resourceSelection, setResourceSelection] = useState<AlertResourceSelection>({
+    projectId: activeProjectId,
+    value: "all",
+  });
+  const resource = alertResourceForProject(resourceSelection, activeProjectId);
 
-  const filters = useMemo<AlertHistoryFilters>(() => {
-    const next: AlertHistoryFilters = {};
-    if (category !== "all") next.category = category;
-    if (severity !== "all") next.severity = severity;
-    const [resourceType, rawID] = resource.split(":");
-    const resourceID = Number(rawID);
-    if (resourceType === "node" && Number.isInteger(resourceID)) next.nodeId = resourceID;
-    if (resourceType === "service" && Number.isInteger(resourceID)) next.serviceId = resourceID;
-    return next;
-  }, [category, resource, severity]);
+  const filters = useMemo(
+    () => buildAlertHistoryFilters(category, severity, resource),
+    [category, resource, severity],
+  );
 
   const activeQuery = useActiveAlerts(activeProjectId);
   const historyQuery = useAlertHistory(activeProjectId, filters);
@@ -414,6 +415,15 @@ export function AlertsPage() {
     description: "View active alerts and resolved alert history for your project",
   });
 
+  if (!hasValidProject) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-8 p-6">
+        <PageHeader title="Alerts" description="Active alerts and resolved history" />
+        <EmptyState message="Select a project to view alerts." />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-8 p-6">
       <PageHeader title="Alerts" description="Active alerts and resolved history" />
@@ -428,7 +438,7 @@ export function AlertsPage() {
             ) : undefined
           }
         />
-        {activeQuery.isPending && activeQuery.data == null ? (
+        {hasValidProject && activeQuery.isPending && activeQuery.data == null ? (
           <ActiveAlertsSkeleton />
         ) : activeQuery.isError && activeQuery.data == null ? (
           <ErrorState
@@ -467,15 +477,17 @@ export function AlertsPage() {
               services={servicesQuery.data?.services ?? []}
               onCategoryChange={(value) => {
                 setCategory(value);
-                setResource("all");
+                setResourceSelection({ projectId: activeProjectId, value: "all" });
               }}
               onSeverityChange={setSeverity}
-              onResourceChange={setResource}
+              onResourceChange={(value) =>
+                setResourceSelection({ projectId: activeProjectId, value })
+              }
             />
           }
         />
 
-        {historyQuery.isPending ? (
+        {hasValidProject && historyQuery.isPending ? (
           <TableSkeleton />
         ) : historyQuery.isError && historyAlerts.length === 0 ? (
           <ErrorState
@@ -498,4 +510,9 @@ export function AlertsPage() {
       </section>
     </div>
   );
+}
+
+export function AlertsPage() {
+  const activeProjectId = useUIStore((state) => state.activeProjectId) ?? 0;
+  return <AlertsPageContent key={activeProjectId} activeProjectId={activeProjectId} />;
 }

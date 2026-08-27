@@ -297,14 +297,14 @@ type AlertDocument struct {
 	ProjectID      int64      `json:"project_id" example:"1"`
 	RuleType       string     `json:"rule_type" example:"service_unhealthy"`
 	Severity       string     `json:"severity" example:"critical"`
-	NodeID         *int64     `json:"node_id" example:"1"`
-	NodeName       *string    `json:"node_name" example:"edge-01"`
-	NodeIdentifier *string    `json:"node_identifier" example:"node_01hxyz"`
-	ServiceID      *int64     `json:"service_id" example:"1"`
-	ServiceName    *string    `json:"service_name" example:"Public API"`
+	NodeID         *int64     `json:"node_id" example:"1" extensions:"x-nullable"`
+	NodeName       *string    `json:"node_name" example:"edge-01" extensions:"x-nullable"`
+	NodeIdentifier *string    `json:"node_identifier" example:"node_01hxyz" extensions:"x-nullable"`
+	ServiceID      *int64     `json:"service_id" example:"1" extensions:"x-nullable"`
+	ServiceName    *string    `json:"service_name" example:"Public API" extensions:"x-nullable"`
 	Status         string     `json:"status" example:"resolved"`
 	TriggeredAt    time.Time  `json:"triggered_at" swaggertype:"string" format:"date-time"`
-	ResolvedAt     *time.Time `json:"resolved_at" swaggertype:"string" format:"date-time"`
+	ResolvedAt     *time.Time `json:"resolved_at" swaggertype:"string" format:"date-time" extensions:"x-nullable"`
 	Title          string     `json:"title" example:"Public API is unhealthy"`
 	Message        string     `json:"message" example:"Health check returned HTTP 503."`
 	CreatedAt      time.Time  `json:"created_at" swaggertype:"string" format:"date-time"`
@@ -313,7 +313,7 @@ type AlertDocument struct {
 type AlertPaginationDocument struct {
 	Limit      int32   `json:"limit" example:"50"`
 	HasMore    bool    `json:"has_more" example:"true"`
-	NextCursor *string `json:"next_cursor" example:"eyJ0cmlnZ2VyZWRfYXQiOiIyMDI2LTA4LTIzVDEwOjAwOjAwWiIsImlkIjoxfQ"`
+	NextCursor *string `json:"next_cursor" example:"eyJ0cmlnZ2VyZWRfYXQiOiIyMDI2LTA4LTIzVDEwOjAwOjAwWiIsImlkIjoxfQ" extensions:"x-nullable"`
 }
 
 type NotificationRecipientDocument struct {

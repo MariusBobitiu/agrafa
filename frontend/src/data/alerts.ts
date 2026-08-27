@@ -62,10 +62,12 @@ export const alertsApi = {
     filters: AlertHistoryFilters,
     limit: number,
     before?: string,
+    signal?: AbortSignal,
   ): Promise<AlertPage> =>
     toAlertPage(
       await api.get<AlertsResponse>(
         `/alerts?${alertQuery(projectId, { ...filters, status: "resolved", limit, before })}`,
+        { signal },
       ),
     ),
 

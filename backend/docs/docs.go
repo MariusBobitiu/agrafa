@@ -3596,14 +3596,17 @@ const docTemplate = `{
                 },
                 "node_id": {
                     "type": "integer",
+                    "x-nullable": true,
                     "example": 1
                 },
                 "node_identifier": {
                     "type": "string",
+                    "x-nullable": true,
                     "example": "node_01hxyz"
                 },
                 "node_name": {
                     "type": "string",
+                    "x-nullable": true,
                     "example": "edge-01"
                 },
                 "project_id": {
@@ -3612,7 +3615,8 @@ const docTemplate = `{
                 },
                 "resolved_at": {
                     "type": "string",
-                    "format": "date-time"
+                    "format": "date-time",
+                    "x-nullable": true
                 },
                 "rule_type": {
                     "type": "string",
@@ -3620,10 +3624,12 @@ const docTemplate = `{
                 },
                 "service_id": {
                     "type": "integer",
+                    "x-nullable": true,
                     "example": 1
                 },
                 "service_name": {
                     "type": "string",
+                    "x-nullable": true,
                     "example": "Public API"
                 },
                 "severity": {
@@ -3657,6 +3663,7 @@ const docTemplate = `{
                 },
                 "next_cursor": {
                     "type": "string",
+                    "x-nullable": true,
                     "example": "eyJ0cmlnZ2VyZWRfYXQiOiIyMDI2LTA4LTIzVDEwOjAwOjAwWiIsImlkIjoxfQ"
                 }
             }

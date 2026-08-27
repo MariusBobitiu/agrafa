@@ -50,16 +50,15 @@ function getServerErrorMessage(status: number, fallback: string) {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const baseUrl = getApiBaseUrl();
   const url = `${baseUrl}/v1${path}`;
+  const headers = new Headers(init.headers);
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
 
   let res: Response;
   try {
     res = await fetch(url, {
       ...init,
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...init.headers,
-      },
+      headers,
     });
   } catch {
     throw new NetworkError(
@@ -83,7 +82,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path, { method: "GET" }),
+  get: <T>(path: string, init: RequestInit = {}) => request<T>(path, { ...init, method: "GET" }),
 
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, {
