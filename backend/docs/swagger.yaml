@@ -104,7 +104,7 @@ definitions:
         example: critical
         type: string
       status:
-        example: resolved
+        example: active
         type: string
       title:
         example: Public API is unhealthy
@@ -1890,6 +1890,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/types.ErrorResponse'
+      security:
+      - CookieAuth: []
       summary: List alerts
       tags:
       - alerts
@@ -3800,4 +3802,10 @@ paths:
 schemes:
 - http
 - https
+securityDefinitions:
+  CookieAuth:
+    description: Agrafa session cookie (`agrafa_session`).
+    in: header
+    name: Cookie
+    type: apiKey
 swagger: "2.0"

@@ -3,6 +3,10 @@
 // @description Agrafa backend API for agent ingestion, inventory creation, and read-side observability queries.
 // @BasePath /v1
 // @schemes http https
+// @securityDefinitions.apikey CookieAuth
+// @in header
+// @name Cookie
+// @description Agrafa session cookie (`agrafa_session`).
 package main
 
 import (

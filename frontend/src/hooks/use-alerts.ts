@@ -58,11 +58,14 @@ export function replaceAlertHistoryHead(
     pages: [deduplicatedHead],
     pageParams: [null],
   };
+  const previousHead = current?.pages[0];
+  const boundaryIsUnchanged =
+    previousHead != null && alertHistoryHeadBoundaryIsEqual(previousHead, deduplicatedHead);
 
   if (
     !current ||
     current.pages.length < 2 ||
-    headWasFull ||
+    (headWasFull && !boundaryIsUnchanged) ||
     deduplicatedHead.pagination.nextCursor == null
   ) {
     return replacement;
@@ -83,13 +86,29 @@ export function replaceAlertHistoryHead(
       seen.add(alert.id);
       return true;
     });
-    replacement.pages.push({ ...existingPage, alerts });
+    replacement.pages.push(
+      alerts.length === existingPage.alerts.length ? existingPage : { ...existingPage, alerts },
+    );
     replacement.pageParams.push(current.pageParams[index] ?? null);
     expectedPageParam = existingPage.pagination.nextCursor;
     if (expectedPageParam == null) break;
   }
 
   return replacement;
+}
+
+function alertHistoryHeadBoundaryIsEqual(previous: AlertPage, next: AlertPage) {
+  return (
+    previous.pagination.limit === next.pagination.limit &&
+    previous.pagination.hasMore === next.pagination.hasMore &&
+    previous.pagination.nextCursor === next.pagination.nextCursor &&
+    previous.alerts.length === next.alerts.length &&
+    previous.alerts.every(
+      (alert, index) =>
+        alert.id === next.alerts[index]?.id &&
+        alert.triggered_at === next.alerts[index]?.triggered_at,
+    )
+  );
 }
 
 export async function reconcileAlertHistoryHead(

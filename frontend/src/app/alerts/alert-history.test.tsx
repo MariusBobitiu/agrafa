@@ -204,7 +204,26 @@ describe("alert history pagination", () => {
     client.clear();
   });
 
-  it("discards stale later pages and page params when the replacement head is full", () => {
+  it("preserves loaded pages when a full replacement head has the same boundary", () => {
+    const oldHead = page([alert({ id: 6 }), alert({ id: 5 })], "cursor-0");
+    const oldPageOne = page([alert({ id: 4 }), alert({ id: 3 })], "cursor-1");
+    const oldPageTwo = page([alert({ id: 2 }), alert({ id: 1 })]);
+    const pageParams = [null, "cursor-0", "cursor-1"];
+    const current: InfiniteData<AlertPage, string | null> = {
+      pages: [oldHead, oldPageOne, oldPageTwo],
+      pageParams,
+    };
+    const unchangedHead = page([alert({ id: 6 }), alert({ id: 5 })], "cursor-0");
+
+    const replaced = replaceAlertHistoryHead(current, unchangedHead);
+
+    expect(replaced.pages[0]).toEqual(unchangedHead);
+    expect(replaced.pages[1]).toBe(oldPageOne);
+    expect(replaced.pages[2]).toBe(oldPageTwo);
+    expect(replaced.pageParams).toEqual(pageParams);
+  });
+
+  it("discards stale later pages when a full replacement head changes the boundary", () => {
     const oldPageOne = page([alert({ id: 4 }), alert({ id: 3 })], "cursor-1");
     const oldPageTwo = page([alert({ id: 2 }), alert({ id: 1 })]);
     const current: InfiniteData<AlertPage, string | null> = {
@@ -219,14 +238,25 @@ describe("alert history pagination", () => {
     expect(replaced.pageParams).toEqual([null]);
   });
 
-  it("loads the next page from a full replacement head's new cursor", async () => {
+  it("loads the next page from a changed full replacement head's new cursor", async () => {
     const historyKey = alertHistoryKeys.history(7, {}, 2);
+    const current: InfiniteData<AlertPage, string | null> = {
+      pages: [
+        page([alert({ id: 6 }), alert({ id: 5 })], "old-cursor"),
+        page([alert({ id: 4 }), alert({ id: 3 })], "cursor-1"),
+        page([alert({ id: 2 }), alert({ id: 1 })]),
+      ],
+      pageParams: [null, "old-cursor", "cursor-1"],
+    };
     const replacementHead = page([alert({ id: 8 }), alert({ id: 7 })], "new-cursor");
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    client.setQueryData<InfiniteData<AlertPage, string | null>>(historyKey, {
-      pages: [replacementHead],
-      pageParams: [null],
-    });
+    client.setQueryData(historyKey, replaceAlertHistoryHead(current, replacementHead));
+    expect(client.getQueryData<InfiniteData<AlertPage, string | null>>(historyKey)?.pages).toEqual([
+      replacementHead,
+    ]);
+    expect(
+      client.getQueryData<InfiniteData<AlertPage, string | null>>(historyKey)?.pageParams,
+    ).toEqual([null]);
     const queryFn = vi.fn((_context: { pageParam: string | null }) =>
       Promise.resolve(page([alert({ id: 6 }), alert({ id: 5 })])),
     );
@@ -409,6 +439,39 @@ describe("alert live updates", () => {
 
     expect(reconcile).toHaveBeenCalledTimes(1);
     stop();
+  });
+
+  it("preserves loaded pages when focus reconciliation returns an unchanged full head", async () => {
+    vi.useFakeTimers();
+    focusManager.setFocused(false);
+    const historyKey = alertHistoryKeys.history(7, {}, 2);
+    const oldHead = page([alert({ id: 6 }), alert({ id: 5 })], "cursor-0");
+    const oldPageOne = page([alert({ id: 4 }), alert({ id: 3 })], "cursor-1");
+    const oldPageTwo = page([alert({ id: 2 }), alert({ id: 1 })]);
+    const pageParams = [null, "cursor-0", "cursor-1"];
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData<InfiniteData<AlertPage, string | null>>(historyKey, {
+      pages: [oldHead, oldPageOne, oldPageTwo],
+      pageParams,
+    });
+    const historyRequest = vi
+      .spyOn(alertsApi, "listHistory")
+      .mockResolvedValue(page([alert({ id: 6 }), alert({ id: 5 })], "cursor-0"));
+    const sync = new ActiveAlertHistorySync(() => reconcileAlertHistoryHead(client, 7, {}, 2));
+    const stop = startAlertHistoryHeadReconciliation(sync, 7);
+
+    focusManager.setFocused(true);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const refreshed = client.getQueryData<InfiniteData<AlertPage, string | null>>(historyKey);
+    expect(historyRequest).toHaveBeenCalledTimes(1);
+    expect(refreshed?.pages).toHaveLength(3);
+    expect(refreshed?.pages[1]).toBe(oldPageOne);
+    expect(refreshed?.pages[2]).toBe(oldPageTwo);
+    expect(refreshed?.pageParams).toEqual(pageParams);
+
+    stop();
+    client.clear();
   });
 
   it("handles multiple simultaneous active changes with one bounded reconciliation", async () => {

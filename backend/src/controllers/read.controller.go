@@ -214,6 +214,7 @@ func (c *ReadController) ListAlertRules(w http.ResponseWriter, r *http.Request) 
 // @Success      200         {object}  types.AlertsResponse
 // @Failure      400         {object}  types.ErrorResponse
 // @Failure      500         {object}  types.ErrorResponse
+// @Security     CookieAuth
 // @Router       /alerts [get]
 func (c *ReadController) ListAlerts(w http.ResponseWriter, r *http.Request) {
 	projectID, err := utils.ParseOptionalPositiveInt64Query(r, "project_id")

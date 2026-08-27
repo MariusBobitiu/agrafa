@@ -560,6 +560,11 @@ const docTemplate = `{
         },
         "/alerts": {
             "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
                 "description": "Returns authoritative alert-rule and affected-resource presentation data. status=active is an independent read with no history limit; status=resolved uses keyset pagination ordered by triggered_at and id newest-first.",
                 "produces": [
                     "application/json"
@@ -3638,7 +3643,7 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string",
-                    "example": "resolved"
+                    "example": "active"
                 },
                 "title": {
                     "type": "string",
@@ -5535,6 +5540,14 @@ const docTemplate = `{
                     "format": "date-time"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "CookieAuth": {
+            "description": "Agrafa session cookie (` + "`" + `agrafa_session` + "`" + `).",
+            "type": "apiKey",
+            "name": "Cookie",
+            "in": "header"
         }
     }
 }`

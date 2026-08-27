@@ -302,7 +302,7 @@ type AlertDocument struct {
 	NodeIdentifier *string    `json:"node_identifier" example:"node_01hxyz" extensions:"x-nullable"`
 	ServiceID      *int64     `json:"service_id" example:"1" extensions:"x-nullable"`
 	ServiceName    *string    `json:"service_name" example:"Public API" extensions:"x-nullable"`
-	Status         string     `json:"status" example:"resolved"`
+	Status         string     `json:"status" example:"active"`
 	TriggeredAt    time.Time  `json:"triggered_at" swaggertype:"string" format:"date-time"`
 	ResolvedAt     *time.Time `json:"resolved_at" swaggertype:"string" format:"date-time" extensions:"x-nullable"`
 	Title          string     `json:"title" example:"Public API is unhealthy"`
