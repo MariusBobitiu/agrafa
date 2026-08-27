@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { StatusBadge } from "@/components/ui/status-badge.tsx";
-import { useActiveAlerts, useAlertHistory } from "@/hooks/use-alerts.ts";
+import { useActiveAlerts, useAlertHistory, useAlertHistoryHeadSync } from "@/hooks/use-alerts.ts";
 import { useMeta } from "@/hooks/use-meta";
 import { useNodes } from "@/hooks/use-nodes.ts";
 import { useServices } from "@/hooks/use-services.ts";
@@ -239,6 +239,17 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
   );
 }
 
+export function BackgroundRefreshError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="mt-2 flex items-center gap-2 text-xs text-destructive" role="alert">
+      <span>Refresh failed. Showing saved active alerts.</span>
+      <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onRetry}>
+        Try again
+      </Button>
+    </div>
+  );
+}
+
 export function EmptyState({ message, active = false }: { message: string; active?: boolean }) {
   return (
     <div className="flex items-center gap-2 py-1">
@@ -391,6 +402,8 @@ export function AlertsPage() {
   const nodesQuery = useNodes(activeProjectId);
   const servicesQuery = useServices(activeProjectId, { refetchInterval: false });
   const activeAlerts = activeQuery.data?.alerts ?? [];
+  useAlertHistoryHeadSync(activeProjectId, filters, activeQuery.data, activeQuery.dataUpdatedAt);
+
   const historyAlerts = useMemo(
     () => deduplicateAlerts(historyQuery.data?.pages.flatMap((page) => page.alerts) ?? []),
     [historyQuery.data],
@@ -415,9 +428,9 @@ export function AlertsPage() {
             ) : undefined
           }
         />
-        {activeQuery.isPending ? (
+        {activeQuery.isPending && activeQuery.data == null ? (
           <ActiveAlertsSkeleton />
-        ) : activeQuery.isError ? (
+        ) : activeQuery.isError && activeQuery.data == null ? (
           <ErrorState
             message="Couldn’t load active alerts."
             onRetry={() => void activeQuery.refetch()}
@@ -431,6 +444,9 @@ export function AlertsPage() {
             ))}
           </div>
         )}
+        {activeQuery.isError && activeQuery.data != null ? (
+          <BackgroundRefreshError onRetry={() => void activeQuery.refetch()} />
+        ) : null}
       </section>
 
       <section className="flex flex-col gap-3">
