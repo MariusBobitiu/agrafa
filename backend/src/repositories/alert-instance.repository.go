@@ -14,6 +14,25 @@ type AlertInstanceRepository struct {
 	queries *generated.Queries
 }
 
+type AlertReadRow struct {
+	ID             int64
+	AlertRuleID    int64
+	ProjectID      int64
+	NodeID         sql.NullInt64
+	NodeName       sql.NullString
+	NodeIdentifier sql.NullString
+	ServiceID      sql.NullInt64
+	ServiceName    sql.NullString
+	RuleType       string
+	Severity       string
+	Status         string
+	TriggeredAt    time.Time
+	ResolvedAt     sql.NullTime
+	Title          string
+	Message        string
+	CreatedAt      time.Time
+}
+
 func NewAlertInstanceRepository(db *sql.DB, queries *generated.Queries) *AlertInstanceRepository {
 	return &AlertInstanceRepository{
 		db:      db,
@@ -42,24 +61,129 @@ func (r *AlertInstanceRepository) Resolve(ctx context.Context, id int64, resolve
 	})
 }
 
-func (r *AlertInstanceRepository) List(ctx context.Context, projectID *int64, status *string, limit int32) ([]generated.AlertInstance, error) {
+func (r *AlertInstanceRepository) ListForRead(ctx context.Context, filters types.AlertListFilters) ([]AlertReadRow, error) {
 	params := generated.ListAlertInstancesParams{
-		Limit: limit,
+		HasProjectID: filters.ProjectID != nil,
+		ProjectID:    derefInt64(filters.ProjectID),
+		HasServiceID: filters.ServiceID != nil,
+		ServiceID:    nullableInt64(filters.ServiceID),
+		HasNodeID:    filters.NodeID != nil,
+		NodeID:       nullableInt64(filters.NodeID),
+		HasRuleType:  filters.RuleType != nil,
+		RuleType:     derefString(filters.RuleType),
+		HasSeverity:  filters.Severity != nil,
+		Severity:     derefString(filters.Severity),
+		HasCategory:  filters.Category != nil,
+		Category:     derefString(filters.Category),
+		LimitRows:    filters.Limit,
 	}
 
-	if projectID != nil {
-		params.Column1 = true
-		params.ProjectID = *projectID
-	}
-
-	if status != nil {
-		params.Column3 = true
-		params.Status = *status
-	}
-
-	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.AlertInstance, error) {
+	rows, err := withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.ListAlertInstancesRow, error) {
 		return queries.ListAlertInstances(ctx, params)
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]AlertReadRow, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, AlertReadRow{
+			ID: row.ID, AlertRuleID: row.AlertRuleID, ProjectID: row.ProjectID,
+			NodeID: row.NodeID, NodeName: row.NodeName, NodeIdentifier: row.NodeIdentifier,
+			ServiceID: row.ServiceID, ServiceName: row.ServiceName,
+			RuleType: row.RuleType, Severity: row.Severity, Status: row.Status,
+			TriggeredAt: row.TriggeredAt, ResolvedAt: row.ResolvedAt,
+			Title: row.Title, Message: row.Message, CreatedAt: row.CreatedAt,
+		})
+	}
+	return items, nil
+}
+
+func (r *AlertInstanceRepository) ListActiveForRead(ctx context.Context, filters types.AlertListFilters) ([]AlertReadRow, error) {
+	params := generated.ListActiveAlertInstancesForReadParams{
+		HasProjectID: filters.ProjectID != nil,
+		ProjectID:    derefInt64(filters.ProjectID),
+		HasServiceID: filters.ServiceID != nil,
+		ServiceID:    nullableInt64(filters.ServiceID),
+		HasNodeID:    filters.NodeID != nil,
+		NodeID:       nullableInt64(filters.NodeID),
+		HasRuleType:  filters.RuleType != nil,
+		RuleType:     derefString(filters.RuleType),
+		HasSeverity:  filters.Severity != nil,
+		Severity:     derefString(filters.Severity),
+		HasCategory:  filters.Category != nil,
+		Category:     derefString(filters.Category),
+	}
+
+	rows, err := withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.ListActiveAlertInstancesForReadRow, error) {
+		return queries.ListActiveAlertInstancesForRead(ctx, params)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]AlertReadRow, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, AlertReadRow{
+			ID: row.ID, AlertRuleID: row.AlertRuleID, ProjectID: row.ProjectID,
+			NodeID: row.NodeID, NodeName: row.NodeName, NodeIdentifier: row.NodeIdentifier,
+			ServiceID: row.ServiceID, ServiceName: row.ServiceName,
+			RuleType: row.RuleType, Severity: row.Severity, Status: row.Status,
+			TriggeredAt: row.TriggeredAt, ResolvedAt: row.ResolvedAt,
+			Title: row.Title, Message: row.Message, CreatedAt: row.CreatedAt,
+		})
+	}
+	return items, nil
+}
+
+func (r *AlertInstanceRepository) ListResolvedForRead(ctx context.Context, filters types.AlertListFilters) ([]AlertReadRow, error) {
+	params := generated.ListResolvedAlertInstancesForReadParams{
+		HasProjectID: filters.ProjectID != nil,
+		ProjectID:    derefInt64(filters.ProjectID),
+		HasServiceID: filters.ServiceID != nil,
+		ServiceID:    nullableInt64(filters.ServiceID),
+		HasNodeID:    filters.NodeID != nil,
+		NodeID:       nullableInt64(filters.NodeID),
+		HasRuleType:  filters.RuleType != nil,
+		RuleType:     derefString(filters.RuleType),
+		HasSeverity:  filters.Severity != nil,
+		Severity:     derefString(filters.Severity),
+		HasCategory:  filters.Category != nil,
+		Category:     derefString(filters.Category),
+		HasBefore:    filters.Before != nil,
+		LimitRows:    filters.Limit,
+	}
+	if filters.Before != nil {
+		params.BeforeTriggeredAt = filters.Before.TriggeredAt.UTC()
+		params.BeforeID = filters.Before.ID
+	}
+
+	rows, err := withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.ListResolvedAlertInstancesForReadRow, error) {
+		return queries.ListResolvedAlertInstancesForRead(ctx, params)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]AlertReadRow, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, AlertReadRow{
+			ID: row.ID, AlertRuleID: row.AlertRuleID, ProjectID: row.ProjectID,
+			NodeID: row.NodeID, NodeName: row.NodeName, NodeIdentifier: row.NodeIdentifier,
+			ServiceID: row.ServiceID, ServiceName: row.ServiceName,
+			RuleType: row.RuleType, Severity: row.Severity, Status: row.Status,
+			TriggeredAt: row.TriggeredAt, ResolvedAt: row.ResolvedAt,
+			Title: row.Title, Message: row.Message, CreatedAt: row.CreatedAt,
+		})
+	}
+	return items, nil
+}
+
+func nullableInt64(value *int64) sql.NullInt64 {
+	if value == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *value, Valid: true}
 }
 
 func (r *AlertInstanceRepository) ListByNodeID(ctx context.Context, nodeID int64, status *string, limit int32) ([]generated.AlertInstance, error) {

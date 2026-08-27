@@ -557,7 +557,7 @@
         },
         "/alerts": {
             "get": {
-                "description": "Returns newest alerts first, with optional project, status, and limit filters.",
+                "description": "Returns authoritative alert-rule and affected-resource presentation data. status=active is an independent read with no history limit; status=resolved uses keyset pagination ordered by triggered_at and id newest-first.",
                 "produces": [
                     "application/json"
                 ],
@@ -583,11 +583,65 @@
                         "in": "query"
                     },
                     {
+                        "type": "integer",
+                        "description": "Affected service ID",
+                        "name": "service_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Affected node ID",
+                        "name": "node_id",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "node_offline",
+                            "service_unhealthy",
+                            "cpu_above_threshold",
+                            "memory_above_threshold",
+                            "disk_above_threshold"
+                        ],
+                        "type": "string",
+                        "description": "Alert rule type",
+                        "name": "rule_type",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "info",
+                            "warning",
+                            "critical"
+                        ],
+                        "type": "string",
+                        "description": "Alert severity",
+                        "name": "severity",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "node",
+                            "service",
+                            "metric"
+                        ],
+                        "type": "string",
+                        "description": "Alert category",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
                         "minimum": 1,
                         "type": "integer",
                         "default": 50,
-                        "description": "Maximum number of alerts",
+                        "description": "Resolved/combined page size (default 50, maximum 100)",
                         "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque resolved-history cursor returned as next_cursor; requires status=resolved",
+                        "name": "before",
                         "in": "query"
                     }
                 ],
@@ -3535,11 +3589,19 @@
                 },
                 "message": {
                     "type": "string",
-                    "example": "Node 1 is currently offline."
+                    "example": "Health check returned HTTP 503."
                 },
                 "node_id": {
                     "type": "integer",
                     "example": 1
+                },
+                "node_identifier": {
+                    "type": "string",
+                    "example": "node_01hxyz"
+                },
+                "node_name": {
+                    "type": "string",
+                    "example": "edge-01"
                 },
                 "project_id": {
                     "type": "integer",
@@ -3549,21 +3611,50 @@
                     "type": "string",
                     "format": "date-time"
                 },
+                "rule_type": {
+                    "type": "string",
+                    "example": "service_unhealthy"
+                },
                 "service_id": {
                     "type": "integer",
                     "example": 1
                 },
+                "service_name": {
+                    "type": "string",
+                    "example": "Public API"
+                },
+                "severity": {
+                    "type": "string",
+                    "example": "critical"
+                },
                 "status": {
                     "type": "string",
-                    "example": "active"
+                    "example": "resolved"
                 },
                 "title": {
                     "type": "string",
-                    "example": "Node 1 is offline"
+                    "example": "Public API is unhealthy"
                 },
                 "triggered_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "types.AlertPaginationDocument": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "example": "eyJ0cmlnZ2VyZWRfYXQiOiIyMDI2LTA4LTIzVDEwOjAwOjAwWiIsImlkIjoxfQ"
                 }
             }
         },
@@ -3697,6 +3788,9 @@
                     "items": {
                         "$ref": "#/definitions/types.AlertDocument"
                     }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/types.AlertPaginationDocument"
                 }
             }
         },

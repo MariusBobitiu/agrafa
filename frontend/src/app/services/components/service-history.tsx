@@ -23,11 +23,20 @@ import {
   formatObservationTooltipTime,
   formatUptime,
   getHistoryRowPresentation,
+  latestServiceCheckAt,
   type ServiceHistoryChartPoint,
   type ServiceHistoryRangeHours,
 } from "../service-history-utils.ts";
 
-export function ServiceHistorySummaryMetrics({ summary }: { summary: ServiceHistorySummary }) {
+export function ServiceHistorySummaryMetrics({
+  summary,
+  liveLastCheckedAt,
+}: {
+  summary: ServiceHistorySummary;
+  liveLastCheckedAt?: string | null;
+}) {
+  const lastCheckedAt = latestServiceCheckAt(summary.lastCheckedAt, liveLastCheckedAt);
+
   return (
     <div className="grid grid-cols-3 divide-x divide-border rounded-lg border border-border bg-card">
       <div className="px-4 py-3">
@@ -51,7 +60,7 @@ export function ServiceHistorySummaryMetrics({ summary }: { summary: ServiceHist
           Last checked
         </p>
         <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-          <RelativeTime value={summary.lastCheckedAt} />
+          <RelativeTime value={lastCheckedAt} />
         </p>
       </div>
     </div>

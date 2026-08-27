@@ -38,12 +38,130 @@ WHERE id = $1
 RETURNING *;
 
 -- name: ListAlertInstances :many
-SELECT *
-FROM app.alert_instances
-WHERE (NOT $1::boolean OR project_id = $2)
-  AND (NOT $3::boolean OR status = $4)
-ORDER BY triggered_at DESC, id DESC
-LIMIT $5;
+SELECT
+    ai.id,
+    ai.alert_rule_id,
+    ai.project_id,
+    ai.node_id,
+    n.name AS node_name,
+    n.identifier AS node_identifier,
+    ai.service_id,
+    s.name AS service_name,
+    ar.rule_type,
+    ar.severity,
+    ai.status,
+    ai.triggered_at,
+    ai.resolved_at,
+    ai.title,
+    ai.message,
+    ai.created_at
+FROM app.alert_instances AS ai
+JOIN app.alert_rules AS ar ON ar.id = ai.alert_rule_id
+LEFT JOIN app.nodes AS n ON n.id = ai.node_id
+LEFT JOIN app.services AS s ON s.id = ai.service_id
+WHERE (NOT sqlc.arg(has_project_id)::boolean OR ai.project_id = sqlc.arg(project_id))
+  AND (NOT sqlc.arg(has_service_id)::boolean OR ai.service_id = sqlc.arg(service_id))
+  AND (NOT sqlc.arg(has_node_id)::boolean OR ai.node_id = sqlc.arg(node_id))
+  AND (NOT sqlc.arg(has_rule_type)::boolean OR ar.rule_type = sqlc.arg(rule_type))
+  AND (NOT sqlc.arg(has_severity)::boolean OR ar.severity = sqlc.arg(severity))
+  AND (
+      NOT sqlc.arg(has_category)::boolean
+      OR (sqlc.arg(category)::text = 'node' AND ar.rule_type = 'node_offline')
+      OR (sqlc.arg(category)::text = 'service' AND ar.rule_type = 'service_unhealthy')
+      OR (
+          sqlc.arg(category)::text = 'metric'
+          AND ar.rule_type IN ('cpu_above_threshold', 'memory_above_threshold', 'disk_above_threshold')
+      )
+  )
+ORDER BY ai.triggered_at DESC, ai.id DESC
+LIMIT sqlc.arg(limit_rows);
+
+-- name: ListActiveAlertInstancesForRead :many
+SELECT
+    ai.id,
+    ai.alert_rule_id,
+    ai.project_id,
+    ai.node_id,
+    n.name AS node_name,
+    n.identifier AS node_identifier,
+    ai.service_id,
+    s.name AS service_name,
+    ar.rule_type,
+    ar.severity,
+    ai.status,
+    ai.triggered_at,
+    ai.resolved_at,
+    ai.title,
+    ai.message,
+    ai.created_at
+FROM app.alert_instances AS ai
+JOIN app.alert_rules AS ar ON ar.id = ai.alert_rule_id
+LEFT JOIN app.nodes AS n ON n.id = ai.node_id
+LEFT JOIN app.services AS s ON s.id = ai.service_id
+WHERE ai.status = 'active'
+  AND (NOT sqlc.arg(has_project_id)::boolean OR ai.project_id = sqlc.arg(project_id))
+  AND (NOT sqlc.arg(has_service_id)::boolean OR ai.service_id = sqlc.arg(service_id))
+  AND (NOT sqlc.arg(has_node_id)::boolean OR ai.node_id = sqlc.arg(node_id))
+  AND (NOT sqlc.arg(has_rule_type)::boolean OR ar.rule_type = sqlc.arg(rule_type))
+  AND (NOT sqlc.arg(has_severity)::boolean OR ar.severity = sqlc.arg(severity))
+  AND (
+      NOT sqlc.arg(has_category)::boolean
+      OR (sqlc.arg(category)::text = 'node' AND ar.rule_type = 'node_offline')
+      OR (sqlc.arg(category)::text = 'service' AND ar.rule_type = 'service_unhealthy')
+      OR (
+          sqlc.arg(category)::text = 'metric'
+          AND ar.rule_type IN ('cpu_above_threshold', 'memory_above_threshold', 'disk_above_threshold')
+      )
+  )
+ORDER BY ai.triggered_at DESC, ai.id DESC;
+
+-- name: ListResolvedAlertInstancesForRead :many
+SELECT
+    ai.id,
+    ai.alert_rule_id,
+    ai.project_id,
+    ai.node_id,
+    n.name AS node_name,
+    n.identifier AS node_identifier,
+    ai.service_id,
+    s.name AS service_name,
+    ar.rule_type,
+    ar.severity,
+    ai.status,
+    ai.triggered_at,
+    ai.resolved_at,
+    ai.title,
+    ai.message,
+    ai.created_at
+FROM app.alert_instances AS ai
+JOIN app.alert_rules AS ar ON ar.id = ai.alert_rule_id
+LEFT JOIN app.nodes AS n ON n.id = ai.node_id
+LEFT JOIN app.services AS s ON s.id = ai.service_id
+WHERE ai.status = 'resolved'
+  AND (NOT sqlc.arg(has_project_id)::boolean OR ai.project_id = sqlc.arg(project_id))
+  AND (NOT sqlc.arg(has_service_id)::boolean OR ai.service_id = sqlc.arg(service_id))
+  AND (NOT sqlc.arg(has_node_id)::boolean OR ai.node_id = sqlc.arg(node_id))
+  AND (NOT sqlc.arg(has_rule_type)::boolean OR ar.rule_type = sqlc.arg(rule_type))
+  AND (NOT sqlc.arg(has_severity)::boolean OR ar.severity = sqlc.arg(severity))
+  AND (
+      NOT sqlc.arg(has_category)::boolean
+      OR (sqlc.arg(category)::text = 'node' AND ar.rule_type = 'node_offline')
+      OR (sqlc.arg(category)::text = 'service' AND ar.rule_type = 'service_unhealthy')
+      OR (
+          sqlc.arg(category)::text = 'metric'
+          AND ar.rule_type IN ('cpu_above_threshold', 'memory_above_threshold', 'disk_above_threshold')
+      )
+  )
+  AND (
+      NOT sqlc.arg(has_before)::boolean
+      OR ai.triggered_at < sqlc.arg(before_triggered_at)::timestamptz
+      OR (
+          ai.triggered_at = sqlc.arg(before_triggered_at)::timestamptz
+          AND ai.id < sqlc.arg(before_id)::bigint
+      )
+  )
+ORDER BY ai.triggered_at DESC, ai.id DESC
+LIMIT sqlc.arg(limit_rows);
 
 -- name: ListAlertInstancesByNodeAndStatus :many
 SELECT *

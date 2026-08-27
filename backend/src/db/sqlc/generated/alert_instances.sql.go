@@ -406,44 +406,242 @@ func (q *Queries) ListActiveAlertDetailsByServiceID(ctx context.Context, service
 	return items, nil
 }
 
-const listAlertInstances = `-- name: ListAlertInstances :many
-SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, title, message, created_at
-FROM app.alert_instances
-WHERE (NOT $1::boolean OR project_id = $2)
-  AND (NOT $3::boolean OR status = $4)
-ORDER BY triggered_at DESC, id DESC
-LIMIT $5
+const listActiveAlertInstancesForRead = `-- name: ListActiveAlertInstancesForRead :many
+SELECT
+    ai.id,
+    ai.alert_rule_id,
+    ai.project_id,
+    ai.node_id,
+    n.name AS node_name,
+    n.identifier AS node_identifier,
+    ai.service_id,
+    s.name AS service_name,
+    ar.rule_type,
+    ar.severity,
+    ai.status,
+    ai.triggered_at,
+    ai.resolved_at,
+    ai.title,
+    ai.message,
+    ai.created_at
+FROM app.alert_instances AS ai
+JOIN app.alert_rules AS ar ON ar.id = ai.alert_rule_id
+LEFT JOIN app.nodes AS n ON n.id = ai.node_id
+LEFT JOIN app.services AS s ON s.id = ai.service_id
+WHERE ai.status = 'active'
+  AND (NOT $1::boolean OR ai.project_id = $2)
+  AND (NOT $3::boolean OR ai.service_id = $4)
+  AND (NOT $5::boolean OR ai.node_id = $6)
+  AND (NOT $7::boolean OR ar.rule_type = $8)
+  AND (NOT $9::boolean OR ar.severity = $10)
+  AND (
+      NOT $11::boolean
+      OR ($12::text = 'node' AND ar.rule_type = 'node_offline')
+      OR ($12::text = 'service' AND ar.rule_type = 'service_unhealthy')
+      OR (
+          $12::text = 'metric'
+          AND ar.rule_type IN ('cpu_above_threshold', 'memory_above_threshold', 'disk_above_threshold')
+      )
+  )
+ORDER BY ai.triggered_at DESC, ai.id DESC
 `
 
-type ListAlertInstancesParams struct {
-	Column1   bool   `json:"column_1"`
-	ProjectID int64  `json:"project_id"`
-	Column3   bool   `json:"column_3"`
-	Status    string `json:"status"`
-	Limit     int32  `json:"limit"`
+type ListActiveAlertInstancesForReadParams struct {
+	HasProjectID bool          `json:"has_project_id"`
+	ProjectID    int64         `json:"project_id"`
+	HasServiceID bool          `json:"has_service_id"`
+	ServiceID    sql.NullInt64 `json:"service_id"`
+	HasNodeID    bool          `json:"has_node_id"`
+	NodeID       sql.NullInt64 `json:"node_id"`
+	HasRuleType  bool          `json:"has_rule_type"`
+	RuleType     string        `json:"rule_type"`
+	HasSeverity  bool          `json:"has_severity"`
+	Severity     string        `json:"severity"`
+	HasCategory  bool          `json:"has_category"`
+	Category     string        `json:"category"`
 }
 
-func (q *Queries) ListAlertInstances(ctx context.Context, arg ListAlertInstancesParams) ([]AppAlertInstance, error) {
-	rows, err := q.db.QueryContext(ctx, listAlertInstances,
-		arg.Column1,
+type ListActiveAlertInstancesForReadRow struct {
+	ID             int64          `json:"id"`
+	AlertRuleID    int64          `json:"alert_rule_id"`
+	ProjectID      int64          `json:"project_id"`
+	NodeID         sql.NullInt64  `json:"node_id"`
+	NodeName       sql.NullString `json:"node_name"`
+	NodeIdentifier sql.NullString `json:"node_identifier"`
+	ServiceID      sql.NullInt64  `json:"service_id"`
+	ServiceName    sql.NullString `json:"service_name"`
+	RuleType       string         `json:"rule_type"`
+	Severity       string         `json:"severity"`
+	Status         string         `json:"status"`
+	TriggeredAt    time.Time      `json:"triggered_at"`
+	ResolvedAt     sql.NullTime   `json:"resolved_at"`
+	Title          string         `json:"title"`
+	Message        string         `json:"message"`
+	CreatedAt      time.Time      `json:"created_at"`
+}
+
+func (q *Queries) ListActiveAlertInstancesForRead(ctx context.Context, arg ListActiveAlertInstancesForReadParams) ([]ListActiveAlertInstancesForReadRow, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveAlertInstancesForRead,
+		arg.HasProjectID,
 		arg.ProjectID,
-		arg.Column3,
-		arg.Status,
-		arg.Limit,
+		arg.HasServiceID,
+		arg.ServiceID,
+		arg.HasNodeID,
+		arg.NodeID,
+		arg.HasRuleType,
+		arg.RuleType,
+		arg.HasSeverity,
+		arg.Severity,
+		arg.HasCategory,
+		arg.Category,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []AppAlertInstance{}
+	items := []ListActiveAlertInstancesForReadRow{}
 	for rows.Next() {
-		var i AppAlertInstance
+		var i ListActiveAlertInstancesForReadRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AlertRuleID,
 			&i.ProjectID,
 			&i.NodeID,
+			&i.NodeName,
+			&i.NodeIdentifier,
 			&i.ServiceID,
+			&i.ServiceName,
+			&i.RuleType,
+			&i.Severity,
+			&i.Status,
+			&i.TriggeredAt,
+			&i.ResolvedAt,
+			&i.Title,
+			&i.Message,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAlertInstances = `-- name: ListAlertInstances :many
+SELECT
+    ai.id,
+    ai.alert_rule_id,
+    ai.project_id,
+    ai.node_id,
+    n.name AS node_name,
+    n.identifier AS node_identifier,
+    ai.service_id,
+    s.name AS service_name,
+    ar.rule_type,
+    ar.severity,
+    ai.status,
+    ai.triggered_at,
+    ai.resolved_at,
+    ai.title,
+    ai.message,
+    ai.created_at
+FROM app.alert_instances AS ai
+JOIN app.alert_rules AS ar ON ar.id = ai.alert_rule_id
+LEFT JOIN app.nodes AS n ON n.id = ai.node_id
+LEFT JOIN app.services AS s ON s.id = ai.service_id
+WHERE (NOT $1::boolean OR ai.project_id = $2)
+  AND (NOT $3::boolean OR ai.service_id = $4)
+  AND (NOT $5::boolean OR ai.node_id = $6)
+  AND (NOT $7::boolean OR ar.rule_type = $8)
+  AND (NOT $9::boolean OR ar.severity = $10)
+  AND (
+      NOT $11::boolean
+      OR ($12::text = 'node' AND ar.rule_type = 'node_offline')
+      OR ($12::text = 'service' AND ar.rule_type = 'service_unhealthy')
+      OR (
+          $12::text = 'metric'
+          AND ar.rule_type IN ('cpu_above_threshold', 'memory_above_threshold', 'disk_above_threshold')
+      )
+  )
+ORDER BY ai.triggered_at DESC, ai.id DESC
+LIMIT $13
+`
+
+type ListAlertInstancesParams struct {
+	HasProjectID bool          `json:"has_project_id"`
+	ProjectID    int64         `json:"project_id"`
+	HasServiceID bool          `json:"has_service_id"`
+	ServiceID    sql.NullInt64 `json:"service_id"`
+	HasNodeID    bool          `json:"has_node_id"`
+	NodeID       sql.NullInt64 `json:"node_id"`
+	HasRuleType  bool          `json:"has_rule_type"`
+	RuleType     string        `json:"rule_type"`
+	HasSeverity  bool          `json:"has_severity"`
+	Severity     string        `json:"severity"`
+	HasCategory  bool          `json:"has_category"`
+	Category     string        `json:"category"`
+	LimitRows    int32         `json:"limit_rows"`
+}
+
+type ListAlertInstancesRow struct {
+	ID             int64          `json:"id"`
+	AlertRuleID    int64          `json:"alert_rule_id"`
+	ProjectID      int64          `json:"project_id"`
+	NodeID         sql.NullInt64  `json:"node_id"`
+	NodeName       sql.NullString `json:"node_name"`
+	NodeIdentifier sql.NullString `json:"node_identifier"`
+	ServiceID      sql.NullInt64  `json:"service_id"`
+	ServiceName    sql.NullString `json:"service_name"`
+	RuleType       string         `json:"rule_type"`
+	Severity       string         `json:"severity"`
+	Status         string         `json:"status"`
+	TriggeredAt    time.Time      `json:"triggered_at"`
+	ResolvedAt     sql.NullTime   `json:"resolved_at"`
+	Title          string         `json:"title"`
+	Message        string         `json:"message"`
+	CreatedAt      time.Time      `json:"created_at"`
+}
+
+func (q *Queries) ListAlertInstances(ctx context.Context, arg ListAlertInstancesParams) ([]ListAlertInstancesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAlertInstances,
+		arg.HasProjectID,
+		arg.ProjectID,
+		arg.HasServiceID,
+		arg.ServiceID,
+		arg.HasNodeID,
+		arg.NodeID,
+		arg.HasRuleType,
+		arg.RuleType,
+		arg.HasSeverity,
+		arg.Severity,
+		arg.HasCategory,
+		arg.Category,
+		arg.LimitRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAlertInstancesRow{}
+	for rows.Next() {
+		var i ListAlertInstancesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AlertRuleID,
+			&i.ProjectID,
+			&i.NodeID,
+			&i.NodeName,
+			&i.NodeIdentifier,
+			&i.ServiceID,
+			&i.ServiceName,
+			&i.RuleType,
+			&i.Severity,
 			&i.Status,
 			&i.TriggeredAt,
 			&i.ResolvedAt,
@@ -500,6 +698,150 @@ func (q *Queries) ListAlertInstancesByNodeAndStatus(ctx context.Context, arg Lis
 			&i.ProjectID,
 			&i.NodeID,
 			&i.ServiceID,
+			&i.Status,
+			&i.TriggeredAt,
+			&i.ResolvedAt,
+			&i.Title,
+			&i.Message,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listResolvedAlertInstancesForRead = `-- name: ListResolvedAlertInstancesForRead :many
+SELECT
+    ai.id,
+    ai.alert_rule_id,
+    ai.project_id,
+    ai.node_id,
+    n.name AS node_name,
+    n.identifier AS node_identifier,
+    ai.service_id,
+    s.name AS service_name,
+    ar.rule_type,
+    ar.severity,
+    ai.status,
+    ai.triggered_at,
+    ai.resolved_at,
+    ai.title,
+    ai.message,
+    ai.created_at
+FROM app.alert_instances AS ai
+JOIN app.alert_rules AS ar ON ar.id = ai.alert_rule_id
+LEFT JOIN app.nodes AS n ON n.id = ai.node_id
+LEFT JOIN app.services AS s ON s.id = ai.service_id
+WHERE ai.status = 'resolved'
+  AND (NOT $1::boolean OR ai.project_id = $2)
+  AND (NOT $3::boolean OR ai.service_id = $4)
+  AND (NOT $5::boolean OR ai.node_id = $6)
+  AND (NOT $7::boolean OR ar.rule_type = $8)
+  AND (NOT $9::boolean OR ar.severity = $10)
+  AND (
+      NOT $11::boolean
+      OR ($12::text = 'node' AND ar.rule_type = 'node_offline')
+      OR ($12::text = 'service' AND ar.rule_type = 'service_unhealthy')
+      OR (
+          $12::text = 'metric'
+          AND ar.rule_type IN ('cpu_above_threshold', 'memory_above_threshold', 'disk_above_threshold')
+      )
+  )
+  AND (
+      NOT $13::boolean
+      OR ai.triggered_at < $14::timestamptz
+      OR (
+          ai.triggered_at = $14::timestamptz
+          AND ai.id < $15::bigint
+      )
+  )
+ORDER BY ai.triggered_at DESC, ai.id DESC
+LIMIT $16
+`
+
+type ListResolvedAlertInstancesForReadParams struct {
+	HasProjectID      bool          `json:"has_project_id"`
+	ProjectID         int64         `json:"project_id"`
+	HasServiceID      bool          `json:"has_service_id"`
+	ServiceID         sql.NullInt64 `json:"service_id"`
+	HasNodeID         bool          `json:"has_node_id"`
+	NodeID            sql.NullInt64 `json:"node_id"`
+	HasRuleType       bool          `json:"has_rule_type"`
+	RuleType          string        `json:"rule_type"`
+	HasSeverity       bool          `json:"has_severity"`
+	Severity          string        `json:"severity"`
+	HasCategory       bool          `json:"has_category"`
+	Category          string        `json:"category"`
+	HasBefore         bool          `json:"has_before"`
+	BeforeTriggeredAt time.Time     `json:"before_triggered_at"`
+	BeforeID          int64         `json:"before_id"`
+	LimitRows         int32         `json:"limit_rows"`
+}
+
+type ListResolvedAlertInstancesForReadRow struct {
+	ID             int64          `json:"id"`
+	AlertRuleID    int64          `json:"alert_rule_id"`
+	ProjectID      int64          `json:"project_id"`
+	NodeID         sql.NullInt64  `json:"node_id"`
+	NodeName       sql.NullString `json:"node_name"`
+	NodeIdentifier sql.NullString `json:"node_identifier"`
+	ServiceID      sql.NullInt64  `json:"service_id"`
+	ServiceName    sql.NullString `json:"service_name"`
+	RuleType       string         `json:"rule_type"`
+	Severity       string         `json:"severity"`
+	Status         string         `json:"status"`
+	TriggeredAt    time.Time      `json:"triggered_at"`
+	ResolvedAt     sql.NullTime   `json:"resolved_at"`
+	Title          string         `json:"title"`
+	Message        string         `json:"message"`
+	CreatedAt      time.Time      `json:"created_at"`
+}
+
+func (q *Queries) ListResolvedAlertInstancesForRead(ctx context.Context, arg ListResolvedAlertInstancesForReadParams) ([]ListResolvedAlertInstancesForReadRow, error) {
+	rows, err := q.db.QueryContext(ctx, listResolvedAlertInstancesForRead,
+		arg.HasProjectID,
+		arg.ProjectID,
+		arg.HasServiceID,
+		arg.ServiceID,
+		arg.HasNodeID,
+		arg.NodeID,
+		arg.HasRuleType,
+		arg.RuleType,
+		arg.HasSeverity,
+		arg.Severity,
+		arg.HasCategory,
+		arg.Category,
+		arg.HasBefore,
+		arg.BeforeTriggeredAt,
+		arg.BeforeID,
+		arg.LimitRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListResolvedAlertInstancesForReadRow{}
+	for rows.Next() {
+		var i ListResolvedAlertInstancesForReadRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AlertRuleID,
+			&i.ProjectID,
+			&i.NodeID,
+			&i.NodeName,
+			&i.NodeIdentifier,
+			&i.ServiceID,
+			&i.ServiceName,
+			&i.RuleType,
+			&i.Severity,
 			&i.Status,
 			&i.TriggeredAt,
 			&i.ResolvedAt,

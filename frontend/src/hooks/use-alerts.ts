@@ -1,11 +1,40 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { alertsApi } from "@/data/alerts.ts";
-import type { AlertRuleCreateInput, AlertRuleUpdateInput } from "@/types/alert.ts";
+import type {
+  AlertHistoryFilters,
+  AlertRuleCreateInput,
+  AlertRuleUpdateInput,
+} from "@/types/alert.ts";
+
+export const alertHistoryKeys = {
+  active: (projectId: number) => ["alerts", projectId, "active"] as const,
+  history: (projectId: number, filters: AlertHistoryFilters, limit: number) =>
+    ["alerts", projectId, "history", filters, limit] as const,
+};
 
 export function useAlerts(projectId: number) {
   return useQuery({
     queryKey: ["alerts", projectId],
     queryFn: () => alertsApi.listAlerts(projectId),
+    enabled: projectId > 0,
+  });
+}
+
+export function useActiveAlerts(projectId: number) {
+  return useQuery({
+    queryKey: alertHistoryKeys.active(projectId),
+    queryFn: () => alertsApi.listActive(projectId),
+    enabled: projectId > 0,
+  });
+}
+
+export function useAlertHistory(projectId: number, filters: AlertHistoryFilters, limit = 25) {
+  return useInfiniteQuery({
+    queryKey: alertHistoryKeys.history(projectId, filters, limit),
+    queryFn: ({ pageParam }) =>
+      alertsApi.listHistory(projectId, filters, limit, pageParam ?? undefined),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.pagination.nextCursor ?? undefined,
     enabled: projectId > 0,
   });
 }

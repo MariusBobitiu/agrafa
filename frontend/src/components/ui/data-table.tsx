@@ -71,7 +71,7 @@ export function DataTable<TData, TValue>({
                     key={header.id}
                     className={cn(
                       stickyHeader &&
-                        "sticky top-0 z-10 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80",
+                        "sticky top-0 z-10 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80 pt-2",
                       meta?.headClassName,
                     )}
                   >

@@ -40,6 +40,7 @@ import {
   formatLatency,
   formatObservationTooltipTime,
   getHistoryRowPresentation,
+  latestServiceCheckAt,
 } from "./service-history-utils.ts";
 
 function observation(
@@ -557,6 +558,16 @@ describe("service history SSE refresh", () => {
 });
 
 describe("service history metrics", () => {
+  it("uses a newer live service check for the chart KPI without regressing to older data", () => {
+    expect(latestServiceCheckAt("2026-08-23T12:00:00Z", "2026-08-23T12:00:30Z")).toBe(
+      "2026-08-23T12:00:30Z",
+    );
+    expect(latestServiceCheckAt("2026-08-23T12:00:30Z", "2026-08-23T12:00:00Z")).toBe(
+      "2026-08-23T12:00:30Z",
+    );
+    expect(latestServiceCheckAt(null, "2026-08-23T12:00:30Z")).toBe("2026-08-23T12:00:30Z");
+  });
+
   it("renders authoritative KPI values independently of a bounded observation count", () => {
     const window = historyWindow([observation(1), observation(2)], {
       isTruncated: true,

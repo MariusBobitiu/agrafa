@@ -55,6 +55,12 @@ const (
 )
 
 const (
+	AlertCategoryNode    = "node"
+	AlertCategoryService = "service"
+	AlertCategoryMetric  = "metric"
+)
+
+const (
 	AlertSeverityInfo     = "info"
 	AlertSeverityWarning  = "warning"
 	AlertSeverityCritical = "critical"
@@ -534,17 +540,44 @@ type EventReadData struct {
 }
 
 type AlertReadData struct {
-	ID          int64      `json:"id"`
-	AlertRuleID int64      `json:"alert_rule_id"`
-	ProjectID   int64      `json:"project_id"`
-	NodeID      *int64     `json:"node_id"`
-	ServiceID   *int64     `json:"service_id"`
-	Status      string     `json:"status"`
-	TriggeredAt time.Time  `json:"triggered_at"`
-	ResolvedAt  *time.Time `json:"resolved_at"`
-	Title       string     `json:"title"`
-	Message     string     `json:"message"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID             int64      `json:"id"`
+	AlertRuleID    int64      `json:"alert_rule_id"`
+	ProjectID      int64      `json:"project_id"`
+	RuleType       string     `json:"rule_type,omitempty"`
+	Severity       string     `json:"severity,omitempty"`
+	NodeID         *int64     `json:"node_id"`
+	NodeName       *string    `json:"node_name"`
+	NodeIdentifier *string    `json:"node_identifier"`
+	ServiceID      *int64     `json:"service_id"`
+	ServiceName    *string    `json:"service_name"`
+	Status         string     `json:"status"`
+	TriggeredAt    time.Time  `json:"triggered_at"`
+	ResolvedAt     *time.Time `json:"resolved_at"`
+	Title          string     `json:"title"`
+	Message        string     `json:"message"`
+	CreatedAt      time.Time  `json:"created_at"`
+}
+
+type AlertCursor struct {
+	TriggeredAt time.Time
+	ID          int64
+}
+
+type AlertListFilters struct {
+	ProjectID *int64
+	Status    *string
+	ServiceID *int64
+	NodeID    *int64
+	RuleType  *string
+	Severity  *string
+	Category  *string
+	Limit     int32
+	Before    *AlertCursor
+}
+
+type AlertPageData struct {
+	Alerts     []AlertReadData
+	NextCursor *AlertCursor
 }
 
 type AlertRuleReadData struct {
