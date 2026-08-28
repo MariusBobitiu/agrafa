@@ -8,7 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { alertsApi } from "@/data/alerts.ts";
 import type {
   Alert,
@@ -147,6 +147,8 @@ export async function reconcileAlertHistoryHead(
 
 export type ActiveAlertIdentity = Pick<Alert, "id" | "status">;
 
+export type AlertHistoryReconciliationStatus = "idle" | "reconciling" | "error";
+
 /**
  * Creates stable, sorted identities for active alerts.
  *
@@ -164,9 +166,15 @@ export class ActiveAlertHistorySync {
   private completedGeneration = 0;
   private inFlight: Promise<void> | null = null;
   private reconcile: () => Promise<void>;
+  private onStatusChange: (status: AlertHistoryReconciliationStatus) => void;
+  private status: AlertHistoryReconciliationStatus = "idle";
 
-  constructor(reconcile: () => Promise<void>) {
+  constructor(
+    reconcile: () => Promise<void>,
+    onStatusChange: (status: AlertHistoryReconciliationStatus) => void = () => {},
+  ) {
     this.reconcile = reconcile;
+    this.onStatusChange = onStatusChange;
   }
 
   reset(projectId = 0) {
@@ -174,6 +182,7 @@ export class ActiveAlertHistorySync {
     this.previousIdentities = undefined;
     this.pendingGeneration = 0;
     this.completedGeneration = 0;
+    this.setStatus("idle");
   }
 
   update(projectId: number, alerts: readonly ActiveAlertIdentity[]) {
@@ -222,17 +231,28 @@ export class ActiveAlertHistorySync {
   }
 
   private async run(projectId: number) {
-    if (this.projectId !== projectId || this.completedGeneration >= this.pendingGeneration) return;
+    if (this.projectId !== projectId || this.completedGeneration >= this.pendingGeneration) {
+      if (this.projectId === projectId) this.setStatus("idle");
+      return;
+    }
 
     const targetGeneration = this.pendingGeneration;
+    this.setStatus("reconciling");
     try {
       await this.reconcile();
     } catch {
+      if (this.projectId === projectId) this.setStatus("error");
       return;
     }
     if (this.projectId !== projectId) return;
     this.completedGeneration = targetGeneration;
     await this.run(projectId);
+  }
+
+  private setStatus(status: AlertHistoryReconciliationStatus) {
+    if (this.status === status) return;
+    this.status = status;
+    this.onStatusChange(status);
   }
 }
 
@@ -307,12 +327,22 @@ export function useAlertHistoryIdentityHeadSync(
 ) {
   const queryClient = useQueryClient();
   const syncRef = useRef<ActiveAlertHistorySync | null>(null);
+  const reconciliationKey = useMemo(
+    () => JSON.stringify(alertHistoryKeys.historyHead(projectId, filters, limit)),
+    [filters, limit, projectId],
+  );
+  const [reconciliationState, setReconciliationState] = useState<{
+    key: string;
+    status: AlertHistoryReconciliationStatus;
+  }>({ key: reconciliationKey, status: "idle" });
 
   useEffect(() => {
     let shouldApply = true;
     const reconcile = () =>
       reconcileAlertHistoryHead(queryClient, projectId, filters, limit, () => shouldApply);
-    const sync = new ActiveAlertHistorySync(reconcile);
+    const sync = new ActiveAlertHistorySync(reconcile, (status) => {
+      if (shouldApply) setReconciliationState({ key: reconciliationKey, status });
+    });
     syncRef.current = sync;
 
     if (projectId <= 0) {
@@ -330,7 +360,7 @@ export function useAlertHistoryIdentityHeadSync(
       sync.reset();
       if (syncRef.current === sync) syncRef.current = null;
     };
-  }, [filters, limit, projectId, queryClient]);
+  }, [filters, limit, projectId, queryClient, reconciliationKey]);
 
   useEffect(() => {
     const sync = syncRef.current;
@@ -341,6 +371,18 @@ export function useAlertHistoryIdentityHeadSync(
     }
     void sync.update(projectId, activeAlerts);
   }, [activeAlerts, activeDataUpdatedAt, filters, limit, projectId]);
+
+  const retryReconciliation = useCallback(() => {
+    void syncRef.current?.reconcileNow(projectId);
+  }, [projectId]);
+  const status =
+    reconciliationState.key === reconciliationKey ? reconciliationState.status : "idle";
+
+  return {
+    isReconcileError: status === "error",
+    isReconciling: status === "reconciling",
+    retryReconciliation,
+  };
 }
 
 /**

@@ -107,11 +107,18 @@ function renderEmptyOutages(
     <ServiceOutagesContent
       currentOutages={[]}
       resolvedOutages={[]}
-      history={{ status: "success", nextPageStatus: "idle", hasNextPage: false }}
+      history={{
+        status: "success",
+        isReconcileError: false,
+        isReconciling: false,
+        nextPageStatus: "idle",
+        hasNextPage: false,
+      }}
       ruleCoverage={{ status: "success", covered: true }}
       canManageRules={true}
       onLoadMore={() => {}}
       onRetryHistory={() => {}}
+      onRetryReconciliation={() => {}}
       onRetryRules={() => {}}
       now={Date.parse("2026-08-28T12:00:00Z")}
       {...overrides}
@@ -230,6 +237,51 @@ describe("service outage presentation", () => {
 
     expect(markup).toContain('aria-label="Current outages"');
     expect(markup).toContain("Outage alerting isn’t configured for this service");
+  });
+
+  it("keeps stale outages visible and shows only a completed reconciliation failure", () => {
+    const staleOutage = alert({ id: 12 });
+    const failedMarkup = renderEmptyOutages({
+      resolvedOutages: [staleOutage],
+      history: {
+        status: "success",
+        isReconcileError: true,
+        isReconciling: false,
+        nextPageStatus: "idle",
+        hasNextPage: false,
+      },
+    });
+    const reconcilingMarkup = renderEmptyOutages({
+      resolvedOutages: [staleOutage],
+      history: {
+        status: "success",
+        isReconcileError: false,
+        isReconciling: true,
+        nextPageStatus: "idle",
+        hasNextPage: false,
+      },
+    });
+
+    expect(failedMarkup).toContain('data-outage-id="12"');
+    expect(failedMarkup).toContain("Outage history refresh failed. Showing saved outages.");
+    expect(failedMarkup).toContain("Try again");
+    expect(reconcilingMarkup).toContain('data-outage-id="12"');
+    expect(reconcilingMarkup).not.toContain("Outage history refresh failed");
+  });
+
+  it("keeps the existing full error state for an initial history failure", () => {
+    const markup = renderEmptyOutages({
+      history: {
+        status: "error",
+        isReconcileError: false,
+        isReconciling: false,
+        nextPageStatus: "idle",
+        hasNextPage: false,
+      },
+    });
+
+    expect(markup).toContain("Couldn’t load outage history.");
+    expect(markup).not.toContain("Showing saved outages");
   });
 
   it("uses permission-aware alert-rule navigation", () => {
@@ -375,6 +427,99 @@ describe("service outage pagination", () => {
 });
 
 describe("service outage live reconciliation", () => {
+  it("reports a failed periodic head refresh and clears it after a successful manual retry", async () => {
+    vi.useFakeTimers();
+    const filters = serviceOutageHistoryFilters(42);
+    const historyKey = alertHistoryKeys.history(7, filters, SERVICE_OUTAGE_HISTORY_LIMIT);
+    const initialHead = page([alert({ id: 8 })], "cursor-older");
+    const olderPage = page([alert({ id: 7 })]);
+    const refreshedHead = page([alert({ id: 9 }), alert({ id: 8 })], "cursor-older");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const historyRequest = vi
+      .spyOn(alertsApi, "listHistory")
+      .mockResolvedValueOnce(initialHead)
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(refreshedHead);
+    const observer = new InfiniteQueryObserver(client, {
+      queryKey: historyKey,
+      queryFn: ({ pageParam, signal }) =>
+        alertsApi.listHistory(
+          7,
+          filters,
+          SERVICE_OUTAGE_HISTORY_LIMIT,
+          pageParam ?? undefined,
+          signal,
+        ),
+      initialPageParam: null as string | null,
+      getNextPageParam: (lastPage) => lastPage.pagination.nextCursor ?? undefined,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+    client.setQueryData<InfiniteData<AlertPage, string | null>>(historyKey, {
+      pages: [initialHead, olderPage],
+      pageParams: [null, "cursor-older"],
+    });
+    const statuses: string[] = [];
+    const sync = new ActiveAlertHistorySync(
+      () => reconcileAlertHistoryHead(client, 7, filters, SERVICE_OUTAGE_HISTORY_LIMIT),
+      (status) => statuses.push(status),
+    );
+    await sync.update(7, []);
+    const stop = startAlertHistoryHeadReconciliation(sync, 7);
+
+    await vi.advanceTimersByTimeAsync(ALERT_HISTORY_HEAD_REFETCH_INTERVAL_MS);
+
+    expect(historyRequest).toHaveBeenCalledTimes(2);
+    expect(statuses.at(-1)).toBe("error");
+    expect(observer.getCurrentResult().isError).toBe(false);
+    expect(observer.getCurrentResult().data?.pages).toEqual([initialHead, olderPage]);
+
+    await sync.reconcileNow(7);
+
+    expect(historyRequest).toHaveBeenCalledTimes(3);
+    expect(statuses.slice(-2)).toEqual(["reconciling", "idle"]);
+    expect(observer.getCurrentResult().data?.pages).toEqual([refreshedHead, olderPage]);
+    expect(observer.getCurrentResult().data?.pageParams).toEqual([null, "cursor-older"]);
+
+    stop();
+    unsubscribe();
+    client.clear();
+  });
+
+  it("clears a reconciliation failure after a later automatic success", async () => {
+    vi.useFakeTimers();
+    const statuses: string[] = [];
+    const reconcile = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(undefined);
+    const sync = new ActiveAlertHistorySync(reconcile, (status) => statuses.push(status));
+    const stop = startAlertHistoryHeadReconciliation(sync, 7);
+
+    await vi.advanceTimersByTimeAsync(ALERT_HISTORY_HEAD_REFETCH_INTERVAL_MS);
+    expect(statuses.at(-1)).toBe("error");
+
+    await vi.advanceTimersByTimeAsync(ALERT_HISTORY_HEAD_REFETCH_INTERVAL_MS);
+    expect(reconcile).toHaveBeenCalledTimes(2);
+    expect(statuses.at(-1)).toBe("idle");
+
+    stop();
+  });
+
+  it("clears reconciliation error state when the service or project context resets", async () => {
+    const statuses: string[] = [];
+    const sync = new ActiveAlertHistorySync(
+      () => Promise.reject(new Error("offline")),
+      (status) => statuses.push(status),
+    );
+
+    await sync.reconcileNow(7);
+    expect(statuses.at(-1)).toBe("error");
+
+    sync.reset(9);
+    expect(statuses.at(-1)).toBe("idle");
+  });
+
   it("moves a recovered current outage into the filtered resolved history", async () => {
     const filters = serviceOutageHistoryFilters(42);
     const historyKey = alertHistoryKeys.history(7, filters, SERVICE_OUTAGE_HISTORY_LIMIT);

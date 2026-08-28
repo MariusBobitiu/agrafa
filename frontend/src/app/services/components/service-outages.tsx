@@ -331,6 +331,8 @@ export function OutageAlertingNotConfigured({ canManageRules }: { canManageRules
 
 type OutageHistoryState = {
   status: "pending" | "error" | "success";
+  isReconcileError: boolean;
+  isReconciling: boolean;
   nextPageStatus: "idle" | "loading" | "error";
   hasNextPage: boolean;
 };
@@ -348,6 +350,7 @@ export type ServiceOutagesContentProps = {
   canManageRules: boolean;
   onLoadMore: () => void;
   onRetryHistory: () => void;
+  onRetryReconciliation: () => void;
   onRetryRules: () => void;
   now?: number;
 };
@@ -362,6 +365,7 @@ export type ServiceOutagesContentProps = {
  * @param canManageRules - Whether the user can manage alerting rules.
  * @param onLoadMore - Loads the next page of outage history.
  * @param onRetryHistory - Retries loading outage history.
+ * @param onRetryReconciliation - Retries refreshing the outage-history head.
  * @param onRetryRules - Retries checking alerting rule coverage.
  * @param now - Optional timestamp used instead of the live clock.
  */
@@ -373,6 +377,7 @@ export function ServiceOutagesContent({
   canManageRules,
   onLoadMore,
   onRetryHistory,
+  onRetryReconciliation,
   onRetryRules,
   now,
 }: ServiceOutagesContentProps) {
@@ -447,10 +452,16 @@ export function ServiceOutagesContent({
           </>
         )}
 
-        {resolvedOutages.length > 0 && history.status === "error" ? (
+        {resolvedOutages.length > 0 &&
+        (history.status === "error" || history.isReconcileError) &&
+        !history.isReconciling ? (
           <div className="flex items-center gap-2 px-1 text-xs text-destructive" role="alert">
             <span>Outage history refresh failed. Showing saved outages.</span>
-            <button type="button" className="font-medium hover:underline" onClick={onRetryHistory}>
+            <button
+              type="button"
+              className="font-medium hover:underline"
+              onClick={history.isReconcileError ? onRetryReconciliation : onRetryHistory}
+            >
               Try again
             </button>
           </div>
@@ -482,7 +493,7 @@ export function ServiceOutagesSection({
   const historyQuery = useAlertHistory(projectId, filters, SERVICE_OUTAGE_HISTORY_LIMIT);
   const rulesQuery = useAlertRules(projectId);
   const canManageRules = useCanWrite(projectId);
-  useAlertHistoryIdentityHeadSync(
+  const historyReconciliation = useAlertHistoryIdentityHeadSync(
     projectId,
     filters,
     currentOutages,
@@ -512,6 +523,8 @@ export function ServiceOutagesSection({
       resolvedOutages={outages}
       history={{
         status: historyQuery.isPending ? "pending" : historyQuery.isError ? "error" : "success",
+        isReconcileError: historyReconciliation.isReconcileError,
+        isReconciling: historyReconciliation.isReconciling,
         nextPageStatus: historyQuery.isFetchingNextPage
           ? "loading"
           : historyQuery.isFetchNextPageError
@@ -529,6 +542,7 @@ export function ServiceOutagesSection({
       canManageRules={canManageRules}
       onLoadMore={() => void historyQuery.fetchNextPage()}
       onRetryHistory={() => void historyQuery.refetch()}
+      onRetryReconciliation={historyReconciliation.retryReconciliation}
       onRetryRules={() => void rulesQuery.refetch()}
     />
   );
