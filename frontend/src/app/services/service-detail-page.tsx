@@ -20,6 +20,8 @@ import { RelativeTime } from "@/components/relative-time.tsx";
 import { SectionHeading } from "@/components/section-heading.tsx";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.tsx";
 import { CreateServiceDialog } from "./components/create-service-dialog.tsx";
+import { ServiceOutagesSection } from "./components/service-outages.tsx";
+import { otherServiceAlerts } from "./service-outage-utils.ts";
 import {
   useDeleteService,
   useService,
@@ -126,7 +128,9 @@ export function ServiceDetailPage() {
   const [rangeHours, setRangeHours] = useState<ServiceHistoryRangeHours>(24);
   const serviceId = id ? parseInt(id, 10) : 0;
 
-  const { data, isLoading, error } = useService(serviceId, { refetchInterval: false });
+  const { data, dataUpdatedAt, isLoading, error } = useService(serviceId, {
+    refetchInterval: false,
+  });
   const historyWindow = useServiceHistoryWindow(serviceId, rangeHours);
   const historyList = useServiceHistory(serviceId);
   useServiceDetailStream(serviceId, { enabled: serviceId > 0 });
@@ -142,7 +146,7 @@ export function ServiceDetailPage() {
   useMeta({
     title: service ? `${service.name} Details` : "Service Details",
     description: service
-      ? `View recent health checks, active alerts, and configuration for ${service.name}`
+      ? `View recent health checks, outage history, active alerts, and configuration for ${service.name}`
       : "View service details",
   });
 
@@ -193,6 +197,7 @@ export function ServiceDetailPage() {
 
   const latest = service.latest_health_check;
   const alerts = service.active_alerts ?? [];
+  const nonOutageAlerts = otherServiceAlerts(alerts);
   const isHealthy = latest?.is_success ?? service.status === "healthy";
   const isUnhealthy = latest ? !latest.is_success : service.status === "unhealthy";
   const isDegraded = latest
@@ -424,25 +429,35 @@ export function ServiceDetailPage() {
           )}
         </section>
 
-        {/* ── 4. Active alerts ── */}
+        {/* ── 4. Outages ── */}
+        <ServiceOutagesSection
+          projectId={service.project_id}
+          serviceId={service.id}
+          activeAlerts={alerts}
+          serviceDataUpdatedAt={dataUpdatedAt}
+        />
+
+        {/* ── 5. Other active alerts ── */}
         <section>
           <SectionHeading
             icon={<SirenIcon size={13} />}
             label="Active Alerts"
             aside={
-              alerts.length > 0 ? (
-                <span className="text-xs font-semibold text-destructive">{alerts.length}</span>
+              nonOutageAlerts.length > 0 ? (
+                <span className="text-xs font-semibold text-destructive">
+                  {nonOutageAlerts.length}
+                </span>
               ) : undefined
             }
           />
-          {alerts.length === 0 ? (
+          {nonOutageAlerts.length === 0 ? (
             <div className="flex items-center gap-2 py-1">
               <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-              <p className="text-sm text-muted-foreground">No active alerts on this service.</p>
+              <p className="text-sm text-muted-foreground">No other active alerts.</p>
             </div>
           ) : (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 overflow-hidden divide-y divide-destructive/10">
-              {alerts.map((alert) => (
+              {nonOutageAlerts.map((alert) => (
                 <div key={alert.id} className="flex items-start gap-3 px-4 py-3">
                   <AlertTriangleIcon size={14} className="text-destructive shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
@@ -473,7 +488,7 @@ export function ServiceDetailPage() {
           )}
         </section>
 
-        {/* ── 5. Service configuration — low emphasis ── */}
+        {/* ── 6. Service configuration — low emphasis ── */}
         <section>
           <SectionHeading
             icon={<NetworkIcon size={13} />}

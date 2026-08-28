@@ -1,3 +1,5 @@
+import type { RuleType } from "@/types/alert.ts";
+
 export type ServiceStatus = "healthy" | "degraded" | "unhealthy" | "unknown";
 export type CheckType = "http" | "tcp";
 export type ServiceExecutionMode = "managed" | "agent";
@@ -56,7 +58,7 @@ export type ServiceAlertSeverity = "critical" | "warning" | "info";
 export type ServiceAlert = {
   id: number;
   rule_id: number;
-  rule_type: string;
+  rule_type: RuleType;
   severity: ServiceAlertSeverity;
   title: string;
   status: "active";

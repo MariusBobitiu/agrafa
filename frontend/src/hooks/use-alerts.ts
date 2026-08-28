@@ -137,7 +137,9 @@ export async function reconcileAlertHistoryHead(
   );
 }
 
-export function activeAlertIdentities(alerts: readonly Alert[]) {
+export type ActiveAlertIdentity = Pick<Alert, "id" | "status">;
+
+export function activeAlertIdentities(alerts: readonly ActiveAlertIdentity[]) {
   return alerts.map((alert) => `${alert.id}:${alert.status}`).sort();
 }
 
@@ -160,7 +162,7 @@ export class ActiveAlertHistorySync {
     this.completedGeneration = 0;
   }
 
-  update(projectId: number, alerts: readonly Alert[]) {
+  update(projectId: number, alerts: readonly ActiveAlertIdentity[]) {
     if (projectId <= 0) {
       this.reset();
       return Promise.resolve();
@@ -257,6 +259,22 @@ export function useAlertHistoryHeadSync(
   activeDataUpdatedAt: number,
   limit = 25,
 ) {
+  useAlertHistoryIdentityHeadSync(
+    projectId,
+    filters,
+    activePage?.alerts,
+    activeDataUpdatedAt,
+    limit,
+  );
+}
+
+export function useAlertHistoryIdentityHeadSync(
+  projectId: number,
+  filters: AlertHistoryFilters,
+  activeAlerts: readonly ActiveAlertIdentity[] | undefined,
+  activeDataUpdatedAt: number,
+  limit = 25,
+) {
   const queryClient = useQueryClient();
   const syncRef = useRef<ActiveAlertHistorySync | null>(null);
 
@@ -287,12 +305,12 @@ export function useAlertHistoryHeadSync(
   useEffect(() => {
     const sync = syncRef.current;
     if (sync == null) return;
-    if (projectId <= 0 || activePage == null) {
+    if (projectId <= 0 || activeAlerts == null) {
       sync.reset(projectId);
       return;
     }
-    void sync.update(projectId, activePage.alerts);
-  }, [activeDataUpdatedAt, activePage, filters, limit, projectId]);
+    void sync.update(projectId, activeAlerts);
+  }, [activeAlerts, activeDataUpdatedAt, filters, limit, projectId]);
 }
 
 export function useAlertHistory(projectId: number, filters: AlertHistoryFilters, limit = 25) {
