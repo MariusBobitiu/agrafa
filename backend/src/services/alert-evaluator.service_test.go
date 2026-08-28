@@ -649,7 +649,7 @@ func TestGlobalNodeOfflineRuleCoversMultipleNodes(t *testing.T) {
 
 	for _, nodeID := range []int64{41, 42} {
 		if err := evaluator.EvaluateNodeRules(context.Background(), generated.Node{
-			ID: nodeID, ProjectID: 1, CurrentState: types.NodeStateOffline,
+			ID: nodeID, ProjectID: 1, IsVisible: true, CurrentState: types.NodeStateOffline,
 		}, time.Now().UTC()); err != nil {
 			t.Fatalf("evaluate node %d: %v", nodeID, err)
 		}
@@ -683,7 +683,7 @@ func TestGlobalMetricRuleCoversMultipleNodes(t *testing.T) {
 		alertInstanceRepo: instanceRepo,
 		metricRepo:        metricRepo,
 		nodeRepo: &fakeAlertEvaluatorNodeRepo{nodes: map[int64]generated.Node{
-			51: {ID: 51, ProjectID: 1}, 52: {ID: 52, ProjectID: 1},
+			51: {ID: 51, ProjectID: 1, IsVisible: true}, 52: {ID: 52, ProjectID: 1, IsVisible: true},
 		}},
 		eventService: &fakeAlertEventRecorder{},
 	}
@@ -704,6 +704,65 @@ func TestGlobalMetricRuleCoversMultipleNodes(t *testing.T) {
 		if !strings.Contains(instance.Title, strconv.FormatInt(instance.NodeID.Int64, 10)) {
 			t.Fatalf("metric alert title %q does not use evaluated node %d", instance.Title, instance.NodeID.Int64)
 		}
+	}
+}
+
+func TestHiddenNodeEventsSkipGlobalRulesButKeepSpecificRules(t *testing.T) {
+	t.Parallel()
+
+	nodeRules := []generated.AlertRule{
+		{ID: 110, ProjectID: 1, RuleType: types.AlertRuleTypeNodeOffline, IsEnabled: true},
+		{ID: 111, ProjectID: 1, NodeID: sql.NullInt64{Int64: 61, Valid: true}, RuleType: types.AlertRuleTypeNodeOffline, IsEnabled: true},
+	}
+	nodeInstances := &fakeAlertInstanceRepo{}
+	nodeEvaluator := &AlertEvaluatorService{
+		alertRuleRepo:     &fakeAlertRuleRepo{rules: nodeRules},
+		alertInstanceRepo: nodeInstances,
+		metricRepo:        &fakeAlertMetricRepo{},
+		eventService:      &fakeAlertEventRecorder{},
+	}
+	hiddenNode := generated.Node{
+		ID: 61, ProjectID: 1, IsVisible: false, CurrentState: types.NodeStateOffline,
+	}
+
+	if err := nodeEvaluator.EvaluateNodeRules(context.Background(), hiddenNode, time.Now().UTC()); err != nil {
+		t.Fatalf("EvaluateNodeRules() error = %v", err)
+	}
+	if len(nodeInstances.instances) != 1 || nodeInstances.instances[0].AlertRuleID != 111 {
+		t.Fatalf("node instances = %#v, want only specific rule 111", nodeInstances.instances)
+	}
+
+	metricRules := []generated.AlertRule{
+		{
+			ID: 120, ProjectID: 1, RuleType: types.AlertRuleTypeCPUAboveThreshold,
+			MetricName:     sql.NullString{String: types.MetricNameCPUUsage, Valid: true},
+			ThresholdValue: sql.NullFloat64{Float64: 80, Valid: true}, IsEnabled: true,
+		},
+		{
+			ID: 121, ProjectID: 1, NodeID: sql.NullInt64{Int64: 61, Valid: true},
+			RuleType:       types.AlertRuleTypeCPUAboveThreshold,
+			MetricName:     sql.NullString{String: types.MetricNameCPUUsage, Valid: true},
+			ThresholdValue: sql.NullFloat64{Float64: 80, Valid: true}, IsEnabled: true,
+		},
+	}
+	metricInstances := &fakeAlertInstanceRepo{}
+	metricEvaluator := &AlertEvaluatorService{
+		alertRuleRepo:     &fakeAlertRuleRepo{rules: metricRules},
+		alertInstanceRepo: metricInstances,
+		metricRepo: &fakeAlertMetricRepo{samples: map[string]generated.MetricSample{
+			metricKey(61, types.MetricNameCPUUsage): {
+				NodeID: 61, MetricName: types.MetricNameCPUUsage, MetricValue: 95, ObservedAt: time.Now().UTC(),
+			},
+		}},
+		nodeRepo:     &fakeAlertEvaluatorNodeRepo{nodes: map[int64]generated.Node{61: hiddenNode}},
+		eventService: &fakeAlertEventRecorder{},
+	}
+
+	if err := metricEvaluator.EvaluateMetricRules(context.Background(), 61, types.MetricNameCPUUsage, time.Now().UTC()); err != nil {
+		t.Fatalf("EvaluateMetricRules() error = %v", err)
+	}
+	if len(metricInstances.instances) != 1 || metricInstances.instances[0].AlertRuleID != 121 {
+		t.Fatalf("metric instances = %#v, want only specific rule 121", metricInstances.instances)
 	}
 }
 

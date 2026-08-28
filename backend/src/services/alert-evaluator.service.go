@@ -79,6 +79,9 @@ func (s *AlertEvaluatorService) EvaluateNodeRules(ctx context.Context, node gene
 	}
 
 	for _, rule := range rules {
+		if !node.IsVisible && !rule.NodeID.Valid {
+			continue
+		}
 		if err := s.applyRuleCondition(ctx, rule, alertTarget{NodeID: node.ID}, node.CurrentState == types.NodeStateOffline, occurredAt, nil); err != nil {
 			return err
 		}
@@ -130,6 +133,9 @@ func (s *AlertEvaluatorService) EvaluateMetricRules(ctx context.Context, nodeID 
 	}
 
 	for _, rule := range rules {
+		if !node.IsVisible && !rule.NodeID.Valid {
+			continue
+		}
 		metricValue := latestMetric.MetricValue
 		condition := rule.ThresholdValue.Valid && metricValue > rule.ThresholdValue.Float64
 		if err := s.applyRuleCondition(ctx, rule, alertTarget{NodeID: nodeID}, condition, latestMetric.ObservedAt, &metricValue); err != nil {

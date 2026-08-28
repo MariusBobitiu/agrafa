@@ -1,5 +1,28 @@
+DO $migration$
+DECLARE
+    legacy_target_constraint RECORD;
+BEGIN
+    FOR legacy_target_constraint IN
+        SELECT constraint_row.conname
+        FROM pg_constraint AS constraint_row
+        WHERE constraint_row.conrelid = 'app.alert_rules'::regclass
+          AND constraint_row.contype = 'c'
+          AND constraint_row.conname <> 'alert_rules_target_check'
+          AND LOWER(pg_get_constraintdef(constraint_row.oid)) LIKE '%rule_type = ''node_offline''%'
+          AND LOWER(pg_get_constraintdef(constraint_row.oid)) LIKE '%rule_type = ''service_unhealthy''%'
+          AND LOWER(pg_get_constraintdef(constraint_row.oid)) LIKE '%node_id is not null%'
+          AND LOWER(pg_get_constraintdef(constraint_row.oid)) LIKE '%service_id is not null%'
+    LOOP
+        EXECUTE format(
+            'ALTER TABLE app.alert_rules DROP CONSTRAINT %I',
+            legacy_target_constraint.conname
+        );
+    END LOOP;
+END
+$migration$;
+
 ALTER TABLE app.alert_rules
-    DROP CONSTRAINT IF EXISTS alert_rules_check,
+    DROP CONSTRAINT IF EXISTS alert_rules_target_check,
     ADD CONSTRAINT alert_rules_target_check CHECK (
         (
             rule_type = 'node_offline'

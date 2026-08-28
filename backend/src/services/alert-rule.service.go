@@ -28,7 +28,7 @@ type alertRuleServiceProjectRepository interface {
 
 type alertRuleServiceNodeRepository interface {
 	GetByID(ctx context.Context, id int64) (generated.Node, error)
-	ListByProject(ctx context.Context, projectID int64) ([]generated.Node, error)
+	ListVisibleByProject(ctx context.Context, projectID int64) ([]generated.Node, error)
 }
 
 type alertRuleServiceServiceRepository interface {
@@ -267,7 +267,7 @@ func (s *AlertRuleService) evaluateCurrentState(
 
 func (s *AlertRuleService) nodesForRule(ctx context.Context, rule generated.AlertRule) ([]generated.Node, error) {
 	if !rule.NodeID.Valid {
-		nodes, err := s.nodeRepo.ListByProject(ctx, rule.ProjectID)
+		nodes, err := s.nodeRepo.ListVisibleByProject(ctx, rule.ProjectID)
 		if err != nil {
 			return nil, fmt.Errorf("list project nodes: %w", err)
 		}

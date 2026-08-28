@@ -186,7 +186,7 @@ func TestNodeReadServiceGetByIDMissingReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestNodeReadServiceListExcludesHiddenManagedNodes(t *testing.T) {
+func TestNodeReadServiceListByProjectExcludesHiddenManagedNodes(t *testing.T) {
 	t.Parallel()
 
 	service := &NodeReadService{
@@ -200,7 +200,8 @@ func TestNodeReadServiceListExcludesHiddenManagedNodes(t *testing.T) {
 		serviceRepo:       &fakeNodeReadServiceRepo{},
 	}
 
-	nodes, err := service.List(context.Background(), nil)
+	projectID := int64(2)
+	nodes, err := service.List(context.Background(), &projectID)
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}

@@ -117,10 +117,10 @@ func (r *fakeAlertRuleServiceNodeRepo) GetByID(_ context.Context, id int64) (gen
 	return node, nil
 }
 
-func (r *fakeAlertRuleServiceNodeRepo) ListByProject(_ context.Context, projectID int64) ([]generated.Node, error) {
+func (r *fakeAlertRuleServiceNodeRepo) ListVisibleByProject(_ context.Context, projectID int64) ([]generated.Node, error) {
 	result := make([]generated.Node, 0)
 	for _, node := range r.nodes {
-		if node.ProjectID == projectID {
+		if node.ProjectID == projectID && node.IsVisible {
 			result = append(result, node)
 		}
 	}
@@ -678,9 +678,9 @@ func TestAlertRuleServiceCreateGlobalNodeRuleEvaluatesExistingProjectNodes(t *te
 	instanceRepo := &fakeAlertInstanceRepo{}
 	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
 	nodeRepo := &fakeAlertRuleServiceNodeRepo{nodes: map[int64]generated.Node{
-		17: {ID: 17, ProjectID: 1, CurrentState: types.NodeStateOffline},
-		18: {ID: 18, ProjectID: 1, CurrentState: types.NodeStateOnline},
-		19: {ID: 19, ProjectID: 2, CurrentState: types.NodeStateOffline},
+		17: {ID: 17, ProjectID: 1, IsVisible: true, CurrentState: types.NodeStateOffline},
+		18: {ID: 18, ProjectID: 1, IsVisible: true, CurrentState: types.NodeStateOnline},
+		19: {ID: 19, ProjectID: 2, IsVisible: true, CurrentState: types.NodeStateOffline},
 	}}
 	service := &AlertRuleService{
 		alertRuleRepo: ruleRepo,
@@ -702,15 +702,44 @@ func TestAlertRuleServiceCreateGlobalNodeRuleEvaluatesExistingProjectNodes(t *te
 	}
 }
 
+func TestAlertRuleServiceCreateGlobalNodeRuleExcludesHiddenManagedNodes(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo,
+		projectRepo:   &fakeAlertRuleServiceProjectRepo{projects: map[int64]generated.Project{1: {ID: 1}}},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{nodes: map[int64]generated.Node{
+			17: {ID: 17, ProjectID: 1, IsVisible: true, CurrentState: types.NodeStateOnline},
+			18: {ID: 18, ProjectID: 1, IsVisible: false, CurrentState: types.NodeStateOffline},
+		}},
+		serviceRepo: &fakeAlertRuleServiceServiceRepo{},
+		evaluator:   evaluator,
+	}
+
+	_, err := service.Create(context.Background(), types.CreateAlertRuleInput{
+		ProjectID: 1, RuleType: types.AlertRuleTypeNodeOffline,
+		Severity: types.AlertSeverityCritical, TargetScope: types.AlertRuleTargetScopeAll,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if len(instanceRepo.instances) != 0 {
+		t.Fatalf("instances = %#v, want no alert for hidden offline node 18", instanceRepo.instances)
+	}
+}
+
 func TestAlertRuleServiceCreateGlobalMetricRuleEvaluatesLatestMetricsForExistingNodes(t *testing.T) {
 	t.Parallel()
 
 	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
 	instanceRepo := &fakeAlertInstanceRepo{}
 	nodeRepo := &fakeAlertRuleServiceNodeRepo{nodes: map[int64]generated.Node{
-		27: {ID: 27, ProjectID: 1},
-		28: {ID: 28, ProjectID: 1},
-		29: {ID: 29, ProjectID: 2},
+		27: {ID: 27, ProjectID: 1, IsVisible: true},
+		28: {ID: 28, ProjectID: 1, IsVisible: true},
+		29: {ID: 29, ProjectID: 2, IsVisible: true},
 	}}
 	metricRepo := &fakeAlertMetricRepo{samples: map[string]generated.MetricSample{
 		metricKey(27, types.MetricNameCPUUsage): {NodeID: 27, MetricName: types.MetricNameCPUUsage, MetricValue: 95, ObservedAt: time.Now().UTC()},
@@ -744,6 +773,129 @@ func TestAlertRuleServiceCreateGlobalMetricRuleEvaluatesLatestMetricsForExisting
 	}
 	if len(instanceRepo.instances) != 1 || instanceRepo.instances[0].NodeID.Int64 != 27 {
 		t.Fatalf("instances = %#v, want only above-threshold project node 27", instanceRepo.instances)
+	}
+}
+
+func TestAlertRuleServiceCreateGlobalMetricRulesExcludeHiddenManagedNodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		ruleType   string
+		metricName string
+	}{
+		{name: "cpu", ruleType: types.AlertRuleTypeCPUAboveThreshold, metricName: types.MetricNameCPUUsage},
+		{name: "memory", ruleType: types.AlertRuleTypeMemoryAboveThreshold, metricName: types.MetricNameMemoryUsage},
+		{name: "disk", ruleType: types.AlertRuleTypeDiskAboveThreshold, metricName: types.MetricNameDiskUsage},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
+			instanceRepo := &fakeAlertInstanceRepo{}
+			nodeRepo := &fakeAlertRuleServiceNodeRepo{nodes: map[int64]generated.Node{
+				27: {ID: 27, ProjectID: 1, IsVisible: true},
+				28: {ID: 28, ProjectID: 1, IsVisible: false},
+			}}
+			metricRepo := &fakeAlertMetricRepo{samples: map[string]generated.MetricSample{
+				metricKey(27, tt.metricName): {NodeID: 27, MetricName: tt.metricName, MetricValue: 40, ObservedAt: time.Now().UTC()},
+				metricKey(28, tt.metricName): {NodeID: 28, MetricName: tt.metricName, MetricValue: 95, ObservedAt: time.Now().UTC()},
+			}}
+			evaluator := NewAlertEvaluatorService(
+				ruleRepo,
+				instanceRepo,
+				metricRepo,
+				&fakeAlertEvaluatorNodeRepo{nodes: nodeRepo.nodes},
+				&fakeAlertEventRecorder{},
+				nil,
+			)
+			service := &AlertRuleService{
+				alertRuleRepo: ruleRepo,
+				projectRepo:   &fakeAlertRuleServiceProjectRepo{projects: map[int64]generated.Project{1: {ID: 1}}},
+				nodeRepo:      nodeRepo,
+				serviceRepo:   &fakeAlertRuleServiceServiceRepo{},
+				evaluator:     evaluator,
+			}
+			threshold := 80.0
+
+			_, err := service.Create(context.Background(), types.CreateAlertRuleInput{
+				ProjectID: 1, RuleType: tt.ruleType, Severity: types.AlertSeverityWarning,
+				ThresholdValue: &threshold, TargetScope: types.AlertRuleTargetScopeAll,
+			})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			if len(instanceRepo.instances) != 0 {
+				t.Fatalf("instances = %#v, want no alert for hidden node 28", instanceRepo.instances)
+			}
+		})
+	}
+}
+
+func TestAlertRuleServiceReenableGlobalNodeRuleExcludesHiddenManagedNodes(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{rule: generated.AlertRule{
+		ID: 11, ProjectID: 1, RuleType: types.AlertRuleTypeNodeOffline,
+		Severity: types.AlertSeverityCritical, IsEnabled: false,
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo,
+		projectRepo:   &fakeAlertRuleServiceProjectRepo{},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{nodes: map[int64]generated.Node{
+			17: {ID: 17, ProjectID: 1, IsVisible: true, CurrentState: types.NodeStateOnline},
+			18: {ID: 18, ProjectID: 1, IsVisible: false, CurrentState: types.NodeStateOffline},
+		}},
+		serviceRepo: &fakeAlertRuleServiceServiceRepo{},
+		evaluator:   evaluator,
+	}
+	enabled := true
+
+	_, err := service.Update(context.Background(), types.UpdateAlertRuleInput{ID: 11, IsEnabled: &enabled})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if len(instanceRepo.instances) != 0 {
+		t.Fatalf("instances = %#v, want no alert for hidden offline node 18", instanceRepo.instances)
+	}
+}
+
+func TestAlertRuleServiceChangeNodeScopeToAllExcludesHiddenManagedNodes(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{rule: generated.AlertRule{
+		ID: 11, ProjectID: 1, NodeID: sql.NullInt64{Int64: 17, Valid: true},
+		RuleType: types.AlertRuleTypeNodeOffline, Severity: types.AlertSeverityCritical,
+		IsEnabled: true, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo,
+		projectRepo:   &fakeAlertRuleServiceProjectRepo{},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{nodes: map[int64]generated.Node{
+			17: {ID: 17, ProjectID: 1, IsVisible: true, CurrentState: types.NodeStateOnline},
+			18: {ID: 18, ProjectID: 1, IsVisible: false, CurrentState: types.NodeStateOffline},
+		}},
+		serviceRepo: &fakeAlertRuleServiceServiceRepo{},
+		evaluator:   evaluator,
+	}
+	scope := types.AlertRuleTargetScopeAll
+
+	rule, err := service.Update(context.Background(), types.UpdateAlertRuleInput{ID: 11, TargetScope: &scope})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if rule.NodeID != nil || rule.TargetScope != types.AlertRuleTargetScopeAll {
+		t.Fatalf("updated rule = %#v, want all nodes", rule)
+	}
+	if len(instanceRepo.instances) != 0 {
+		t.Fatalf("instances = %#v, want no alert for hidden offline node 18", instanceRepo.instances)
 	}
 }
 
