@@ -79,10 +79,14 @@ func (s *AlertEvaluatorService) EvaluateNodeRules(ctx context.Context, node gene
 	}
 
 	for _, rule := range rules {
+		target := alertTarget{NodeID: node.ID}
 		if !node.IsVisible && !rule.NodeID.Valid {
+			if err := s.resolveActiveAlertForTarget(ctx, rule, target, occurredAt); err != nil {
+				return err
+			}
 			continue
 		}
-		if err := s.applyRuleCondition(ctx, rule, alertTarget{NodeID: node.ID}, node.CurrentState == types.NodeStateOffline, occurredAt, nil); err != nil {
+		if err := s.applyRuleCondition(ctx, rule, target, node.CurrentState == types.NodeStateOffline, occurredAt, nil); err != nil {
 			return err
 		}
 	}
@@ -107,7 +111,7 @@ func (s *AlertEvaluatorService) EvaluateServiceRules(ctx context.Context, servic
 	return nil
 }
 
-func (s *AlertEvaluatorService) EvaluateMetricRules(ctx context.Context, nodeID int64, metricName string, _ time.Time) error {
+func (s *AlertEvaluatorService) EvaluateMetricRules(ctx context.Context, nodeID int64, metricName string, occurredAt time.Time) error {
 	ruleType, ok := ruleTypeForMetricName(metricName)
 	if !ok {
 		return nil
@@ -133,12 +137,16 @@ func (s *AlertEvaluatorService) EvaluateMetricRules(ctx context.Context, nodeID 
 	}
 
 	for _, rule := range rules {
+		target := alertTarget{NodeID: nodeID}
 		if !node.IsVisible && !rule.NodeID.Valid {
+			if err := s.resolveActiveAlertForTarget(ctx, rule, target, occurredAt); err != nil {
+				return err
+			}
 			continue
 		}
 		metricValue := latestMetric.MetricValue
 		condition := rule.ThresholdValue.Valid && metricValue > rule.ThresholdValue.Float64
-		if err := s.applyRuleCondition(ctx, rule, alertTarget{NodeID: nodeID}, condition, latestMetric.ObservedAt, &metricValue); err != nil {
+		if err := s.applyRuleCondition(ctx, rule, target, condition, latestMetric.ObservedAt, &metricValue); err != nil {
 			return err
 		}
 	}
@@ -167,14 +175,13 @@ func (s *AlertEvaluatorService) applyRuleCondition(
 	occurredAt time.Time,
 	metricValue *float64,
 ) error {
-	nodeID := target.nullableNodeID()
-	serviceID := target.nullableServiceID()
-	activeAlert, err := s.alertInstanceRepo.FindActiveByRuleAndTarget(ctx, rule.ID, nodeID, serviceID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("find active alert instance: %w", err)
+	activeAlert, hasActiveAlert, err := s.findActiveAlertForTarget(ctx, rule, target)
+	if err != nil {
+		return err
 	}
 
-	hasActiveAlert := err == nil
+	nodeID := target.nullableNodeID()
+	serviceID := target.nullableServiceID()
 
 	switch {
 	case conditionMet && hasActiveAlert:
@@ -236,6 +243,44 @@ func (s *AlertEvaluatorService) ReconcileRule(ctx context.Context, rule generate
 	}
 
 	return nil
+}
+
+func (s *AlertEvaluatorService) resolveActiveAlertForTarget(
+	ctx context.Context,
+	rule generated.AlertRule,
+	target alertTarget,
+	occurredAt time.Time,
+) error {
+	activeAlert, hasActiveAlert, err := s.findActiveAlertForTarget(ctx, rule, target)
+	if err != nil {
+		return err
+	}
+	if !hasActiveAlert {
+		return nil
+	}
+
+	return s.resolveActiveAlert(ctx, rule, activeAlert, occurredAt)
+}
+
+func (s *AlertEvaluatorService) findActiveAlertForTarget(
+	ctx context.Context,
+	rule generated.AlertRule,
+	target alertTarget,
+) (generated.AlertInstance, bool, error) {
+	activeAlert, err := s.alertInstanceRepo.FindActiveByRuleAndTarget(
+		ctx,
+		rule.ID,
+		target.nullableNodeID(),
+		target.nullableServiceID(),
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return generated.AlertInstance{}, false, nil
+	}
+	if err != nil {
+		return generated.AlertInstance{}, false, fmt.Errorf("find active alert instance: %w", err)
+	}
+
+	return activeAlert, true, nil
 }
 
 func ruleAppliesToAlert(rule generated.AlertRule, alert generated.AlertInstance) bool {

@@ -707,6 +707,165 @@ func TestGlobalMetricRuleCoversMultipleNodes(t *testing.T) {
 	}
 }
 
+func TestHiddenNodeResolvesActiveGlobalNodeAlert(t *testing.T) {
+	t.Parallel()
+
+	rule := generated.AlertRule{
+		ID: 110, ProjectID: 1, RuleType: types.AlertRuleTypeNodeOffline, IsEnabled: true,
+	}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := &AlertEvaluatorService{
+		alertRuleRepo:     &fakeAlertRuleRepo{rules: []generated.AlertRule{rule}},
+		alertInstanceRepo: instanceRepo,
+		metricRepo:        &fakeAlertMetricRepo{},
+		eventService:      &fakeAlertEventRecorder{},
+	}
+	triggeredAt := time.Date(2026, time.August, 28, 10, 0, 0, 0, time.UTC)
+	resolvedAt := triggeredAt.Add(time.Minute)
+	node := generated.Node{
+		ID: 61, ProjectID: 1, IsVisible: true, CurrentState: types.NodeStateOffline,
+	}
+
+	if err := evaluator.EvaluateNodeRules(context.Background(), node, triggeredAt); err != nil {
+		t.Fatalf("evaluate visible offline node: %v", err)
+	}
+	node.IsVisible = false
+	if err := evaluator.EvaluateNodeRules(context.Background(), node, resolvedAt); err != nil {
+		t.Fatalf("evaluate hidden node: %v", err)
+	}
+
+	if instanceRepo.createCalls != 1 {
+		t.Fatalf("create calls = %d, want 1", instanceRepo.createCalls)
+	}
+	if instanceRepo.resolveCalls != 1 {
+		t.Fatalf("resolve calls = %d, want 1", instanceRepo.resolveCalls)
+	}
+	if instanceRepo.instances[0].Status != types.AlertStatusResolved ||
+		!instanceRepo.instances[0].ResolvedAt.Valid ||
+		!instanceRepo.instances[0].ResolvedAt.Time.Equal(resolvedAt) {
+		t.Fatalf("resolved instance = %#v, want resolution at %v", instanceRepo.instances[0], resolvedAt)
+	}
+}
+
+func TestHiddenNodeResolvesActiveGlobalMetricAlert(t *testing.T) {
+	t.Parallel()
+
+	rule := generated.AlertRule{
+		ID: 120, ProjectID: 1, RuleType: types.AlertRuleTypeCPUAboveThreshold,
+		MetricName:     sql.NullString{String: types.MetricNameCPUUsage, Valid: true},
+		ThresholdValue: sql.NullFloat64{Float64: 80, Valid: true}, IsEnabled: true,
+	}
+	observedAt := time.Date(2026, time.August, 28, 10, 0, 0, 0, time.UTC)
+	resolvedAt := observedAt.Add(time.Minute)
+	metricRepo := &fakeAlertMetricRepo{samples: map[string]generated.MetricSample{
+		metricKey(71, types.MetricNameCPUUsage): {
+			NodeID: 71, MetricName: types.MetricNameCPUUsage, MetricValue: 95, ObservedAt: observedAt,
+		},
+	}}
+	nodes := map[int64]generated.Node{
+		71: {ID: 71, ProjectID: 1, IsVisible: true},
+	}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := &AlertEvaluatorService{
+		alertRuleRepo:     &fakeAlertRuleRepo{rules: []generated.AlertRule{rule}},
+		alertInstanceRepo: instanceRepo,
+		metricRepo:        metricRepo,
+		nodeRepo:          &fakeAlertEvaluatorNodeRepo{nodes: nodes},
+		eventService:      &fakeAlertEventRecorder{},
+	}
+
+	if err := evaluator.EvaluateMetricRules(context.Background(), 71, types.MetricNameCPUUsage, observedAt); err != nil {
+		t.Fatalf("evaluate visible high CPU: %v", err)
+	}
+	node := nodes[71]
+	node.IsVisible = false
+	nodes[71] = node
+	if err := evaluator.EvaluateMetricRules(context.Background(), 71, types.MetricNameCPUUsage, resolvedAt); err != nil {
+		t.Fatalf("evaluate hidden node metric: %v", err)
+	}
+
+	if instanceRepo.createCalls != 1 {
+		t.Fatalf("create calls = %d, want 1", instanceRepo.createCalls)
+	}
+	if instanceRepo.resolveCalls != 1 {
+		t.Fatalf("resolve calls = %d, want 1", instanceRepo.resolveCalls)
+	}
+	if instanceRepo.instances[0].Status != types.AlertStatusResolved ||
+		!instanceRepo.instances[0].ResolvedAt.Valid ||
+		!instanceRepo.instances[0].ResolvedAt.Time.Equal(resolvedAt) {
+		t.Fatalf("resolved instance = %#v, want resolution at %v", instanceRepo.instances[0], resolvedAt)
+	}
+}
+
+func TestHiddenGlobalTargetWithoutActiveAlertIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	rule := generated.AlertRule{
+		ID: 130, ProjectID: 1, RuleType: types.AlertRuleTypeNodeOffline, IsEnabled: true,
+	}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := &AlertEvaluatorService{
+		alertRuleRepo:     &fakeAlertRuleRepo{rules: []generated.AlertRule{rule}},
+		alertInstanceRepo: instanceRepo,
+		metricRepo:        &fakeAlertMetricRepo{},
+		eventService:      &fakeAlertEventRecorder{},
+	}
+
+	err := evaluator.EvaluateNodeRules(context.Background(), generated.Node{
+		ID: 81, ProjectID: 1, IsVisible: false, CurrentState: types.NodeStateOffline,
+	}, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("EvaluateNodeRules() error = %v", err)
+	}
+	if instanceRepo.createCalls != 0 || instanceRepo.resolveCalls != 0 {
+		t.Fatalf("lifecycle calls = create %d resolve %d, want no-op", instanceRepo.createCalls, instanceRepo.resolveCalls)
+	}
+}
+
+func TestHiddenNodeResolutionIsTargetSpecific(t *testing.T) {
+	t.Parallel()
+
+	rule := generated.AlertRule{
+		ID: 140, ProjectID: 1, RuleType: types.AlertRuleTypeNodeOffline, IsEnabled: true,
+	}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := &AlertEvaluatorService{
+		alertRuleRepo:     &fakeAlertRuleRepo{rules: []generated.AlertRule{rule}},
+		alertInstanceRepo: instanceRepo,
+		metricRepo:        &fakeAlertMetricRepo{},
+		eventService:      &fakeAlertEventRecorder{},
+	}
+	startedAt := time.Date(2026, time.August, 28, 10, 0, 0, 0, time.UTC)
+
+	for _, nodeID := range []int64{91, 92} {
+		err := evaluator.EvaluateNodeRules(context.Background(), generated.Node{
+			ID: nodeID, ProjectID: 1, IsVisible: true, CurrentState: types.NodeStateOffline,
+		}, startedAt)
+		if err != nil {
+			t.Fatalf("evaluate visible node %d: %v", nodeID, err)
+		}
+	}
+	if err := evaluator.EvaluateNodeRules(context.Background(), generated.Node{
+		ID: 91, ProjectID: 1, IsVisible: false, CurrentState: types.NodeStateOffline,
+	}, startedAt.Add(time.Minute)); err != nil {
+		t.Fatalf("evaluate hidden node 91: %v", err)
+	}
+
+	if _, err := instanceRepo.FindActiveByRuleAndTarget(
+		context.Background(), rule.ID, sql.NullInt64{Int64: 91, Valid: true}, sql.NullInt64{},
+	); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("node 91 active lookup error = %v, want sql.ErrNoRows", err)
+	}
+	if _, err := instanceRepo.FindActiveByRuleAndTarget(
+		context.Background(), rule.ID, sql.NullInt64{Int64: 92, Valid: true}, sql.NullInt64{},
+	); err != nil {
+		t.Fatalf("node 92 should remain active: %v", err)
+	}
+	if instanceRepo.resolveCalls != 1 {
+		t.Fatalf("resolve calls = %d, want 1", instanceRepo.resolveCalls)
+	}
+}
+
 func TestHiddenNodeEventsSkipGlobalRulesButKeepSpecificRules(t *testing.T) {
 	t.Parallel()
 
@@ -730,6 +889,9 @@ func TestHiddenNodeEventsSkipGlobalRulesButKeepSpecificRules(t *testing.T) {
 	}
 	if len(nodeInstances.instances) != 1 || nodeInstances.instances[0].AlertRuleID != 111 {
 		t.Fatalf("node instances = %#v, want only specific rule 111", nodeInstances.instances)
+	}
+	if nodeInstances.resolveCalls != 0 {
+		t.Fatalf("node resolve calls = %d, want 0", nodeInstances.resolveCalls)
 	}
 
 	metricRules := []generated.AlertRule{
@@ -763,6 +925,9 @@ func TestHiddenNodeEventsSkipGlobalRulesButKeepSpecificRules(t *testing.T) {
 	}
 	if len(metricInstances.instances) != 1 || metricInstances.instances[0].AlertRuleID != 121 {
 		t.Fatalf("metric instances = %#v, want only specific rule 121", metricInstances.instances)
+	}
+	if metricInstances.resolveCalls != 0 {
+		t.Fatalf("metric resolve calls = %d, want 0", metricInstances.resolveCalls)
 	}
 }
 
