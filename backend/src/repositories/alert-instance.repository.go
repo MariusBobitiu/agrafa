@@ -40,9 +40,24 @@ func NewAlertInstanceRepository(db *sql.DB, queries *generated.Queries) *AlertIn
 	}
 }
 
-func (r *AlertInstanceRepository) FindActiveByRuleID(ctx context.Context, ruleID int64) (generated.AlertInstance, error) {
+func (r *AlertInstanceRepository) FindActiveByRuleAndTarget(
+	ctx context.Context,
+	ruleID int64,
+	nodeID sql.NullInt64,
+	serviceID sql.NullInt64,
+) (generated.AlertInstance, error) {
 	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.AlertInstance, error) {
-		return queries.FindActiveAlertInstanceByRuleID(ctx, ruleID)
+		return queries.FindActiveAlertInstanceByRuleAndTarget(ctx, generated.FindActiveAlertInstanceByRuleAndTargetParams{
+			AlertRuleID: ruleID,
+			NodeID:      nodeID,
+			ServiceID:   serviceID,
+		})
+	})
+}
+
+func (r *AlertInstanceRepository) ListActiveByRuleID(ctx context.Context, ruleID int64) ([]generated.AlertInstance, error) {
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) ([]generated.AlertInstance, error) {
+		return queries.ListActiveAlertInstancesByRuleID(ctx, ruleID)
 	})
 }
 

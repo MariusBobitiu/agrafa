@@ -8,6 +8,8 @@ import { ProjectSection } from "./components/project-section.tsx";
 import { MembersSection } from "./components/members-section.tsx";
 import { DangerZoneSection } from "./components/danger-zone-section.tsx";
 import { useMeta } from "@/hooks/use-meta.ts";
+import { useSearchParams } from "react-router-dom";
+import { settingsTabFromSearchParams } from "./settings-tabs.ts";
 
 // ─── Tab nav styles ───────────────────────────────────────────────────────────
 
@@ -28,6 +30,15 @@ export function SettingsPage() {
   });
   const activeProjectId = useUIStore((s) => s.activeProjectId);
   const canDeleteProject = useCanDeleteProject(activeProjectId ?? 0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = settingsTabFromSearchParams(searchParams, canDeleteProject);
+
+  function handleTabChange(value: string) {
+    const next = new URLSearchParams(searchParams);
+    if (value === "notifications") next.delete("tab");
+    else next.set("tab", value);
+    setSearchParams(next);
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -36,7 +47,7 @@ export function SettingsPage() {
         description="Project-scoped configuration for the active project"
       />
 
-      <Tabs defaultValue="notifications">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className={tabListClass}>
           <TabsTrigger value="notifications" className={tabTriggerClass}>
             Notifications

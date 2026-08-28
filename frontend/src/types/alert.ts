@@ -4,6 +4,8 @@ export type AlertCategory = "node" | "service" | "metric";
 
 export type Severity = "info" | "warning" | "critical";
 
+export type AlertRuleTargetScope = "all" | "specific";
+
 export type RuleType =
   | "node_offline"
   | "service_unhealthy"
@@ -20,6 +22,7 @@ export type AlertRule = {
   threshold_value: number | null;
   severity: Severity;
   is_enabled: boolean;
+  target_scope: AlertRuleTargetScope;
   created_at: string;
   updated_at: string;
 };
@@ -66,6 +69,7 @@ export type AlertRuleCreateInput = {
   rule_type: RuleType;
   threshold_value?: number | null;
   severity: Severity;
+  target_scope: AlertRuleTargetScope;
 };
 
 export type AlertRuleUpdateInput = {
@@ -74,4 +78,5 @@ export type AlertRuleUpdateInput = {
   is_enabled?: boolean;
   node_id?: number | null;
   service_id?: number | null;
+  target_scope?: AlertRuleTargetScope;
 };

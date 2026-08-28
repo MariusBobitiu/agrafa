@@ -169,3 +169,48 @@ func TestServiceCheckHistoryCorrectionUsesOnlyCanonicalPayloadMetadata(t *testin
 		t.Fatalf("corrective migration must use the explicit supported-whitespace character set:\n%s", sql)
 	}
 }
+
+func TestAlertRuleTargetingMigrationPreservesSpecificRulesAndAddsPerTargetIdentity(t *testing.T) {
+	t.Parallel()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+
+	migrationPath := filepath.Join(filepath.Dir(currentFile), "migrations", "app", "000016_alert_rule_targeting.up.sql")
+	contents, err := os.ReadFile(migrationPath)
+	if err != nil {
+		t.Fatalf("read migration file: %v", err)
+	}
+
+	sql := string(contents)
+	normalizedSQL := strings.ToUpper(strings.Join(strings.Fields(sql), " "))
+	for _, expected := range []string{
+		"FROM pg_constraint AS constraint_row",
+		"pg_get_constraintdef(constraint_row.oid)",
+		"node_id is not null",
+		"service_id is not null",
+		"ALTER TABLE app.alert_rules DROP CONSTRAINT %I",
+		"alert_rules_target_check",
+		"num_nonnulls(node_id, service_id) = 1",
+	} {
+		if !strings.Contains(sql, expected) {
+			t.Fatalf("expected targeting migration to contain %q:\n%s", expected, sql)
+		}
+	}
+	for _, expected := range []string{
+		"CREATE UNIQUE INDEX IDX_ALERT_INSTANCES_RULE_NODE_ACTIVE ON APP.ALERT_INSTANCES(ALERT_RULE_ID, NODE_ID) WHERE STATUS = 'ACTIVE' AND NODE_ID IS NOT NULL;",
+		"CREATE UNIQUE INDEX IDX_ALERT_INSTANCES_RULE_SERVICE_ACTIVE ON APP.ALERT_INSTANCES(ALERT_RULE_ID, SERVICE_ID) WHERE STATUS = 'ACTIVE' AND SERVICE_ID IS NOT NULL;",
+	} {
+		if !strings.Contains(normalizedSQL, expected) {
+			t.Fatalf("expected targeting migration to contain exact active-target uniqueness %q:\n%s", expected, sql)
+		}
+	}
+	if strings.Contains(sql, "DROP CONSTRAINT IF EXISTS alert_rules_check") {
+		t.Fatalf("targeting migration must not rely on PostgreSQL's generated CHECK name:\n%s", sql)
+	}
+	if strings.Contains(strings.ToUpper(sql), "UPDATE APP.ALERT_RULES") {
+		t.Fatalf("targeting migration must not rewrite existing specific rule targets:\n%s", sql)
+	}
+}

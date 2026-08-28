@@ -8,6 +8,7 @@ import {
   QueryObserver,
 } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ActiveAlertRow,
@@ -71,7 +72,9 @@ function renderAlertsPage(projectId: number | null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const markup = renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <AlertsPageContent activeProjectId={projectId ?? 0} />
+      <MemoryRouter>
+        <AlertsPageContent activeProjectId={projectId ?? 0} />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
   client.clear();

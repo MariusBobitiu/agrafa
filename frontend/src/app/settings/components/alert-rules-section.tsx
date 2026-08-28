@@ -8,9 +8,12 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
 import { useAlertRules, useUpdateAlertRule, useDeleteAlertRule } from "@/hooks/use-alerts.ts";
 import { useCanWrite } from "@/hooks/use-project-role.ts";
+import { useNodes } from "@/hooks/use-nodes.ts";
+import { useServices } from "@/hooks/use-services.ts";
 import { CreateAlertRuleDialog } from "../../alerts/components/create-alert-rule-dialog.tsx";
 import { BellIcon } from "@/components/animate-ui/icons";
 import type { AlertRule, RuleType, Severity } from "@/types/alert.ts";
+import { alertRuleTargetLabel } from "@/app/alerts/alert-rule-targeting.ts";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -19,21 +22,6 @@ function formatRuleType(ruleType: RuleType): string {
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
-}
-
-function ruleCategory(ruleType: RuleType): string {
-  switch (ruleType) {
-    case "node_offline":
-      return "Node";
-    case "service_unhealthy":
-      return "Service";
-    case "cpu_above_threshold":
-    case "memory_above_threshold":
-    case "disk_above_threshold":
-      return "Metric";
-    default:
-      return "Rule";
-  }
 }
 
 const severityClasses: Record<Severity, string> = {
@@ -50,12 +38,16 @@ function AlertRuleRow({
   onDelete,
   onEdit,
   canWrite,
+  nodes,
+  services,
 }: {
   rule: AlertRule;
   onToggle: (id: number, enabled: boolean) => void;
   onDelete: (id: number) => void;
   onEdit: (rule: AlertRule) => void;
   canWrite: boolean;
+  nodes: Array<{ id: number; name: string }>;
+  services: Array<{ id: number; name: string }>;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -69,8 +61,8 @@ function AlertRuleRow({
           </p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-xs text-muted-foreground/70">
-              {ruleCategory(rule.rule_type)}
-              {rule.threshold_value !== null && ` · threshold > ${rule.threshold_value}%`}
+              {alertRuleTargetLabel(rule, nodes, services)}
+              {rule.threshold_value !== null && ` · > ${rule.threshold_value}%`}
             </span>
             {rule.severity && (
               <span
@@ -134,6 +126,8 @@ export function AlertRulesSection({ projectId }: { projectId: number }) {
   const canWrite = useCanWrite(projectId);
 
   const { data, isLoading } = useAlertRules(projectId);
+  const nodesQuery = useNodes(projectId);
+  const servicesQuery = useServices(projectId, { refetchInterval: false });
   const toggle = useUpdateAlertRule(projectId);
   const remove = useDeleteAlertRule(projectId);
 
@@ -155,6 +149,8 @@ export function AlertRulesSection({ projectId }: { projectId: number }) {
   }
 
   const rules = data?.alert_rules ?? [];
+  const nodes = nodesQuery.data?.nodes ?? [];
+  const services = servicesQuery.data?.services ?? [];
 
   return (
     <div className="space-y-4">
@@ -196,6 +192,8 @@ export function AlertRulesSection({ projectId }: { projectId: number }) {
               onDelete={handleDelete}
               onEdit={setEditingRule}
               canWrite={canWrite}
+              nodes={nodes}
+              services={services}
             />
           ))}
         </div>

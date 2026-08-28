@@ -47,8 +47,8 @@ func (s *AlertService) List(ctx context.Context, filters types.AlertListFilters)
 	)
 	switch {
 	case filters.Status != nil && *filters.Status == types.AlertStatusActive:
-		// Active alerts deliberately have no history page limit. The one-active-instance-per-rule
-		// invariant keeps this read naturally bounded by the project's alert rules.
+		// Active alerts deliberately have no history page limit. Target-aware uniqueness keeps
+		// this read bounded by the project's rules and the concrete resources they monitor.
 		rows, err = s.alertInstanceRepo.ListActiveForRead(ctx, filters)
 	case filters.Status != nil && *filters.Status == types.AlertStatusResolved:
 		filters.Limit = limit + 1

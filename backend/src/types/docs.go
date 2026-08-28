@@ -289,6 +289,7 @@ type AlertRuleDocument struct {
 	IsEnabled      bool      `json:"is_enabled" example:"true"`
 	CreatedAt      time.Time `json:"created_at" swaggertype:"string" format:"date-time"`
 	UpdatedAt      time.Time `json:"updated_at" swaggertype:"string" format:"date-time"`
+	TargetScope    string    `json:"target_scope" example:"all" enums:"all,specific"`
 }
 
 type AlertDocument struct {
@@ -488,6 +489,7 @@ type AlertRuleCreateRequest struct {
 	RuleType       string   `json:"rule_type" example:"cpu_above_threshold"`
 	Severity       string   `json:"severity" example:"critical"`
 	ThresholdValue *float64 `json:"threshold_value,omitempty" example:"80"`
+	TargetScope    string   `json:"target_scope,omitempty" example:"all" enums:"all,specific"`
 }
 
 type AlertRuleUpdateRequest struct {
@@ -496,6 +498,7 @@ type AlertRuleUpdateRequest struct {
 	Severity       *string  `json:"severity,omitempty" example:"warning"`
 	ThresholdValue *float64 `json:"threshold_value,omitempty" example:"90"`
 	IsEnabled      *bool    `json:"is_enabled,omitempty" example:"false"`
+	TargetScope    *string  `json:"target_scope,omitempty" example:"specific" enums:"all,specific"`
 }
 
 type NotificationRecipientCreateItemRequest struct {

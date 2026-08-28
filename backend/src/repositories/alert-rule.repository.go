@@ -39,9 +39,9 @@ func (r *AlertRuleRepository) Update(ctx context.Context, params generated.Updat
 
 func (r *AlertRuleRepository) UpdateEnabled(ctx context.Context, id int64, isEnabled bool) (generated.AlertRule, error) {
 	return r.Update(ctx, generated.UpdateAlertRuleParams{
-		ID:        id,
-		Column10:  true,
-		IsEnabled: isEnabled,
+		ID:           id,
+		SetIsEnabled: true,
+		IsEnabled:    isEnabled,
 	})
 }
 
@@ -65,27 +65,29 @@ func (r *AlertRuleRepository) List(ctx context.Context, projectID *int64) ([]gen
 
 func (r *AlertRuleRepository) ListEnabled(
 	ctx context.Context,
+	projectID int64,
 	ruleType string,
 	nodeID *int64,
 	serviceID *int64,
 	metricName *string,
 ) ([]generated.AlertRule, error) {
 	params := generated.ListEnabledAlertRulesParams{
-		RuleType: ruleType,
+		ProjectID: projectID,
+		RuleType:  ruleType,
 	}
 
 	if nodeID != nil {
-		params.Column2 = true
+		params.HasNodeID = true
 		params.NodeID = sql.NullInt64{Int64: *nodeID, Valid: true}
 	}
 
 	if serviceID != nil {
-		params.Column4 = true
+		params.HasServiceID = true
 		params.ServiceID = sql.NullInt64{Int64: *serviceID, Valid: true}
 	}
 
 	if metricName != nil {
-		params.Column6 = true
+		params.HasMetricName = true
 		params.MetricName = sql.NullString{String: *metricName, Valid: true}
 	}
 

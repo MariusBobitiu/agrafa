@@ -157,7 +157,6 @@ CREATE TABLE app.alert_rules (
     CHECK (
         (
             rule_type = 'node_offline'
-            AND node_id IS NOT NULL
             AND service_id IS NULL
             AND metric_name IS NULL
             AND threshold_value IS NULL
@@ -165,13 +164,11 @@ CREATE TABLE app.alert_rules (
         OR (
             rule_type = 'service_unhealthy'
             AND node_id IS NULL
-            AND service_id IS NOT NULL
             AND metric_name IS NULL
             AND threshold_value IS NULL
         )
         OR (
             rule_type = 'cpu_above_threshold'
-            AND node_id IS NOT NULL
             AND service_id IS NULL
             AND metric_name = 'cpu_usage'
             AND threshold_value IS NOT NULL
@@ -179,7 +176,6 @@ CREATE TABLE app.alert_rules (
         )
         OR (
             rule_type = 'memory_above_threshold'
-            AND node_id IS NOT NULL
             AND service_id IS NULL
             AND metric_name = 'memory_usage'
             AND threshold_value IS NOT NULL
@@ -187,7 +183,6 @@ CREATE TABLE app.alert_rules (
         )
         OR (
             rule_type = 'disk_above_threshold'
-            AND node_id IS NOT NULL
             AND service_id IS NULL
             AND metric_name = 'disk_usage'
             AND threshold_value IS NOT NULL
@@ -211,7 +206,8 @@ CREATE TABLE app.alert_instances (
     CHECK (
         (status = 'active' AND resolved_at IS NULL)
         OR (status = 'resolved' AND resolved_at IS NOT NULL)
-    )
+    ),
+    CHECK (num_nonnulls(node_id, service_id) = 1)
 );
 
 CREATE TABLE app.notification_recipients (
@@ -298,9 +294,12 @@ CREATE INDEX idx_alert_rules_project_id ON app.alert_rules(project_id);
 CREATE INDEX idx_alert_rules_node_id ON app.alert_rules(node_id);
 CREATE INDEX idx_alert_rules_service_id ON app.alert_rules(service_id);
 CREATE INDEX idx_alert_rules_enabled_type ON app.alert_rules(is_enabled, rule_type);
-CREATE UNIQUE INDEX idx_alert_instances_rule_active
-    ON app.alert_instances(alert_rule_id)
-    WHERE status = 'active';
+CREATE UNIQUE INDEX idx_alert_instances_rule_node_active
+    ON app.alert_instances(alert_rule_id, node_id)
+    WHERE status = 'active' AND node_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_alert_instances_rule_service_active
+    ON app.alert_instances(alert_rule_id, service_id)
+    WHERE status = 'active' AND service_id IS NOT NULL;
 CREATE INDEX idx_alert_instances_project_status_triggered_at
     ON app.alert_instances(project_id, status, triggered_at DESC, id DESC);
 CREATE INDEX idx_alert_instances_triggered_at ON app.alert_instances(triggered_at DESC, id DESC);

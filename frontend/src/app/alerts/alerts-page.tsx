@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
-import { AlertTriangleIcon, ClockIcon, SirenIcon } from "lucide-react";
+import { AlertTriangleIcon, BellPlusIcon, ClockIcon, SirenIcon } from "lucide-react";
+import { Link } from "react-router-dom";
 import { SectionHeading } from "@/components/section-heading.tsx";
 import {
   alertResourceLabel,
@@ -23,10 +24,16 @@ import {
 } from "@/components/ui/select.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { StatusBadge } from "@/components/ui/status-badge.tsx";
-import { useActiveAlerts, useAlertHistory, useAlertHistoryHeadSync } from "@/hooks/use-alerts.ts";
+import {
+  useActiveAlerts,
+  useAlertHistory,
+  useAlertHistoryHeadSync,
+  useAlertRules,
+} from "@/hooks/use-alerts.ts";
 import { useMeta } from "@/hooks/use-meta";
 import { useNodes } from "@/hooks/use-nodes.ts";
 import { useServices } from "@/hooks/use-services.ts";
+import { useCanWrite } from "@/hooks/use-project-role.ts";
 import { formatAlertDuration } from "@/lib/alert-duration.ts";
 import { cn, formatRelativeTime } from "@/lib/utils.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
@@ -267,6 +274,35 @@ export function EmptyState({ message, active = false }: { message: string; activ
   );
 }
 
+export function ProjectAlertsEmptyState({
+  hasEnabledRules,
+  canManageRules,
+}: {
+  hasEnabledRules: boolean;
+  canManageRules: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-muted/15 px-6 py-10 text-center">
+      <BellPlusIcon className="mx-auto size-6 text-muted-foreground/60" aria-hidden="true" />
+      <h2 className="mt-3 text-sm font-semibold">
+        {hasEnabledRules ? "No alerts" : "No alert rules configured"}
+      </h2>
+      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+        {hasEnabledRules
+          ? "Nothing has triggered your configured alert rules."
+          : "Create a rule to be notified when nodes go offline, services become unhealthy, or resource usage crosses a threshold."}
+      </p>
+      {!hasEnabledRules ? (
+        <Button asChild size="sm" variant="secondary" className="mt-4">
+          <Link to="/settings?tab=alert-rules">
+            {canManageRules ? "Create alert rule" : "View rules"}
+          </Link>
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 export function AlertHistoryPagination({
   hasNextPage,
   isFetchingNextPage,
@@ -402,6 +438,8 @@ export function AlertsPageContent({ activeProjectId }: { activeProjectId: number
   const historyQuery = useAlertHistory(activeProjectId, filters);
   const nodesQuery = useNodes(activeProjectId);
   const servicesQuery = useServices(activeProjectId, { refetchInterval: false });
+  const rulesQuery = useAlertRules(activeProjectId);
+  const canManageRules = useCanWrite(activeProjectId);
   const activeAlerts = activeQuery.data?.alerts ?? [];
   useAlertHistoryHeadSync(activeProjectId, filters, activeQuery.data, activeQuery.dataUpdatedAt);
 
@@ -415,6 +453,16 @@ export function AlertsPageContent({ activeProjectId }: { activeProjectId: number
     description: "View active alerts and resolved alert history for your project",
   });
 
+  const hasDefaultFilters = category === "all" && severity === "all" && resource === "all";
+  const showProjectEmptyState =
+    hasDefaultFilters &&
+    activeQuery.isSuccess &&
+    historyQuery.isSuccess &&
+    rulesQuery.isSuccess &&
+    activeAlerts.length === 0 &&
+    historyAlerts.length === 0;
+  const hasEnabledRules = rulesQuery.data?.alert_rules.some((rule) => rule.is_enabled) ?? false;
+
   if (!hasValidProject) {
     return (
       <div className="mx-auto max-w-6xl space-y-8 p-6">
@@ -426,88 +474,111 @@ export function AlertsPageContent({ activeProjectId }: { activeProjectId: number
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 p-6">
-      <PageHeader title="Alerts" description="Active alerts and resolved history" />
+      <PageHeader
+        title="Alerts"
+        description="Active alerts and resolved history"
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link to="/settings?tab=alert-rules">
+              {canManageRules ? "Manage rules" : "View rules"}
+            </Link>
+          </Button>
+        }
+      />
 
-      <section>
-        <SectionHeading
-          icon={<SirenIcon size={13} />}
-          label="Active Alerts"
-          aside={
-            activeAlerts.length > 0 ? (
-              <span className="text-xs font-semibold text-destructive">{activeAlerts.length}</span>
-            ) : undefined
-          }
+      {showProjectEmptyState ? (
+        <ProjectAlertsEmptyState
+          hasEnabledRules={hasEnabledRules}
+          canManageRules={canManageRules}
         />
-        {hasValidProject && activeQuery.isPending && activeQuery.data == null ? (
-          <ActiveAlertsSkeleton />
-        ) : activeQuery.isError && activeQuery.data == null ? (
-          <ErrorState
-            message="Couldn’t load active alerts."
-            onRetry={() => void activeQuery.refetch()}
-          />
-        ) : activeAlerts.length === 0 ? (
-          <EmptyState active message="No active alerts right now." />
-        ) : (
-          <div className="divide-y divide-border/60 overflow-hidden rounded-lg border border-destructive/20">
-            {activeAlerts.map((alert) => (
-              <ActiveAlertRow key={alert.id} alert={alert} />
-            ))}
-          </div>
-        )}
-        {activeQuery.isError && activeQuery.data != null ? (
-          <BackgroundRefreshError onRetry={() => void activeQuery.refetch()} />
-        ) : null}
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <SectionHeading
-          icon={<ClockIcon size={13} />}
-          label="Alert History"
-          aside={
-            historyAlerts.length > 0 ? (
-              <span className="text-xs text-muted-foreground">{historyAlerts.length} loaded</span>
-            ) : undefined
-          }
-          action={
-            <HistoryFilters
-              category={category}
-              severity={severity}
-              resource={resource}
-              nodes={nodesQuery.data?.nodes ?? []}
-              services={servicesQuery.data?.services ?? []}
-              onCategoryChange={(value) => {
-                setCategory(value);
-                setResourceSelection({ projectId: activeProjectId, value: "all" });
-              }}
-              onSeverityChange={setSeverity}
-              onResourceChange={(value) =>
-                setResourceSelection({ projectId: activeProjectId, value })
+      ) : (
+        <>
+          <section>
+            <SectionHeading
+              icon={<SirenIcon size={13} />}
+              label="Active Alerts"
+              aside={
+                activeAlerts.length > 0 ? (
+                  <span className="text-xs font-semibold text-destructive">
+                    {activeAlerts.length}
+                  </span>
+                ) : undefined
               }
             />
-          }
-        />
+            {hasValidProject && activeQuery.isPending && activeQuery.data == null ? (
+              <ActiveAlertsSkeleton />
+            ) : activeQuery.isError && activeQuery.data == null ? (
+              <ErrorState
+                message="Couldn’t load active alerts."
+                onRetry={() => void activeQuery.refetch()}
+              />
+            ) : activeAlerts.length === 0 ? (
+              <EmptyState active message="No active alerts right now." />
+            ) : (
+              <div className="divide-y divide-border/60 overflow-hidden rounded-lg border border-destructive/20">
+                {activeAlerts.map((alert) => (
+                  <ActiveAlertRow key={alert.id} alert={alert} />
+                ))}
+              </div>
+            )}
+            {activeQuery.isError && activeQuery.data != null ? (
+              <BackgroundRefreshError onRetry={() => void activeQuery.refetch()} />
+            ) : null}
+          </section>
 
-        {hasValidProject && historyQuery.isPending ? (
-          <TableSkeleton />
-        ) : historyQuery.isError && historyAlerts.length === 0 ? (
-          <ErrorState
-            message="Couldn’t load alert history."
-            onRetry={() => void historyQuery.refetch()}
-          />
-        ) : historyAlerts.length === 0 ? (
-          <EmptyState message="No resolved alerts match these filters." />
-        ) : (
-          <>
-            <AlertHistoryTable alerts={historyAlerts} />
-            <AlertHistoryPagination
-              hasNextPage={historyQuery.hasNextPage}
-              isFetchingNextPage={historyQuery.isFetchingNextPage}
-              isFetchNextPageError={historyQuery.isFetchNextPageError}
-              onLoadMore={() => void historyQuery.fetchNextPage()}
+          <section className="flex flex-col gap-3">
+            <SectionHeading
+              icon={<ClockIcon size={13} />}
+              label="Alert History"
+              aside={
+                historyAlerts.length > 0 ? (
+                  <span className="text-xs text-muted-foreground">
+                    {historyAlerts.length} loaded
+                  </span>
+                ) : undefined
+              }
+              action={
+                <HistoryFilters
+                  category={category}
+                  severity={severity}
+                  resource={resource}
+                  nodes={nodesQuery.data?.nodes ?? []}
+                  services={servicesQuery.data?.services ?? []}
+                  onCategoryChange={(value) => {
+                    setCategory(value);
+                    setResourceSelection({ projectId: activeProjectId, value: "all" });
+                  }}
+                  onSeverityChange={setSeverity}
+                  onResourceChange={(value) =>
+                    setResourceSelection({ projectId: activeProjectId, value })
+                  }
+                />
+              }
             />
-          </>
-        )}
-      </section>
+
+            {hasValidProject && historyQuery.isPending ? (
+              <TableSkeleton />
+            ) : historyQuery.isError && historyAlerts.length === 0 ? (
+              <ErrorState
+                message="Couldn’t load alert history."
+                onRetry={() => void historyQuery.refetch()}
+              />
+            ) : historyAlerts.length === 0 ? (
+              <EmptyState message="No resolved alerts match these filters." />
+            ) : (
+              <>
+                <AlertHistoryTable alerts={historyAlerts} />
+                <AlertHistoryPagination
+                  hasNextPage={historyQuery.hasNextPage}
+                  isFetchingNextPage={historyQuery.isFetchingNextPage}
+                  isFetchNextPageError={historyQuery.isFetchNextPageError}
+                  onLoadMore={() => void historyQuery.fetchNextPage()}
+                />
+              </>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

@@ -3696,6 +3696,14 @@ const docTemplate = `{
                     "type": "string",
                     "example": "critical"
                 },
+                "target_scope": {
+                    "type": "string",
+                    "enum": [
+                        "all",
+                        "specific"
+                    ],
+                    "example": "all"
+                },
                 "threshold_value": {
                     "type": "number",
                     "example": 80
@@ -3741,6 +3749,14 @@ const docTemplate = `{
                     "type": "string",
                     "example": "critical"
                 },
+                "target_scope": {
+                    "type": "string",
+                    "enum": [
+                        "all",
+                        "specific"
+                    ],
+                    "example": "all"
+                },
                 "threshold_value": {
                     "type": "number",
                     "example": 80
@@ -3777,6 +3793,14 @@ const docTemplate = `{
                 "severity": {
                     "type": "string",
                     "example": "warning"
+                },
+                "target_scope": {
+                    "type": "string",
+                    "enum": [
+                        "all",
+                        "specific"
+                    ],
+                    "example": "specific"
                 },
                 "threshold_value": {
                     "type": "number",

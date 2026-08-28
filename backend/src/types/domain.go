@@ -47,6 +47,8 @@ const (
 	AlertRuleTypeCPUAboveThreshold    = "cpu_above_threshold"
 	AlertRuleTypeMemoryAboveThreshold = "memory_above_threshold"
 	AlertRuleTypeDiskAboveThreshold   = "disk_above_threshold"
+	AlertRuleTargetScopeAll           = "all"
+	AlertRuleTargetScopeSpecific      = "specific"
 )
 
 const (
@@ -136,6 +138,7 @@ type CreateAlertRuleInput struct {
 	RuleType       string
 	Severity       string
 	ThresholdValue *float64
+	TargetScope    string
 }
 
 type UpdateAlertRuleInput struct {
@@ -145,6 +148,7 @@ type UpdateAlertRuleInput struct {
 	Severity       *string
 	ThresholdValue *float64
 	IsEnabled      *bool
+	TargetScope    *string
 }
 
 type UpdateProjectInput struct {
@@ -592,6 +596,7 @@ type AlertRuleReadData struct {
 	IsEnabled      bool      `json:"is_enabled"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
+	TargetScope    string    `json:"target_scope"`
 }
 
 type NotificationRecipientReadData struct {

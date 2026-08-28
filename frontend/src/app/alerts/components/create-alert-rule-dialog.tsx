@@ -32,6 +32,14 @@ import { cn } from "@/lib/utils.ts";
 import { useCreateAlertRule, useUpdateAlertRule } from "@/hooks/use-alerts.ts";
 import { useNodes } from "@/hooks/use-nodes.ts";
 import { useServices } from "@/hooks/use-services.ts";
+import {
+  alertRuleTargetLabels,
+  buildAlertRuleCreatePayload,
+  buildAlertRuleUpdatePayload,
+  ruleToFormValues,
+  showsSpecificResourceSelector,
+  type AlertRuleFormValues,
+} from "@/app/alerts/alert-rule-targeting.ts";
 import type { AlertRule, RuleType, Severity } from "@/types/alert.ts";
 
 // ─── Rule definitions ─────────────────────────────────────────────────────────
@@ -107,6 +115,7 @@ const RULE_TYPES: RuleConfig[] = [
 const schema = z
   .object({
     ruleType: z.string().min(1, "Select a rule type"),
+    targetScope: z.enum(["all", "specific"]),
     nodeId: z.string().optional(),
     serviceId: z.string().optional(),
     thresholdValue: z.string().optional(),
@@ -117,6 +126,12 @@ const schema = z
   .superRefine((values, ctx) => {
     const rule = RULE_TYPES.find((r) => r.value === values.ruleType);
     if (!rule) return;
+    if (values.targetScope === "specific" && rule.targetNode && !values.nodeId) {
+      ctx.addIssue({ code: "custom", path: ["nodeId"], message: "Select a node" });
+    }
+    if (values.targetScope === "specific" && rule.targetService && !values.serviceId) {
+      ctx.addIssue({ code: "custom", path: ["serviceId"], message: "Select a service" });
+    }
     if (rule.conditionType === "threshold") {
       const v = Number(values.thresholdValue);
       if (!values.thresholdValue || isNaN(v) || v < 1 || v > 100) {
@@ -129,10 +144,9 @@ const schema = z
     }
   });
 
-type FormValues = z.infer<typeof schema>;
-
-const DEFAULT_VALUES: FormValues = {
+const DEFAULT_VALUES: AlertRuleFormValues = {
   ruleType: "",
+  targetScope: "all",
   nodeId: "",
   serviceId: "",
   thresholdValue: "",
@@ -140,18 +154,6 @@ const DEFAULT_VALUES: FormValues = {
   severity: "critical",
   isEnabled: true,
 };
-
-function ruleToFormValues(rule: AlertRule): FormValues {
-  return {
-    ruleType: rule.rule_type,
-    nodeId: rule.node_id != null ? rule.node_id.toString() : "__any__",
-    serviceId: rule.service_id != null ? rule.service_id.toString() : "__any__",
-    thresholdValue: rule.threshold_value != null ? rule.threshold_value.toString() : "",
-    consecutiveFailures: "3",
-    severity: rule.severity,
-    isEnabled: rule.is_enabled,
-  };
-}
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
@@ -191,7 +193,7 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange, initialRu
   const createRule = useCreateAlertRule(projectId);
   const updateRule = useUpdateAlertRule(projectId);
 
-  const form = useForm<FormValues>({
+  const form = useForm<AlertRuleFormValues>({
     resolver: zodResolver(schema),
     defaultValues: DEFAULT_VALUES,
   });
@@ -204,12 +206,16 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange, initialRu
   }, [open, initialRule]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedRuleType = form.watch("ruleType");
+  const targetScope = form.watch("targetScope");
   const rule = RULE_TYPES.find((r) => r.value === selectedRuleType);
+  const targetLabels = rule ? alertRuleTargetLabels(rule.value) : null;
 
   const nodesQuery = useNodes(projectId, {
-    enabled: open && !!rule?.targetNode,
+    enabled: open && !!rule?.targetNode && targetScope === "specific",
   });
-  const servicesQuery = useServices(projectId);
+  const servicesQuery = useServices(projectId, {
+    enabled: open && !!rule?.targetService && targetScope === "specific",
+  });
   const nodes = nodesQuery.data?.nodes ?? [];
   const services = servicesQuery.data?.services ?? [];
 
@@ -218,22 +224,12 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange, initialRu
     if (!nextOpen) form.reset(DEFAULT_VALUES);
   }
 
-  async function onSubmit(values: FormValues) {
-    const node_id = values.nodeId && values.nodeId !== "__any__" ? Number(values.nodeId) : null;
-    const service_id =
-      values.serviceId && values.serviceId !== "__any__" ? Number(values.serviceId) : null;
-
+  async function onSubmit(values: AlertRuleFormValues) {
     if (isEditing) {
       try {
         await updateRule.mutateAsync({
           id: initialRule.id,
-          payload: {
-            severity: values.severity,
-            is_enabled: values.isEnabled,
-            node_id,
-            service_id,
-            threshold_value: values.thresholdValue ? Number(values.thresholdValue) : null,
-          },
+          payload: buildAlertRuleUpdatePayload(values),
         });
         toast.success("Alert rule updated");
         handleOpenChange(false);
@@ -242,14 +238,7 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange, initialRu
       }
     } else {
       try {
-        await createRule.mutateAsync({
-          project_id: projectId,
-          rule_type: values.ruleType as RuleType,
-          node_id,
-          service_id,
-          threshold_value: values.thresholdValue ? Number(values.thresholdValue) : null,
-          severity: values.severity,
-        });
+        await createRule.mutateAsync(buildAlertRuleCreatePayload(values, projectId));
         toast.success("Alert rule created");
         handleOpenChange(false);
       } catch {
@@ -290,6 +279,7 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange, initialRu
                         form.resetField("nodeId");
                         form.resetField("serviceId");
                         form.resetField("thresholdValue");
+                        form.setValue("targetScope", "all");
                       }}
                       value={field.value}
                       disabled={isEditing}
@@ -315,14 +305,49 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange, initialRu
                 )}
               />
 
+              {rule && (
+                <FormField
+                  control={form.control}
+                  name="targetScope"
+                  render={({ field }) => (
+                    <FormItem className="gap-0">
+                      <FormLabel className="mb-1.5 text-sm">Applies to</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          form.resetField("nodeId");
+                          form.resetField("serviceId");
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger className={quietTrigger}>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="all" className={quietItem}>
+                            {targetLabels?.all}
+                          </SelectItem>
+                          <SelectItem value="specific" className={quietItem}>
+                            {targetLabels?.specific}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               {/* Node selector */}
-              {rule?.targetNode && (
+              {rule?.targetNode && showsSpecificResourceSelector({ targetScope }) && (
                 <FormField
                   control={form.control}
                   name="nodeId"
                   render={({ field }) => (
                     <FormItem className="gap-0">
-                      <FormLabel className="mb-1.5 text-sm">Node</FormLabel>
+                      <FormLabel className="mb-1.5 text-sm">{targetLabels?.resource}</FormLabel>
                       {nodesQuery.isLoading ? (
                         <EmptyState>Loading nodes…</EmptyState>
                       ) : nodes.length === 0 ? (
@@ -354,7 +379,6 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange, initialRu
                           </SelectContent>
                         </Select>
                       )}
-                      <Hint>Leave blank to apply to all nodes.</Hint>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -362,13 +386,13 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange, initialRu
               )}
 
               {/* Service selector */}
-              {rule?.targetService && (
+              {rule?.targetService && showsSpecificResourceSelector({ targetScope }) && (
                 <FormField
                   control={form.control}
                   name="serviceId"
                   render={({ field }) => (
                     <FormItem className="gap-0">
-                      <FormLabel className="mb-1.5 text-sm">Service</FormLabel>
+                      <FormLabel className="mb-1.5 text-sm">{targetLabels?.resource}</FormLabel>
                       {servicesQuery.isLoading ? (
                         <EmptyState>Loading services…</EmptyState>
                       ) : services.length === 0 ? (
@@ -400,7 +424,6 @@ export function CreateAlertRuleDialog({ projectId, open, onOpenChange, initialRu
                           </SelectContent>
                         </Select>
                       )}
-                      <Hint>Leave blank to apply to all services.</Hint>
                       <FormMessage />
                     </FormItem>
                   )}

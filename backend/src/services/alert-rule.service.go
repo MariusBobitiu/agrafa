@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
@@ -27,16 +28,19 @@ type alertRuleServiceProjectRepository interface {
 
 type alertRuleServiceNodeRepository interface {
 	GetByID(ctx context.Context, id int64) (generated.Node, error)
+	ListVisibleByProject(ctx context.Context, projectID int64) ([]generated.Node, error)
 }
 
 type alertRuleServiceServiceRepository interface {
 	GetByID(ctx context.Context, id int64) (generated.Service, error)
+	ListByProject(ctx context.Context, projectID int64) ([]generated.Service, error)
 }
 
 type alertRuleServiceEvaluator interface {
 	EvaluateNodeRules(ctx context.Context, node generated.Node, occurredAt time.Time) error
 	EvaluateServiceRules(ctx context.Context, service generated.Service, occurredAt time.Time) error
 	EvaluateMetricRules(ctx context.Context, nodeID int64, metricName string, occurredAt time.Time) error
+	ReconcileRule(ctx context.Context, rule generated.AlertRule, occurredAt time.Time) error
 }
 
 type AlertRuleService struct {
@@ -106,6 +110,13 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 
 	switch ruleType {
 	case types.AlertRuleTypeNodeOffline:
+		targetScope, scopeErr := normalizeAlertRuleTargetScope(input.TargetScope, input.NodeID != nil)
+		if scopeErr != nil {
+			return types.AlertRuleReadData{}, scopeErr
+		}
+		if targetScope == types.AlertRuleTargetScopeAll {
+			break
+		}
 		if input.NodeID == nil || *input.NodeID <= 0 {
 			return types.AlertRuleReadData{}, types.ErrInvalidNodeID
 		}
@@ -125,6 +136,13 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 
 		nodeID = sql.NullInt64{Int64: node.ID, Valid: true}
 	case types.AlertRuleTypeServiceUnhealthy:
+		targetScope, scopeErr := normalizeAlertRuleTargetScope(input.TargetScope, input.ServiceID != nil)
+		if scopeErr != nil {
+			return types.AlertRuleReadData{}, scopeErr
+		}
+		if targetScope == types.AlertRuleTargetScopeAll {
+			break
+		}
 		if input.ServiceID == nil || *input.ServiceID <= 0 {
 			return types.AlertRuleReadData{}, types.ErrInvalidServiceID
 		}
@@ -144,12 +162,21 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 
 		serviceID = sql.NullInt64{Int64: service.ID, Valid: true}
 	default:
-		if input.NodeID == nil || *input.NodeID <= 0 {
-			return types.AlertRuleReadData{}, types.ErrInvalidNodeID
-		}
-
 		if input.ThresholdValue == nil || *input.ThresholdValue <= 0 {
 			return types.AlertRuleReadData{}, types.ErrInvalidThresholdValue
+		}
+		targetScope, scopeErr := normalizeAlertRuleTargetScope(input.TargetScope, input.NodeID != nil)
+		if scopeErr != nil {
+			return types.AlertRuleReadData{}, scopeErr
+		}
+
+		metricName = sql.NullString{String: metricNameForRuleType(ruleType), Valid: true}
+		thresholdValue = sql.NullFloat64{Float64: *input.ThresholdValue, Valid: true}
+		if targetScope == types.AlertRuleTargetScopeAll {
+			break
+		}
+		if input.NodeID == nil || *input.NodeID <= 0 {
+			return types.AlertRuleReadData{}, types.ErrInvalidNodeID
 		}
 
 		node, err = s.nodeRepo.GetByID(ctx, *input.NodeID)
@@ -165,9 +192,7 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 			return types.AlertRuleReadData{}, types.ErrNodeProjectMismatch
 		}
 
-		metricName = sql.NullString{String: metricNameForRuleType(ruleType), Valid: true}
 		nodeID = sql.NullInt64{Int64: node.ID, Valid: true}
-		thresholdValue = sql.NullFloat64{Float64: *input.ThresholdValue, Valid: true}
 	}
 
 	rule, err := s.alertRuleRepo.Create(ctx, generated.CreateAlertRuleParams{
@@ -184,7 +209,7 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 		return types.AlertRuleReadData{}, fmt.Errorf("create alert rule: %w", err)
 	}
 
-	if err := s.evaluateCurrentState(ctx, rule, node, service); err != nil {
+	if err := s.evaluateCurrentState(ctx, rule); err != nil {
 		return types.AlertRuleReadData{}, err
 	}
 
@@ -194,8 +219,6 @@ func (s *AlertRuleService) Create(ctx context.Context, input types.CreateAlertRu
 func (s *AlertRuleService) evaluateCurrentState(
 	ctx context.Context,
 	rule generated.AlertRule,
-	node generated.Node,
-	service generated.Service,
 ) error {
 	if s.evaluator == nil {
 		return nil
@@ -203,12 +226,24 @@ func (s *AlertRuleService) evaluateCurrentState(
 
 	switch rule.RuleType {
 	case types.AlertRuleTypeNodeOffline:
-		if err := s.evaluator.EvaluateNodeRules(ctx, node, rule.CreatedAt); err != nil {
-			return fmt.Errorf("evaluate current node state: %w", err)
+		nodes, err := s.nodesForRule(ctx, rule)
+		if err != nil {
+			return err
+		}
+		for _, node := range nodes {
+			if err := s.evaluator.EvaluateNodeRules(ctx, node, rule.UpdatedAt); err != nil {
+				return fmt.Errorf("evaluate current node state: %w", err)
+			}
 		}
 	case types.AlertRuleTypeServiceUnhealthy:
-		if err := s.evaluator.EvaluateServiceRules(ctx, service, rule.CreatedAt); err != nil {
-			return fmt.Errorf("evaluate current service state: %w", err)
+		services, err := s.servicesForRule(ctx, rule)
+		if err != nil {
+			return err
+		}
+		for _, service := range services {
+			if err := s.evaluator.EvaluateServiceRules(ctx, service, rule.UpdatedAt); err != nil {
+				return fmt.Errorf("evaluate current service state: %w", err)
+			}
 		}
 	default:
 		metricName := metricNameForRuleType(rule.RuleType)
@@ -216,12 +251,50 @@ func (s *AlertRuleService) evaluateCurrentState(
 			return nil
 		}
 
-		if err := s.evaluator.EvaluateMetricRules(ctx, node.ID, metricName, rule.CreatedAt); err != nil {
-			return fmt.Errorf("evaluate current metric state: %w", err)
+		nodes, err := s.nodesForRule(ctx, rule)
+		if err != nil {
+			return err
+		}
+		for _, node := range nodes {
+			if err := s.evaluator.EvaluateMetricRules(ctx, node.ID, metricName, rule.UpdatedAt); err != nil {
+				return fmt.Errorf("evaluate current metric state: %w", err)
+			}
 		}
 	}
 
 	return nil
+}
+
+func (s *AlertRuleService) nodesForRule(ctx context.Context, rule generated.AlertRule) ([]generated.Node, error) {
+	if !rule.NodeID.Valid {
+		nodes, err := s.nodeRepo.ListVisibleByProject(ctx, rule.ProjectID)
+		if err != nil {
+			return nil, fmt.Errorf("list project nodes: %w", err)
+		}
+		return nodes, nil
+	}
+
+	node, err := s.nodeRepo.GetByID(ctx, rule.NodeID.Int64)
+	if err != nil {
+		return nil, fmt.Errorf("get node: %w", err)
+	}
+	return []generated.Node{node}, nil
+}
+
+func (s *AlertRuleService) servicesForRule(ctx context.Context, rule generated.AlertRule) ([]generated.Service, error) {
+	if !rule.ServiceID.Valid {
+		services, err := s.serviceRepo.ListByProject(ctx, rule.ProjectID)
+		if err != nil {
+			return nil, fmt.Errorf("list project services: %w", err)
+		}
+		return services, nil
+	}
+
+	service, err := s.serviceRepo.GetByID(ctx, rule.ServiceID.Int64)
+	if err != nil {
+		return nil, fmt.Errorf("get service: %w", err)
+	}
+	return []generated.Service{service}, nil
 }
 
 func (s *AlertRuleService) List(ctx context.Context, projectID *int64) ([]types.AlertRuleReadData, error) {
@@ -264,7 +337,7 @@ func (s *AlertRuleService) Update(ctx context.Context, input types.UpdateAlertRu
 		return types.AlertRuleReadData{}, fmt.Errorf("get alert rule: %w", err)
 	}
 
-	nextRule, node, service, err := s.buildUpdatedAlertRule(ctx, currentRule, input)
+	nextRule, err := s.buildUpdatedAlertRule(ctx, currentRule, input)
 	if err != nil {
 		return types.AlertRuleReadData{}, err
 	}
@@ -278,8 +351,14 @@ func (s *AlertRuleService) Update(ctx context.Context, input types.UpdateAlertRu
 		return types.AlertRuleReadData{}, fmt.Errorf("update alert rule: %w", err)
 	}
 
+	if s.evaluator != nil {
+		if err := s.evaluator.ReconcileRule(ctx, rule, rule.UpdatedAt); err != nil {
+			return types.AlertRuleReadData{}, fmt.Errorf("reconcile alert rule scope: %w", err)
+		}
+	}
+
 	if rule.IsEnabled {
-		if err := s.evaluateCurrentState(ctx, rule, node, service); err != nil {
+		if err := s.evaluateCurrentState(ctx, rule); err != nil {
 			return types.AlertRuleReadData{}, err
 		}
 	}
@@ -291,138 +370,156 @@ func (s *AlertRuleService) buildUpdatedAlertRule(
 	ctx context.Context,
 	currentRule generated.AlertRule,
 	input types.UpdateAlertRuleInput,
-) (generated.UpdateAlertRuleParams, generated.Node, generated.Service, error) {
+) (generated.UpdateAlertRuleParams, error) {
 	params := generated.UpdateAlertRuleParams{ID: currentRule.ID}
-	updatedNodeID := currentRule.NodeID
-	updatedServiceID := currentRule.ServiceID
-	node := generated.Node{}
-	service := generated.Service{}
 
 	if input.Severity != nil {
 		severity := normalizeAlertSeverity(*input.Severity)
 		if severity == "" {
-			return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrMissingAlertSeverity
+			return generated.UpdateAlertRuleParams{}, types.ErrMissingAlertSeverity
 		}
 
 		if !isSupportedAlertSeverity(severity) {
-			return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrInvalidAlertSeverity
+			return generated.UpdateAlertRuleParams{}, types.ErrInvalidAlertSeverity
 		}
 
-		params.Column6 = true
+		params.SetSeverity = true
 		params.Severity = severity
 	}
 
 	if input.IsEnabled != nil {
-		params.Column10 = true
+		params.SetIsEnabled = true
 		params.IsEnabled = *input.IsEnabled
 	}
 
 	switch currentRule.RuleType {
 	case types.AlertRuleTypeNodeOffline:
-		if input.NodeID != nil {
-			if *input.NodeID <= 0 {
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrInvalidNodeID
-			}
-
-			var err error
-			node, err = s.nodeRepo.GetByID(ctx, *input.NodeID)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrNodeNotFound
-				}
-
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, fmt.Errorf("get node: %w", err)
-			}
-
-			if node.ProjectID != currentRule.ProjectID {
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrNodeProjectMismatch
-			}
-
-			updatedNodeID = sql.NullInt64{Int64: node.ID, Valid: true}
-			params.Column2 = true
-			params.NodeID = updatedNodeID
-		} else if currentRule.NodeID.Valid {
-			var err error
-			node, err = s.nodeRepo.GetByID(ctx, currentRule.NodeID.Int64)
-			if err != nil {
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, fmt.Errorf("get node: %w", err)
-			}
+		nodeID, changed, err := s.updatedNodeTarget(ctx, currentRule, input)
+		if err != nil {
+			return generated.UpdateAlertRuleParams{}, err
+		}
+		if changed {
+			params.SetNodeID = true
+			params.NodeID = nodeID
 		}
 	case types.AlertRuleTypeServiceUnhealthy:
-		if input.ServiceID != nil {
-			if *input.ServiceID <= 0 {
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrInvalidServiceID
-			}
-
-			var err error
-			service, err = s.serviceRepo.GetByID(ctx, *input.ServiceID)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrServiceNotFound
-				}
-
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, fmt.Errorf("get service: %w", err)
-			}
-
-			if service.ProjectID != currentRule.ProjectID {
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrServiceProjectMismatch
-			}
-
-			updatedServiceID = sql.NullInt64{Int64: service.ID, Valid: true}
-			params.Column4 = true
-			params.ServiceID = updatedServiceID
-		} else if currentRule.ServiceID.Valid {
-			var err error
-			service, err = s.serviceRepo.GetByID(ctx, currentRule.ServiceID.Int64)
-			if err != nil {
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, fmt.Errorf("get service: %w", err)
-			}
+		serviceID, changed, err := s.updatedServiceTarget(ctx, currentRule, input)
+		if err != nil {
+			return generated.UpdateAlertRuleParams{}, err
+		}
+		if changed {
+			params.SetServiceID = true
+			params.ServiceID = serviceID
 		}
 	default:
-		if input.NodeID != nil {
-			if *input.NodeID <= 0 {
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrInvalidNodeID
-			}
-
-			var err error
-			node, err = s.nodeRepo.GetByID(ctx, *input.NodeID)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrNodeNotFound
-				}
-
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, fmt.Errorf("get node: %w", err)
-			}
-
-			if node.ProjectID != currentRule.ProjectID {
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrNodeProjectMismatch
-			}
-
-			updatedNodeID = sql.NullInt64{Int64: node.ID, Valid: true}
-			params.Column2 = true
-			params.NodeID = updatedNodeID
-		} else if currentRule.NodeID.Valid {
-			var err error
-			node, err = s.nodeRepo.GetByID(ctx, currentRule.NodeID.Int64)
-			if err != nil {
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, fmt.Errorf("get node: %w", err)
-			}
+		nodeID, changed, err := s.updatedNodeTarget(ctx, currentRule, input)
+		if err != nil {
+			return generated.UpdateAlertRuleParams{}, err
+		}
+		if changed {
+			params.SetNodeID = true
+			params.NodeID = nodeID
 		}
 
 		if input.ThresholdValue != nil {
 			if *input.ThresholdValue <= 0 {
-				return generated.UpdateAlertRuleParams{}, generated.Node{}, generated.Service{}, types.ErrInvalidThresholdValue
+				return generated.UpdateAlertRuleParams{}, types.ErrInvalidThresholdValue
 			}
 
-			params.Column8 = true
+			params.SetThresholdValue = true
 			params.ThresholdValue = sql.NullFloat64{Float64: *input.ThresholdValue, Valid: true}
 		}
 	}
 
-	_ = updatedNodeID
-	_ = updatedServiceID
+	return params, nil
+}
 
-	return params, node, service, nil
+func (s *AlertRuleService) updatedNodeTarget(
+	ctx context.Context,
+	currentRule generated.AlertRule,
+	input types.UpdateAlertRuleInput,
+) (sql.NullInt64, bool, error) {
+	if input.TargetScope == nil && input.NodeID == nil {
+		return currentRule.NodeID, false, nil
+	}
+
+	if input.TargetScope != nil {
+		scope := strings.ToLower(strings.TrimSpace(*input.TargetScope))
+		if scope != types.AlertRuleTargetScopeAll && scope != types.AlertRuleTargetScopeSpecific {
+			return sql.NullInt64{}, false, types.ErrInvalidAlertRuleTargetScope
+		}
+		if scope == types.AlertRuleTargetScopeAll {
+			if input.NodeID != nil {
+				return sql.NullInt64{}, false, types.ErrInvalidAlertRuleTargetScope
+			}
+			return sql.NullInt64{}, true, nil
+		}
+	}
+
+	nodeID := input.NodeID
+	if nodeID == nil && currentRule.NodeID.Valid {
+		nodeID = &currentRule.NodeID.Int64
+	}
+	if nodeID == nil || *nodeID <= 0 {
+		return sql.NullInt64{}, false, types.ErrInvalidNodeID
+	}
+
+	node, err := s.nodeRepo.GetByID(ctx, *nodeID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.NullInt64{}, false, types.ErrNodeNotFound
+		}
+		return sql.NullInt64{}, false, fmt.Errorf("get node: %w", err)
+	}
+	if node.ProjectID != currentRule.ProjectID {
+		return sql.NullInt64{}, false, types.ErrNodeProjectMismatch
+	}
+
+	return sql.NullInt64{Int64: node.ID, Valid: true}, true, nil
+}
+
+func (s *AlertRuleService) updatedServiceTarget(
+	ctx context.Context,
+	currentRule generated.AlertRule,
+	input types.UpdateAlertRuleInput,
+) (sql.NullInt64, bool, error) {
+	if input.TargetScope == nil && input.ServiceID == nil {
+		return currentRule.ServiceID, false, nil
+	}
+
+	if input.TargetScope != nil {
+		scope := strings.ToLower(strings.TrimSpace(*input.TargetScope))
+		if scope != types.AlertRuleTargetScopeAll && scope != types.AlertRuleTargetScopeSpecific {
+			return sql.NullInt64{}, false, types.ErrInvalidAlertRuleTargetScope
+		}
+		if scope == types.AlertRuleTargetScopeAll {
+			if input.ServiceID != nil {
+				return sql.NullInt64{}, false, types.ErrInvalidAlertRuleTargetScope
+			}
+			return sql.NullInt64{}, true, nil
+		}
+	}
+
+	serviceID := input.ServiceID
+	if serviceID == nil && currentRule.ServiceID.Valid {
+		serviceID = &currentRule.ServiceID.Int64
+	}
+	if serviceID == nil || *serviceID <= 0 {
+		return sql.NullInt64{}, false, types.ErrInvalidServiceID
+	}
+
+	service, err := s.serviceRepo.GetByID(ctx, *serviceID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.NullInt64{}, false, types.ErrServiceNotFound
+		}
+		return sql.NullInt64{}, false, fmt.Errorf("get service: %w", err)
+	}
+	if service.ProjectID != currentRule.ProjectID {
+		return sql.NullInt64{}, false, types.ErrServiceProjectMismatch
+	}
+
+	return sql.NullInt64{Int64: service.ID, Valid: true}, true, nil
 }
 
 func (s *AlertRuleService) Delete(ctx context.Context, alertRuleID int64) error {
@@ -452,6 +549,23 @@ func isSupportedAlertRuleType(ruleType string) bool {
 	default:
 		return false
 	}
+}
+
+func normalizeAlertRuleTargetScope(value string, hasTarget bool) (string, error) {
+	scope := strings.ToLower(strings.TrimSpace(value))
+	if scope == "" {
+		if hasTarget {
+			return types.AlertRuleTargetScopeSpecific, nil
+		}
+		return types.AlertRuleTargetScopeAll, nil
+	}
+	if scope != types.AlertRuleTargetScopeAll && scope != types.AlertRuleTargetScopeSpecific {
+		return "", types.ErrInvalidAlertRuleTargetScope
+	}
+	if scope == types.AlertRuleTargetScopeAll && hasTarget {
+		return "", types.ErrInvalidAlertRuleTargetScope
+	}
+	return scope, nil
 }
 
 func metricNameForRuleType(ruleType string) string {

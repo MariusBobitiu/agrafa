@@ -210,6 +210,11 @@ func mapAlertRules(rows []generated.AlertRule) []types.AlertRuleReadData {
 }
 
 func mapAlertRule(row generated.AlertRule) types.AlertRuleReadData {
+	targetScope := types.AlertRuleTargetScopeAll
+	if row.NodeID.Valid || row.ServiceID.Valid {
+		targetScope = types.AlertRuleTargetScopeSpecific
+	}
+
 	return types.AlertRuleReadData{
 		ID:             row.ID,
 		ProjectID:      row.ProjectID,
@@ -222,6 +227,7 @@ func mapAlertRule(row generated.AlertRule) types.AlertRuleReadData {
 		IsEnabled:      row.IsEnabled,
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
+		TargetScope:    targetScope,
 	}
 }
 

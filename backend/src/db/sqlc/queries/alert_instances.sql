@@ -1,9 +1,18 @@
--- name: FindActiveAlertInstanceByRuleID :one
+-- name: FindActiveAlertInstanceByRuleAndTarget :one
+SELECT *
+FROM app.alert_instances
+WHERE alert_rule_id = sqlc.arg(alert_rule_id)
+  AND node_id IS NOT DISTINCT FROM sqlc.narg(node_id)::bigint
+  AND service_id IS NOT DISTINCT FROM sqlc.narg(service_id)::bigint
+  AND status = 'active'
+LIMIT 1;
+
+-- name: ListActiveAlertInstancesByRuleID :many
 SELECT *
 FROM app.alert_instances
 WHERE alert_rule_id = $1
   AND status = 'active'
-LIMIT 1;
+ORDER BY id;
 
 -- name: CreateAlertInstance :one
 INSERT INTO app.alert_instances (
