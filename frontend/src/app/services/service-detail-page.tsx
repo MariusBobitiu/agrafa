@@ -117,7 +117,11 @@ function PageSkeleton() {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+/**
+ * Renders the service detail page with health, history, outage, alert, and configuration information.
+ *
+ * @returns The service detail page content
+ */
 
 export function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();

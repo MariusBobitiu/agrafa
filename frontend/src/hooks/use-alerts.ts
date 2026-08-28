@@ -111,6 +111,14 @@ function alertHistoryHeadBoundaryIsEqual(previous: AlertPage, next: AlertPage) {
   );
 }
 
+/**
+ * Reconciles the cached alert-history head with the latest server data.
+ *
+ * @param projectId - The project whose alert history is reconciled
+ * @param filters - Filters applied to the alert history
+ * @param limit - Maximum number of alerts in the history head
+ * @param shouldApply - Determines whether fetched data may be applied to the cache
+ */
 export async function reconcileAlertHistoryHead(
   queryClient: QueryClient,
   projectId: number,
@@ -139,6 +147,12 @@ export async function reconcileAlertHistoryHead(
 
 export type ActiveAlertIdentity = Pick<Alert, "id" | "status">;
 
+/**
+ * Creates stable, sorted identities for active alerts.
+ *
+ * @param alerts - The active alerts whose IDs and statuses define their identities
+ * @returns Sorted strings combining each alert's ID and status
+ */
 export function activeAlertIdentities(alerts: readonly ActiveAlertIdentity[]) {
   return alerts.map((alert) => `${alert.id}:${alert.status}`).sort();
 }
@@ -252,6 +266,13 @@ export function useActiveAlerts(projectId: number) {
   return useQuery(activeAlertsQueryOptions(projectId));
 }
 
+/**
+ * Synchronizes alert-history data with the current active-alert page.
+ *
+ * @param activePage - The current page of active alerts, if available.
+ * @param activeDataUpdatedAt - The timestamp when the active-alert data was last updated.
+ * @param limit - The maximum number of alerts in the reconciled history head.
+ */
 export function useAlertHistoryHeadSync(
   projectId: number,
   filters: AlertHistoryFilters,
@@ -268,6 +289,15 @@ export function useAlertHistoryHeadSync(
   );
 }
 
+/**
+ * Synchronizes the alert-history head with the project's active-alert identities.
+ *
+ * @param projectId - The project whose alert history is synchronized
+ * @param filters - Filters applied to the alert-history query
+ * @param activeAlerts - Current active-alert IDs and statuses
+ * @param activeDataUpdatedAt - Timestamp used to detect updated active-alert data
+ * @param limit - Maximum number of alerts in the history head
+ */
 export function useAlertHistoryIdentityHeadSync(
   projectId: number,
   filters: AlertHistoryFilters,
@@ -313,6 +343,12 @@ export function useAlertHistoryIdentityHeadSync(
   }, [activeAlerts, activeDataUpdatedAt, filters, limit, projectId]);
 }
 
+/**
+ * Fetches paginated alert history for a project.
+ *
+ * @param filters - Filters applied to the alert history
+ * @param limit - Maximum number of alerts per page
+ */
 export function useAlertHistory(projectId: number, filters: AlertHistoryFilters, limit = 25) {
   return useInfiniteQuery({
     queryKey: alertHistoryKeys.history(projectId, filters, limit),

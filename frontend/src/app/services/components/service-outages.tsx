@@ -22,6 +22,12 @@ import { cn, formatDate } from "@/lib/utils.ts";
 import type { Alert, Severity } from "@/types/alert.ts";
 import type { ServiceAlert } from "@/types/service.ts";
 
+/**
+ * Determines the CSS classes for displaying an outage severity badge.
+ *
+ * @param severity - The outage severity
+ * @returns The CSS classes corresponding to the severity
+ */
 function severityBadgeClass(severity: Severity) {
   switch (severity) {
     case "critical":
@@ -33,10 +39,21 @@ function severityBadgeClass(severity: Severity) {
   }
 }
 
+/**
+ * Formats a severity value with an uppercase first letter.
+ *
+ * @param severity - The severity value to format
+ * @returns The severity with its first letter capitalized
+ */
 function severityLabel(severity: Severity) {
   return severity.charAt(0).toUpperCase() + severity.slice(1);
 }
 
+/**
+ * Tracks the current time while outages are present.
+ *
+ * @returns The current timestamp in milliseconds.
+ */
 function useOutageClock(outages: readonly ServiceAlert[]) {
   const [now, setNow] = useState(() => Date.now());
   const outageKey = outages.map((outage) => `${outage.id}:${outage.triggered_at}`).join(",");
@@ -51,6 +68,12 @@ function useOutageClock(outages: readonly ServiceAlert[]) {
   return now;
 }
 
+/**
+ * Displays ongoing service outages with their start time, duration, severity, and state.
+ *
+ * @param outages - The ongoing service outages to display
+ * @param now - The current timestamp used to calculate outage durations
+ */
 export function CurrentOutages({
   outages,
   now,
@@ -126,6 +149,11 @@ export function CurrentOutages({
   );
 }
 
+/**
+ * Displays resolved service outages with their start time, recovery time, duration, and severity.
+ *
+ * @param outages - The resolved outages to display.
+ */
 export function ResolvedOutagesTable({ outages }: { outages: readonly Alert[] }) {
   return (
     <div
@@ -188,6 +216,14 @@ export function ResolvedOutagesTable({ outages }: { outages: readonly Alert[] })
   );
 }
 
+/**
+ * Renders controls for loading older outage history and retrying failed requests.
+ *
+ * @param hasNextPage - Whether older outage records are available.
+ * @param isFetchingNextPage - Whether an older-outages request is in progress.
+ * @param isFetchNextPageError - Whether loading older outages failed.
+ * @param onLoadMore - Handles loading or retrying older outages.
+ */
 export function OutageHistoryPagination({
   hasNextPage,
   isFetchingNextPage,
@@ -230,6 +266,9 @@ export function OutageHistoryPagination({
   );
 }
 
+/**
+ * Displays skeleton rows while outage history is loading.
+ */
 function OutageHistoryLoadingState() {
   return (
     <div className="overflow-hidden rounded-lg border border-border" aria-label="Loading outages">
@@ -248,6 +287,9 @@ function OutageHistoryLoadingState() {
   );
 }
 
+/**
+ * Displays an empty state when a service has no recorded outages.
+ */
 function NoOutagesRecorded() {
   return (
     <div className="rounded-lg border border-dashed border-border px-4 py-4">
@@ -259,6 +301,11 @@ function NoOutagesRecorded() {
   );
 }
 
+/**
+ * Displays a warning when outage alerting is not configured for a service.
+ *
+ * @param canManageRules - Whether the user can configure alert rules
+ */
 export function OutageAlertingNotConfigured({ canManageRules }: { canManageRules: boolean }) {
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border bg-muted/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -305,6 +352,19 @@ export type ServiceOutagesContentProps = {
   now?: number;
 };
 
+/**
+ * Renders current and resolved service outages with loading, error, pagination, and alerting configuration states.
+ *
+ * @param currentOutages - Ongoing service outages to display.
+ * @param resolvedOutages - Resolved service outages to display.
+ * @param history - Outage history loading, pagination, and error state.
+ * @param ruleCoverage - Status indicating whether outage alerting is configured.
+ * @param canManageRules - Whether the user can manage alerting rules.
+ * @param onLoadMore - Loads the next page of outage history.
+ * @param onRetryHistory - Retries loading outage history.
+ * @param onRetryRules - Retries checking alerting rule coverage.
+ * @param now - Optional timestamp used instead of the live clock.
+ */
 export function ServiceOutagesContent({
   currentOutages,
   resolvedOutages,
@@ -400,6 +460,12 @@ export function ServiceOutagesContent({
   );
 }
 
+/**
+ * Renders current and resolved outages for a service, including alerting status and history controls.
+ *
+ * @param activeAlerts - The service's active alerts used to identify ongoing outages.
+ * @param serviceDataUpdatedAt - Timestamp used to synchronize outage history with service data.
+ */
 export function ServiceOutagesSection({
   projectId,
   serviceId,

@@ -1,3 +1,9 @@
+/**
+ * Formats a duration as a compact string using seconds, minutes, hours, or days.
+ *
+ * @param durationMilliseconds - The duration in milliseconds.
+ * @returns The formatted duration, or `"—"` for non-finite values.
+ */
 function formatDurationMilliseconds(durationMilliseconds: number): string {
   if (!Number.isFinite(durationMilliseconds)) return "—";
 
@@ -21,6 +27,13 @@ function formatDurationMilliseconds(durationMilliseconds: number): string {
   return hours === 0 ? `${days}d` : `${days}d ${hours}h`;
 }
 
+/**
+ * Formats the elapsed time between an alert's trigger and resolution timestamps.
+ *
+ * @param triggeredAt - The alert trigger timestamp
+ * @param resolvedAt - The alert resolution timestamp
+ * @returns A compact duration string, or `—` if either timestamp is invalid
+ */
 export function formatAlertDuration(triggeredAt: string, resolvedAt: string): string {
   const triggered = Date.parse(triggeredAt);
   const resolved = Date.parse(resolvedAt);
@@ -29,6 +42,13 @@ export function formatAlertDuration(triggeredAt: string, resolvedAt: string): st
   return formatDurationMilliseconds(resolved - triggered);
 }
 
+/**
+ * Formats the elapsed time from an alert trigger to a reference timestamp.
+ *
+ * @param triggeredAt - The alert trigger timestamp
+ * @param now - The reference timestamp in milliseconds since the Unix epoch
+ * @returns The formatted elapsed duration, or `"—"` if `triggeredAt` is invalid
+ */
 export function formatOngoingAlertDuration(triggeredAt: string, now = Date.now()): string {
   const triggered = Date.parse(triggeredAt);
   if (!Number.isFinite(triggered)) return "—";
