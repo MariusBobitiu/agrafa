@@ -8,7 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { alertsApi } from "@/data/alerts.ts";
 import type {
   Alert,
@@ -111,6 +111,14 @@ function alertHistoryHeadBoundaryIsEqual(previous: AlertPage, next: AlertPage) {
   );
 }
 
+/**
+ * Reconciles the cached alert-history head with the latest server data.
+ *
+ * @param projectId - The project whose alert history is reconciled
+ * @param filters - Filters applied to the alert history
+ * @param limit - Maximum number of alerts in the history head
+ * @param shouldApply - Determines whether fetched data may be applied to the cache
+ */
 export async function reconcileAlertHistoryHead(
   queryClient: QueryClient,
   projectId: number,
@@ -137,7 +145,17 @@ export async function reconcileAlertHistoryHead(
   );
 }
 
-export function activeAlertIdentities(alerts: readonly Alert[]) {
+export type ActiveAlertIdentity = Pick<Alert, "id" | "status">;
+
+export type AlertHistoryReconciliationStatus = "idle" | "reconciling" | "error";
+
+/**
+ * Creates stable, sorted identities for active alerts.
+ *
+ * @param alerts - The active alerts whose IDs and statuses define their identities
+ * @returns Sorted strings combining each alert's ID and status
+ */
+export function activeAlertIdentities(alerts: readonly ActiveAlertIdentity[]) {
   return alerts.map((alert) => `${alert.id}:${alert.status}`).sort();
 }
 
@@ -148,9 +166,15 @@ export class ActiveAlertHistorySync {
   private completedGeneration = 0;
   private inFlight: Promise<void> | null = null;
   private reconcile: () => Promise<void>;
+  private onStatusChange: (status: AlertHistoryReconciliationStatus) => void;
+  private status: AlertHistoryReconciliationStatus = "idle";
 
-  constructor(reconcile: () => Promise<void>) {
+  constructor(
+    reconcile: () => Promise<void>,
+    onStatusChange: (status: AlertHistoryReconciliationStatus) => void = () => {},
+  ) {
     this.reconcile = reconcile;
+    this.onStatusChange = onStatusChange;
   }
 
   reset(projectId = 0) {
@@ -158,9 +182,10 @@ export class ActiveAlertHistorySync {
     this.previousIdentities = undefined;
     this.pendingGeneration = 0;
     this.completedGeneration = 0;
+    this.setStatus("idle");
   }
 
-  update(projectId: number, alerts: readonly Alert[]) {
+  update(projectId: number, alerts: readonly ActiveAlertIdentity[]) {
     if (projectId <= 0) {
       this.reset();
       return Promise.resolve();
@@ -206,17 +231,28 @@ export class ActiveAlertHistorySync {
   }
 
   private async run(projectId: number) {
-    if (this.projectId !== projectId || this.completedGeneration >= this.pendingGeneration) return;
+    if (this.projectId !== projectId || this.completedGeneration >= this.pendingGeneration) {
+      if (this.projectId === projectId) this.setStatus("idle");
+      return;
+    }
 
     const targetGeneration = this.pendingGeneration;
+    this.setStatus("reconciling");
     try {
       await this.reconcile();
     } catch {
+      if (this.projectId === projectId) this.setStatus("error");
       return;
     }
     if (this.projectId !== projectId) return;
     this.completedGeneration = targetGeneration;
     await this.run(projectId);
+  }
+
+  private setStatus(status: AlertHistoryReconciliationStatus) {
+    if (this.status === status) return;
+    this.status = status;
+    this.onStatusChange(status);
   }
 }
 
@@ -250,6 +286,13 @@ export function useActiveAlerts(projectId: number) {
   return useQuery(activeAlertsQueryOptions(projectId));
 }
 
+/**
+ * Synchronizes alert-history data with the current active-alert page.
+ *
+ * @param activePage - The current page of active alerts, if available.
+ * @param activeDataUpdatedAt - The timestamp when the active-alert data was last updated.
+ * @param limit - The maximum number of alerts in the reconciled history head.
+ */
 export function useAlertHistoryHeadSync(
   projectId: number,
   filters: AlertHistoryFilters,
@@ -257,14 +300,49 @@ export function useAlertHistoryHeadSync(
   activeDataUpdatedAt: number,
   limit = 25,
 ) {
+  useAlertHistoryIdentityHeadSync(
+    projectId,
+    filters,
+    activePage?.alerts,
+    activeDataUpdatedAt,
+    limit,
+  );
+}
+
+/**
+ * Synchronizes the alert-history head with the project's active-alert identities.
+ *
+ * @param projectId - The project whose alert history is synchronized
+ * @param filters - Filters applied to the alert-history query
+ * @param activeAlerts - Current active-alert IDs and statuses
+ * @param activeDataUpdatedAt - Timestamp used to detect updated active-alert data
+ * @param limit - Maximum number of alerts in the history head
+ */
+export function useAlertHistoryIdentityHeadSync(
+  projectId: number,
+  filters: AlertHistoryFilters,
+  activeAlerts: readonly ActiveAlertIdentity[] | undefined,
+  activeDataUpdatedAt: number,
+  limit = 25,
+) {
   const queryClient = useQueryClient();
   const syncRef = useRef<ActiveAlertHistorySync | null>(null);
+  const reconciliationKey = useMemo(
+    () => JSON.stringify(alertHistoryKeys.historyHead(projectId, filters, limit)),
+    [filters, limit, projectId],
+  );
+  const [reconciliationState, setReconciliationState] = useState<{
+    key: string;
+    status: AlertHistoryReconciliationStatus;
+  }>({ key: reconciliationKey, status: "idle" });
 
   useEffect(() => {
     let shouldApply = true;
     const reconcile = () =>
       reconcileAlertHistoryHead(queryClient, projectId, filters, limit, () => shouldApply);
-    const sync = new ActiveAlertHistorySync(reconcile);
+    const sync = new ActiveAlertHistorySync(reconcile, (status) => {
+      if (shouldApply) setReconciliationState({ key: reconciliationKey, status });
+    });
     syncRef.current = sync;
 
     if (projectId <= 0) {
@@ -282,19 +360,37 @@ export function useAlertHistoryHeadSync(
       sync.reset();
       if (syncRef.current === sync) syncRef.current = null;
     };
-  }, [filters, limit, projectId, queryClient]);
+  }, [filters, limit, projectId, queryClient, reconciliationKey]);
 
   useEffect(() => {
     const sync = syncRef.current;
     if (sync == null) return;
-    if (projectId <= 0 || activePage == null) {
+    if (projectId <= 0 || activeAlerts == null) {
       sync.reset(projectId);
       return;
     }
-    void sync.update(projectId, activePage.alerts);
-  }, [activeDataUpdatedAt, activePage, filters, limit, projectId]);
+    void sync.update(projectId, activeAlerts);
+  }, [activeAlerts, activeDataUpdatedAt, filters, limit, projectId]);
+
+  const retryReconciliation = useCallback(() => {
+    void syncRef.current?.reconcileNow(projectId);
+  }, [projectId]);
+  const status =
+    reconciliationState.key === reconciliationKey ? reconciliationState.status : "idle";
+
+  return {
+    isReconcileError: status === "error",
+    isReconciling: status === "reconciling",
+    retryReconciliation,
+  };
 }
 
+/**
+ * Fetches paginated alert history for a project.
+ *
+ * @param filters - Filters applied to the alert history
+ * @param limit - Maximum number of alerts per page
+ */
 export function useAlertHistory(projectId: number, filters: AlertHistoryFilters, limit = 25) {
   return useInfiniteQuery({
     queryKey: alertHistoryKeys.history(projectId, filters, limit),
