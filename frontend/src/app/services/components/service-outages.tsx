@@ -318,6 +318,7 @@ export function ServiceOutagesContent({
 }: ServiceOutagesContentProps) {
   const liveNow = useOutageClock(currentOutages);
   const displayNow = now ?? liveNow;
+  const outageAlertingNotConfigured = ruleCoverage.status === "success" && !ruleCoverage.covered;
 
   return (
     <section>
@@ -334,6 +335,9 @@ export function ServiceOutagesContent({
       />
       <div className="space-y-3">
         <CurrentOutages outages={currentOutages} now={displayNow} />
+        {outageAlertingNotConfigured ? (
+          <OutageAlertingNotConfigured canManageRules={canManageRules} />
+        ) : null}
 
         {history.status === "pending" ? (
           <OutageHistoryLoadingState />
@@ -365,9 +369,7 @@ export function ServiceOutagesContent({
           <p className="px-1 text-xs text-muted-foreground">No previous outages recorded.</p>
         ) : ruleCoverage.status === "pending" ? (
           <Skeleton className="h-20 w-full rounded-lg" />
-        ) : ruleCoverage.status === "success" && !ruleCoverage.covered ? (
-          <OutageAlertingNotConfigured canManageRules={canManageRules} />
-        ) : (
+        ) : outageAlertingNotConfigured ? null : (
           <>
             <NoOutagesRecorded />
             {ruleCoverage.status === "error" ? (

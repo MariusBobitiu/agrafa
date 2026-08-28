@@ -185,6 +185,53 @@ describe("service outage presentation", () => {
     expect(markup).not.toContain("No outages recorded");
   });
 
+  it("renders resolved outage history alongside missing alerting coverage", () => {
+    const markup = renderEmptyOutages({
+      resolvedOutages: [alert()],
+      ruleCoverage: { status: "success", covered: false },
+    });
+
+    expect(markup).toContain('aria-label="Resolved outages"');
+    expect(markup).toContain("Outage alerting isn’t configured for this service");
+  });
+
+  it("renders resolved outage history without a warning when alerting is covered", () => {
+    const markup = renderEmptyOutages({ resolvedOutages: [alert()] });
+
+    expect(markup).toContain('aria-label="Resolved outages"');
+    expect(markup).not.toContain("isn’t configured");
+  });
+
+  it("keeps resolved outage history visible while coverage is loading", () => {
+    const markup = renderEmptyOutages({
+      resolvedOutages: [alert()],
+      ruleCoverage: { status: "pending" },
+    });
+
+    expect(markup).toContain('aria-label="Resolved outages"');
+    expect(markup).not.toContain("isn’t configured");
+  });
+
+  it("keeps resolved outage history visible when coverage fails to load", () => {
+    const markup = renderEmptyOutages({
+      resolvedOutages: [alert()],
+      ruleCoverage: { status: "error" },
+    });
+
+    expect(markup).toContain('aria-label="Resolved outages"');
+    expect(markup).not.toContain("isn’t configured");
+  });
+
+  it("keeps a current outage visible alongside missing alerting coverage", () => {
+    const markup = renderEmptyOutages({
+      currentOutages: [serviceAlert()],
+      ruleCoverage: { status: "success", covered: false },
+    });
+
+    expect(markup).toContain('aria-label="Current outages"');
+    expect(markup).toContain("Outage alerting isn’t configured for this service");
+  });
+
   it("uses permission-aware alert-rule navigation", () => {
     const managerMarkup = renderWithRouter(<OutageAlertingNotConfigured canManageRules={true} />);
     const viewerMarkup = renderWithRouter(<OutageAlertingNotConfigured canManageRules={false} />);
