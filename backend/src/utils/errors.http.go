@@ -37,6 +37,7 @@ func WriteDomainError(w http.ResponseWriter, err error) bool {
 		errors.Is(err, types.ErrCannotRemoveLastProjectOwner),
 		errors.Is(err, types.ErrInvalidAlertRuleType),
 		errors.Is(err, types.ErrUnsupportedAlertRuleType),
+		errors.Is(err, types.ErrInvalidAlertRuleTargetScope),
 		errors.Is(err, types.ErrInvalidThresholdValue),
 		errors.Is(err, types.ErrInvalidAlertStatus),
 		errors.Is(err, types.ErrInvalidNotificationChannelType),

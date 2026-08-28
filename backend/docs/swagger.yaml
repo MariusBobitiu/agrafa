@@ -143,6 +143,12 @@ definitions:
       severity:
         example: critical
         type: string
+      target_scope:
+        enum:
+        - all
+        - specific
+        example: all
+        type: string
       threshold_value:
         example: 80
         type: number
@@ -176,6 +182,12 @@ definitions:
       severity:
         example: critical
         type: string
+      target_scope:
+        enum:
+        - all
+        - specific
+        example: all
+        type: string
       threshold_value:
         example: 80
         type: number
@@ -201,6 +213,12 @@ definitions:
         type: integer
       severity:
         example: warning
+        type: string
+      target_scope:
+        enum:
+        - all
+        - specific
+        example: specific
         type: string
       threshold_value:
         example: 90

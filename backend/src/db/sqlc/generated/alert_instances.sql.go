@@ -105,16 +105,24 @@ func (q *Queries) CreateAlertInstance(ctx context.Context, arg CreateAlertInstan
 	return i, err
 }
 
-const findActiveAlertInstanceByRuleID = `-- name: FindActiveAlertInstanceByRuleID :one
+const findActiveAlertInstanceByRuleAndTarget = `-- name: FindActiveAlertInstanceByRuleAndTarget :one
 SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, title, message, created_at
 FROM app.alert_instances
 WHERE alert_rule_id = $1
+  AND node_id IS NOT DISTINCT FROM $2::bigint
+  AND service_id IS NOT DISTINCT FROM $3::bigint
   AND status = 'active'
 LIMIT 1
 `
 
-func (q *Queries) FindActiveAlertInstanceByRuleID(ctx context.Context, alertRuleID int64) (AppAlertInstance, error) {
-	row := q.db.QueryRowContext(ctx, findActiveAlertInstanceByRuleID, alertRuleID)
+type FindActiveAlertInstanceByRuleAndTargetParams struct {
+	AlertRuleID int64         `json:"alert_rule_id"`
+	NodeID      sql.NullInt64 `json:"node_id"`
+	ServiceID   sql.NullInt64 `json:"service_id"`
+}
+
+func (q *Queries) FindActiveAlertInstanceByRuleAndTarget(ctx context.Context, arg FindActiveAlertInstanceByRuleAndTargetParams) (AppAlertInstance, error) {
+	row := q.db.QueryRowContext(ctx, findActiveAlertInstanceByRuleAndTarget, arg.AlertRuleID, arg.NodeID, arg.ServiceID)
 	var i AppAlertInstance
 	err := row.Scan(
 		&i.ID,
@@ -392,6 +400,49 @@ func (q *Queries) ListActiveAlertDetailsByServiceID(ctx context.Context, service
 			&i.Title,
 			&i.Status,
 			&i.TriggeredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveAlertInstancesByRuleID = `-- name: ListActiveAlertInstancesByRuleID :many
+SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, title, message, created_at
+FROM app.alert_instances
+WHERE alert_rule_id = $1
+  AND status = 'active'
+ORDER BY id
+`
+
+func (q *Queries) ListActiveAlertInstancesByRuleID(ctx context.Context, alertRuleID int64) ([]AppAlertInstance, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveAlertInstancesByRuleID, alertRuleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppAlertInstance{}
+	for rows.Next() {
+		var i AppAlertInstance
+		if err := rows.Scan(
+			&i.ID,
+			&i.AlertRuleID,
+			&i.ProjectID,
+			&i.NodeID,
+			&i.ServiceID,
+			&i.Status,
+			&i.TriggeredAt,
+			&i.ResolvedAt,
+			&i.Title,
+			&i.Message,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

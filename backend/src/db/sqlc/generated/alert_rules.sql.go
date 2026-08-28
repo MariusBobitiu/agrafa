@@ -162,31 +162,45 @@ const listEnabledAlertRules = `-- name: ListEnabledAlertRules :many
 SELECT id, project_id, node_id, service_id, rule_type, severity, metric_name, threshold_value, is_enabled, created_at, updated_at
 FROM app.alert_rules
 WHERE is_enabled = TRUE
-  AND rule_type = $1
-  AND (NOT $2::boolean OR node_id = $3)
-  AND (NOT $4::boolean OR service_id = $5)
-  AND (NOT $6::boolean OR metric_name = $7)
+  AND project_id = $1
+  AND rule_type = $2
+  AND (
+      NOT $3::boolean
+      OR node_id = $4::bigint
+      OR node_id IS NULL
+  )
+  AND (
+      NOT $5::boolean
+      OR service_id = $6::bigint
+      OR service_id IS NULL
+  )
+  AND (
+      NOT $7::boolean
+      OR metric_name = $8::text
+  )
 ORDER BY id DESC
 `
 
 type ListEnabledAlertRulesParams struct {
-	RuleType   string         `json:"rule_type"`
-	Column2    bool           `json:"column_2"`
-	NodeID     sql.NullInt64  `json:"node_id"`
-	Column4    bool           `json:"column_4"`
-	ServiceID  sql.NullInt64  `json:"service_id"`
-	Column6    bool           `json:"column_6"`
-	MetricName sql.NullString `json:"metric_name"`
+	ProjectID     int64          `json:"project_id"`
+	RuleType      string         `json:"rule_type"`
+	HasNodeID     bool           `json:"has_node_id"`
+	NodeID        sql.NullInt64  `json:"node_id"`
+	HasServiceID  bool           `json:"has_service_id"`
+	ServiceID     sql.NullInt64  `json:"service_id"`
+	HasMetricName bool           `json:"has_metric_name"`
+	MetricName    sql.NullString `json:"metric_name"`
 }
 
 func (q *Queries) ListEnabledAlertRules(ctx context.Context, arg ListEnabledAlertRulesParams) ([]AppAlertRule, error) {
 	rows, err := q.db.QueryContext(ctx, listEnabledAlertRules,
+		arg.ProjectID,
 		arg.RuleType,
-		arg.Column2,
+		arg.HasNodeID,
 		arg.NodeID,
-		arg.Column4,
+		arg.HasServiceID,
 		arg.ServiceID,
-		arg.Column6,
+		arg.HasMetricName,
 		arg.MetricName,
 	)
 	if err != nil {
@@ -224,43 +238,43 @@ func (q *Queries) ListEnabledAlertRules(ctx context.Context, arg ListEnabledAler
 
 const updateAlertRule = `-- name: UpdateAlertRule :one
 UPDATE app.alert_rules
-SET node_id = CASE WHEN $2::boolean THEN $3 ELSE node_id END,
-    service_id = CASE WHEN $4::boolean THEN $5 ELSE service_id END,
-    severity = CASE WHEN $6::boolean THEN $7 ELSE severity END,
-    threshold_value = CASE WHEN $8::boolean THEN $9 ELSE threshold_value END,
-    is_enabled = CASE WHEN $10::boolean THEN $11 ELSE is_enabled END,
+SET node_id = CASE WHEN $1::boolean THEN $2::bigint ELSE node_id END,
+    service_id = CASE WHEN $3::boolean THEN $4::bigint ELSE service_id END,
+    severity = CASE WHEN $5::boolean THEN $6 ELSE severity END,
+    threshold_value = CASE WHEN $7::boolean THEN $8::double precision ELSE threshold_value END,
+    is_enabled = CASE WHEN $9::boolean THEN $10 ELSE is_enabled END,
     updated_at = NOW()
-WHERE id = $1
+WHERE id = $11
 RETURNING id, project_id, node_id, service_id, rule_type, severity, metric_name, threshold_value, is_enabled, created_at, updated_at
 `
 
 type UpdateAlertRuleParams struct {
-	ID             int64           `json:"id"`
-	Column2        bool            `json:"column_2"`
-	NodeID         sql.NullInt64   `json:"node_id"`
-	Column4        bool            `json:"column_4"`
-	ServiceID      sql.NullInt64   `json:"service_id"`
-	Column6        bool            `json:"column_6"`
-	Severity       string          `json:"severity"`
-	Column8        bool            `json:"column_8"`
-	ThresholdValue sql.NullFloat64 `json:"threshold_value"`
-	Column10       bool            `json:"column_10"`
-	IsEnabled      bool            `json:"is_enabled"`
+	SetNodeID         bool            `json:"set_node_id"`
+	NodeID            sql.NullInt64   `json:"node_id"`
+	SetServiceID      bool            `json:"set_service_id"`
+	ServiceID         sql.NullInt64   `json:"service_id"`
+	SetSeverity       bool            `json:"set_severity"`
+	Severity          string          `json:"severity"`
+	SetThresholdValue bool            `json:"set_threshold_value"`
+	ThresholdValue    sql.NullFloat64 `json:"threshold_value"`
+	SetIsEnabled      bool            `json:"set_is_enabled"`
+	IsEnabled         bool            `json:"is_enabled"`
+	ID                int64           `json:"id"`
 }
 
 func (q *Queries) UpdateAlertRule(ctx context.Context, arg UpdateAlertRuleParams) (AppAlertRule, error) {
 	row := q.db.QueryRowContext(ctx, updateAlertRule,
-		arg.ID,
-		arg.Column2,
+		arg.SetNodeID,
 		arg.NodeID,
-		arg.Column4,
+		arg.SetServiceID,
 		arg.ServiceID,
-		arg.Column6,
+		arg.SetSeverity,
 		arg.Severity,
-		arg.Column8,
+		arg.SetThresholdValue,
 		arg.ThresholdValue,
-		arg.Column10,
+		arg.SetIsEnabled,
 		arg.IsEnabled,
+		arg.ID,
 	)
 	var i AppAlertRule
 	err := row.Scan(

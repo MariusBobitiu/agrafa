@@ -114,7 +114,7 @@ func main() {
 
 	notificationService := services.NewNotificationService(notificationRecipientRepo, projectRepo, notificationDeliveryService, nil)
 	notificationService.WithEmailProvider(runtimeEmailProvider)
-	alertEvaluatorService := services.NewAlertEvaluatorService(alertRuleRepo, alertInstanceRepo, metricRepo, eventService, notificationService)
+	alertEvaluatorService := services.NewAlertEvaluatorService(alertRuleRepo, alertInstanceRepo, metricRepo, nodeRepo, eventService, notificationService)
 	alertRuleService := services.NewAlertRuleService(alertRuleRepo, projectRepo, nodeRepo, serviceRepo, alertEvaluatorService)
 	agentAuthService := services.NewAgentAuthService(nodeRepo)
 	nodeStateService := services.NewNodeStateService(nodeRepo, eventService, alertEvaluatorService)

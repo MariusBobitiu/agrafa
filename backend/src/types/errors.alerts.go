@@ -4,6 +4,7 @@ import "errors"
 
 var (
 	ErrInvalidAlertRuleType              = errors.New("rule_type is required")
+	ErrInvalidAlertRuleTargetScope       = errors.New("target_scope must be all or specific")
 	ErrUnsupportedAlertRuleType          = errors.New("invalid rule_type")
 	ErrMissingAlertSeverity              = errors.New("severity is required")
 	ErrInvalidAlertSeverity              = errors.New("severity must be info, warning, or critical")

@@ -169,3 +169,34 @@ func TestServiceCheckHistoryCorrectionUsesOnlyCanonicalPayloadMetadata(t *testin
 		t.Fatalf("corrective migration must use the explicit supported-whitespace character set:\n%s", sql)
 	}
 }
+
+func TestAlertRuleTargetingMigrationPreservesSpecificRulesAndAddsPerTargetIdentity(t *testing.T) {
+	t.Parallel()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+
+	migrationPath := filepath.Join(filepath.Dir(currentFile), "migrations", "app", "000016_alert_rule_targeting.up.sql")
+	contents, err := os.ReadFile(migrationPath)
+	if err != nil {
+		t.Fatalf("read migration file: %v", err)
+	}
+
+	sql := string(contents)
+	for _, expected := range []string{
+		"DROP CONSTRAINT IF EXISTS alert_rules_check",
+		"alert_rules_target_check",
+		"num_nonnulls(node_id, service_id) = 1",
+		"(alert_rule_id, node_id)",
+		"(alert_rule_id, service_id)",
+	} {
+		if !strings.Contains(sql, expected) {
+			t.Fatalf("expected targeting migration to contain %q:\n%s", expected, sql)
+		}
+	}
+	if strings.Contains(strings.ToUpper(sql), "UPDATE APP.ALERT_RULES") {
+		t.Fatalf("targeting migration must not rewrite existing specific rule targets:\n%s", sql)
+	}
+}

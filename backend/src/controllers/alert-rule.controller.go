@@ -54,6 +54,7 @@ func (c *AlertRuleController) Create(w http.ResponseWriter, r *http.Request) {
 		RuleType:       request.RuleType,
 		Severity:       request.Severity,
 		ThresholdValue: request.ThresholdValue,
+		TargetScope:    request.TargetScope,
 	})
 	if err != nil {
 		if utils.WriteDomainError(w, err) {
@@ -128,7 +129,7 @@ func (c *AlertRuleController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if request.NodeID == nil && request.ServiceID == nil && request.Severity == nil &&
+	if request.NodeID == nil && request.ServiceID == nil && request.Severity == nil && request.TargetScope == nil &&
 		request.ThresholdValue == nil && request.IsEnabled == nil {
 		utils.WriteError(w, http.StatusBadRequest, "at least one field must be provided")
 		return
@@ -141,6 +142,7 @@ func (c *AlertRuleController) Update(w http.ResponseWriter, r *http.Request) {
 		Severity:       request.Severity,
 		ThresholdValue: request.ThresholdValue,
 		IsEnabled:      request.IsEnabled,
+		TargetScope:    request.TargetScope,
 	})
 	if err != nil {
 		if utils.WriteDomainError(w, err) {

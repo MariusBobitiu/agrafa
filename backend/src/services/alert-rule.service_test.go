@@ -44,19 +44,19 @@ func (r *fakeAlertRuleServiceAlertRuleRepo) GetByID(_ context.Context, _ int64) 
 
 func (r *fakeAlertRuleServiceAlertRuleRepo) Update(_ context.Context, params generated.UpdateAlertRuleParams) (generated.AlertRule, error) {
 	r.lastUpdateInput = params
-	if params.Column2 {
+	if params.SetNodeID {
 		r.rule.NodeID = params.NodeID
 	}
-	if params.Column4 {
+	if params.SetServiceID {
 		r.rule.ServiceID = params.ServiceID
 	}
-	if params.Column6 {
+	if params.SetSeverity {
 		r.rule.Severity = params.Severity
 	}
-	if params.Column8 {
+	if params.SetThresholdValue {
 		r.rule.ThresholdValue = params.ThresholdValue
 	}
-	if params.Column10 {
+	if params.SetIsEnabled {
 		r.rule.IsEnabled = params.IsEnabled
 	}
 	r.rule.UpdatedAt = time.Date(2026, time.April, 5, 12, 5, 0, 0, time.UTC)
@@ -67,16 +67,16 @@ func (r *fakeAlertRuleServiceAlertRuleRepo) List(_ context.Context, _ *int64) ([
 	return nil, nil
 }
 
-func (r *fakeAlertRuleServiceAlertRuleRepo) ListEnabled(_ context.Context, ruleType string, nodeID *int64, serviceID *int64, metricName *string) ([]generated.AlertRule, error) {
-	if r.rule.ID == 0 || !r.rule.IsEnabled || r.rule.RuleType != ruleType {
+func (r *fakeAlertRuleServiceAlertRuleRepo) ListEnabled(_ context.Context, projectID int64, ruleType string, nodeID *int64, serviceID *int64, metricName *string) ([]generated.AlertRule, error) {
+	if r.rule.ID == 0 || !r.rule.IsEnabled || r.rule.ProjectID != projectID || r.rule.RuleType != ruleType {
 		return nil, nil
 	}
 
-	if nodeID != nil && (!r.rule.NodeID.Valid || r.rule.NodeID.Int64 != *nodeID) {
+	if nodeID != nil && r.rule.NodeID.Valid && r.rule.NodeID.Int64 != *nodeID {
 		return nil, nil
 	}
 
-	if serviceID != nil && (!r.rule.ServiceID.Valid || r.rule.ServiceID.Int64 != *serviceID) {
+	if serviceID != nil && r.rule.ServiceID.Valid && r.rule.ServiceID.Int64 != *serviceID {
 		return nil, nil
 	}
 
@@ -117,6 +117,16 @@ func (r *fakeAlertRuleServiceNodeRepo) GetByID(_ context.Context, id int64) (gen
 	return node, nil
 }
 
+func (r *fakeAlertRuleServiceNodeRepo) ListByProject(_ context.Context, projectID int64) ([]generated.Node, error) {
+	result := make([]generated.Node, 0)
+	for _, node := range r.nodes {
+		if node.ProjectID == projectID {
+			result = append(result, node)
+		}
+	}
+	return result, nil
+}
+
 type fakeAlertRuleServiceServiceRepo struct {
 	services map[int64]generated.Service
 }
@@ -128,6 +138,16 @@ func (r *fakeAlertRuleServiceServiceRepo) GetByID(_ context.Context, id int64) (
 	}
 
 	return service, nil
+}
+
+func (r *fakeAlertRuleServiceServiceRepo) ListByProject(_ context.Context, projectID int64) ([]generated.Service, error) {
+	result := make([]generated.Service, 0)
+	for _, service := range r.services {
+		if service.ProjectID == projectID {
+			result = append(result, service)
+		}
+	}
+	return result, nil
 }
 
 func TestAlertRuleServiceCreatePersistsSeverity(t *testing.T) {
@@ -230,7 +250,7 @@ func TestAlertRuleServiceUpdatePersistsNodeThresholdSeverityAndEnabled(t *testin
 		},
 	}
 	instanceRepo := &fakeAlertInstanceRepo{}
-	evaluator := NewAlertEvaluatorService(repo, instanceRepo, metricRepo, &fakeAlertEventRecorder{}, nil)
+	evaluator := NewAlertEvaluatorService(repo, instanceRepo, metricRepo, &fakeAlertEvaluatorNodeRepo{nodes: map[int64]generated.Node{3: {ID: 3, ProjectID: 1}}}, &fakeAlertEventRecorder{}, nil)
 	service := &AlertRuleService{
 		alertRuleRepo: repo,
 		projectRepo:   &fakeAlertRuleServiceProjectRepo{},
@@ -316,7 +336,7 @@ func TestAlertRuleServiceUpdateEvaluatesCurrentStateForUpdatedNode(t *testing.T)
 		},
 	}
 	instanceRepo := &fakeAlertInstanceRepo{}
-	evaluator := NewAlertEvaluatorService(repo, instanceRepo, metricRepo, &fakeAlertEventRecorder{}, nil)
+	evaluator := NewAlertEvaluatorService(repo, instanceRepo, metricRepo, &fakeAlertEvaluatorNodeRepo{nodes: map[int64]generated.Node{3: {ID: 3, ProjectID: 1}}}, &fakeAlertEventRecorder{}, nil)
 	service := &AlertRuleService{
 		alertRuleRepo: repo,
 		projectRepo:   &fakeAlertRuleServiceProjectRepo{},
@@ -422,7 +442,7 @@ func TestAlertRuleServiceCreateEvaluatesCurrentServiceStateImmediately(t *testin
 
 	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
 	instanceRepo := &fakeAlertInstanceRepo{}
-	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, &fakeAlertEventRecorder{}, nil)
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
 	serviceID := int64(7)
 
 	service := &AlertRuleService{
@@ -466,7 +486,7 @@ func TestAlertRuleServiceCreateEvaluatesCurrentNodeStateImmediately(t *testing.T
 
 	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
 	instanceRepo := &fakeAlertInstanceRepo{}
-	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, &fakeAlertEventRecorder{}, nil)
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
 	nodeID := int64(8)
 
 	service := &AlertRuleService{
@@ -520,7 +540,7 @@ func TestAlertRuleServiceCreateEvaluatesCurrentThresholdStateImmediately(t *test
 			},
 		},
 	}
-	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, metricRepo, &fakeAlertEventRecorder{}, nil)
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, metricRepo, &fakeAlertEvaluatorNodeRepo{nodes: map[int64]generated.Node{9: {ID: 9, ProjectID: 1}}}, &fakeAlertEventRecorder{}, nil)
 	nodeID := int64(9)
 	threshold := 80.0
 
@@ -577,7 +597,7 @@ func TestAlertRuleServiceCreateDoesNotDuplicateExistingActiveAlert(t *testing.T)
 		},
 		nextID: 44,
 	}
-	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, &fakeAlertEventRecorder{}, nil)
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
 	nodeID := int64(10)
 
 	service := &AlertRuleService{
@@ -612,5 +632,225 @@ func TestAlertRuleServiceCreateDoesNotDuplicateExistingActiveAlert(t *testing.T)
 
 	if len(instanceRepo.instances) != 1 {
 		t.Fatalf("expected existing alert instance to be reused, got %d instances", len(instanceRepo.instances))
+	}
+}
+
+func TestAlertRuleServiceCreateGlobalServiceRuleEvaluatesExistingProjectServices(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
+	serviceRepo := &fakeAlertRuleServiceServiceRepo{services: map[int64]generated.Service{
+		7: {ID: 7, ProjectID: 1, CurrentState: types.ServiceStateUnhealthy},
+		8: {ID: 8, ProjectID: 1, CurrentState: types.ServiceStateHealthy},
+		9: {ID: 9, ProjectID: 2, CurrentState: types.ServiceStateUnhealthy},
+	}}
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo,
+		projectRepo: &fakeAlertRuleServiceProjectRepo{projects: map[int64]generated.Project{
+			1: {ID: 1},
+		}},
+		nodeRepo:    &fakeAlertRuleServiceNodeRepo{},
+		serviceRepo: serviceRepo,
+		evaluator:   evaluator,
+	}
+
+	rule, err := service.Create(context.Background(), types.CreateAlertRuleInput{
+		ProjectID: 1, RuleType: types.AlertRuleTypeServiceUnhealthy,
+		Severity: types.AlertSeverityWarning, TargetScope: types.AlertRuleTargetScopeAll,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if rule.ServiceID != nil || rule.TargetScope != types.AlertRuleTargetScopeAll {
+		t.Fatalf("global rule target = service %#v scope %q", rule.ServiceID, rule.TargetScope)
+	}
+	if len(instanceRepo.instances) != 1 || instanceRepo.instances[0].ServiceID.Int64 != 7 {
+		t.Fatalf("instances = %#v, want only unhealthy project service 7", instanceRepo.instances)
+	}
+}
+
+func TestAlertRuleServiceCreateGlobalNodeRuleEvaluatesExistingProjectNodes(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
+	nodeRepo := &fakeAlertRuleServiceNodeRepo{nodes: map[int64]generated.Node{
+		17: {ID: 17, ProjectID: 1, CurrentState: types.NodeStateOffline},
+		18: {ID: 18, ProjectID: 1, CurrentState: types.NodeStateOnline},
+		19: {ID: 19, ProjectID: 2, CurrentState: types.NodeStateOffline},
+	}}
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo,
+		projectRepo:   &fakeAlertRuleServiceProjectRepo{projects: map[int64]generated.Project{1: {ID: 1}}},
+		nodeRepo:      nodeRepo,
+		serviceRepo:   &fakeAlertRuleServiceServiceRepo{},
+		evaluator:     evaluator,
+	}
+
+	_, err := service.Create(context.Background(), types.CreateAlertRuleInput{
+		ProjectID: 1, RuleType: types.AlertRuleTypeNodeOffline,
+		Severity: types.AlertSeverityCritical, TargetScope: types.AlertRuleTargetScopeAll,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if len(instanceRepo.instances) != 1 || instanceRepo.instances[0].NodeID.Int64 != 17 {
+		t.Fatalf("instances = %#v, want only offline project node 17", instanceRepo.instances)
+	}
+}
+
+func TestAlertRuleServiceCreateGlobalMetricRuleEvaluatesLatestMetricsForExistingNodes(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	nodeRepo := &fakeAlertRuleServiceNodeRepo{nodes: map[int64]generated.Node{
+		27: {ID: 27, ProjectID: 1},
+		28: {ID: 28, ProjectID: 1},
+		29: {ID: 29, ProjectID: 2},
+	}}
+	metricRepo := &fakeAlertMetricRepo{samples: map[string]generated.MetricSample{
+		metricKey(27, types.MetricNameCPUUsage): {NodeID: 27, MetricName: types.MetricNameCPUUsage, MetricValue: 95, ObservedAt: time.Now().UTC()},
+		metricKey(28, types.MetricNameCPUUsage): {NodeID: 28, MetricName: types.MetricNameCPUUsage, MetricValue: 40, ObservedAt: time.Now().UTC()},
+		metricKey(29, types.MetricNameCPUUsage): {NodeID: 29, MetricName: types.MetricNameCPUUsage, MetricValue: 99, ObservedAt: time.Now().UTC()},
+	}}
+	evaluator := NewAlertEvaluatorService(
+		ruleRepo,
+		instanceRepo,
+		metricRepo,
+		&fakeAlertEvaluatorNodeRepo{nodes: nodeRepo.nodes},
+		&fakeAlertEventRecorder{},
+		nil,
+	)
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo,
+		projectRepo:   &fakeAlertRuleServiceProjectRepo{projects: map[int64]generated.Project{1: {ID: 1}}},
+		nodeRepo:      nodeRepo,
+		serviceRepo:   &fakeAlertRuleServiceServiceRepo{},
+		evaluator:     evaluator,
+	}
+	threshold := 80.0
+
+	_, err := service.Create(context.Background(), types.CreateAlertRuleInput{
+		ProjectID: 1, RuleType: types.AlertRuleTypeCPUAboveThreshold,
+		Severity: types.AlertSeverityWarning, ThresholdValue: &threshold,
+		TargetScope: types.AlertRuleTargetScopeAll,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if len(instanceRepo.instances) != 1 || instanceRepo.instances[0].NodeID.Int64 != 27 {
+		t.Fatalf("instances = %#v, want only above-threshold project node 27", instanceRepo.instances)
+	}
+}
+
+func TestAlertRuleServiceUpdateSpecificToAllEvaluatesNewTargets(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{rule: generated.AlertRule{
+		ID: 11, ProjectID: 1, ServiceID: sql.NullInt64{Int64: 7, Valid: true},
+		RuleType: types.AlertRuleTypeServiceUnhealthy, Severity: types.AlertSeverityWarning,
+		IsEnabled: true, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}}
+	instanceRepo := &fakeAlertInstanceRepo{nextID: 1, instances: []generated.AlertInstance{{
+		ID: 1, AlertRuleID: 11, ProjectID: 1, ServiceID: sql.NullInt64{Int64: 7, Valid: true},
+		Status: types.AlertStatusActive, TriggeredAt: time.Now().UTC(),
+	}}}
+	serviceRepo := &fakeAlertRuleServiceServiceRepo{services: map[int64]generated.Service{
+		7: {ID: 7, ProjectID: 1, CurrentState: types.ServiceStateUnhealthy},
+		8: {ID: 8, ProjectID: 1, CurrentState: types.ServiceStateUnhealthy},
+	}}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo, projectRepo: &fakeAlertRuleServiceProjectRepo{},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{}, serviceRepo: serviceRepo, evaluator: evaluator,
+	}
+	scope := types.AlertRuleTargetScopeAll
+
+	rule, err := service.Update(context.Background(), types.UpdateAlertRuleInput{ID: 11, TargetScope: &scope})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if rule.TargetScope != types.AlertRuleTargetScopeAll || rule.ServiceID != nil {
+		t.Fatalf("updated rule = %#v, want all services", rule)
+	}
+	if _, err := instanceRepo.FindActiveByRuleAndTarget(context.Background(), 11, sql.NullInt64{}, sql.NullInt64{Int64: 7, Valid: true}); err != nil {
+		t.Fatalf("service 7 active alert should remain: %v", err)
+	}
+	if _, err := instanceRepo.FindActiveByRuleAndTarget(context.Background(), 11, sql.NullInt64{}, sql.NullInt64{Int64: 8, Valid: true}); err != nil {
+		t.Fatalf("service 8 should be evaluated and active: %v", err)
+	}
+}
+
+func TestAlertRuleServiceUpdateAllToSpecificResolvesOutOfScopeTargets(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{rule: generated.AlertRule{
+		ID: 11, ProjectID: 1, RuleType: types.AlertRuleTypeServiceUnhealthy,
+		Severity: types.AlertSeverityWarning, IsEnabled: true,
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}}
+	instanceRepo := &fakeAlertInstanceRepo{nextID: 2, instances: []generated.AlertInstance{
+		{ID: 1, AlertRuleID: 11, ProjectID: 1, ServiceID: sql.NullInt64{Int64: 7, Valid: true}, Status: types.AlertStatusActive, TriggeredAt: time.Now().UTC()},
+		{ID: 2, AlertRuleID: 11, ProjectID: 1, ServiceID: sql.NullInt64{Int64: 8, Valid: true}, Status: types.AlertStatusActive, TriggeredAt: time.Now().UTC()},
+	}}
+	serviceRepo := &fakeAlertRuleServiceServiceRepo{services: map[int64]generated.Service{
+		7: {ID: 7, ProjectID: 1, CurrentState: types.ServiceStateUnhealthy},
+		8: {ID: 8, ProjectID: 1, CurrentState: types.ServiceStateUnhealthy},
+	}}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo, projectRepo: &fakeAlertRuleServiceProjectRepo{},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{}, serviceRepo: serviceRepo, evaluator: evaluator,
+	}
+	scope := types.AlertRuleTargetScopeSpecific
+	serviceID := int64(7)
+
+	_, err := service.Update(context.Background(), types.UpdateAlertRuleInput{
+		ID: 11, TargetScope: &scope, ServiceID: &serviceID,
+	})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if _, err := instanceRepo.FindActiveByRuleAndTarget(context.Background(), 11, sql.NullInt64{}, sql.NullInt64{Int64: 7, Valid: true}); err != nil {
+		t.Fatalf("service 7 active alert should remain: %v", err)
+	}
+	if _, err := instanceRepo.FindActiveByRuleAndTarget(context.Background(), 11, sql.NullInt64{}, sql.NullInt64{Int64: 8, Valid: true}); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("service 8 alert should be resolved, got %v", err)
+	}
+	if instanceRepo.resolveCalls != 1 {
+		t.Fatalf("resolve calls = %d, want 1", instanceRepo.resolveCalls)
+	}
+}
+
+func TestAlertRuleServiceDisableResolvesEveryActiveTarget(t *testing.T) {
+	t.Parallel()
+
+	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{rule: generated.AlertRule{
+		ID: 11, ProjectID: 1, RuleType: types.AlertRuleTypeServiceUnhealthy,
+		Severity: types.AlertSeverityWarning, IsEnabled: true,
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}}
+	instanceRepo := &fakeAlertInstanceRepo{nextID: 2, instances: []generated.AlertInstance{
+		{ID: 1, AlertRuleID: 11, ProjectID: 1, ServiceID: sql.NullInt64{Int64: 7, Valid: true}, Status: types.AlertStatusActive, TriggeredAt: time.Now().UTC()},
+		{ID: 2, AlertRuleID: 11, ProjectID: 1, ServiceID: sql.NullInt64{Int64: 8, Valid: true}, Status: types.AlertStatusActive, TriggeredAt: time.Now().UTC()},
+	}}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
+	service := &AlertRuleService{
+		alertRuleRepo: ruleRepo, projectRepo: &fakeAlertRuleServiceProjectRepo{},
+		nodeRepo: &fakeAlertRuleServiceNodeRepo{}, serviceRepo: &fakeAlertRuleServiceServiceRepo{},
+		evaluator: evaluator,
+	}
+	enabled := false
+
+	_, err := service.Update(context.Background(), types.UpdateAlertRuleInput{ID: 11, IsEnabled: &enabled})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if instanceRepo.resolveCalls != 2 {
+		t.Fatalf("resolve calls = %d, want 2", instanceRepo.resolveCalls)
 	}
 }
