@@ -58,5 +58,35 @@ func TestAlertAdministrativeClosureMigrationDatabaseSemantics(t *testing.T) {
 				NOW(), 'condition_cleared', 'Invalid reason', 'Unsupported closure reason'
 			)
 		`)
+
+		expectPostgresStatementRejected(t, ctx, tx, `
+			INSERT INTO app.alert_instances (
+				id, alert_rule_id, project_id, node_id, status, triggered_at,
+				closed_at, closure_reason, title, message
+			) VALUES (
+				-6104, -5001, -1001, -2001, 'closed', NOW(),
+				NOW(), NULL, 'Invalid closure', 'Missing closure reason'
+			)
+		`)
+
+		expectPostgresStatementRejected(t, ctx, tx, `
+			INSERT INTO app.alert_instances (
+				id, alert_rule_id, project_id, node_id, status, triggered_at,
+				resolved_at, closure_reason, title, message
+			) VALUES (
+				-6105, -5001, -1001, -2001, 'resolved', NOW(),
+				NOW(), 'rule_disabled', 'Invalid resolution', 'Resolved with closure reason'
+			)
+		`)
+
+		expectPostgresStatementRejected(t, ctx, tx, `
+			INSERT INTO app.alert_instances (
+				id, alert_rule_id, project_id, node_id, status, triggered_at,
+				closure_reason, title, message
+			) VALUES (
+				-6106, -5001, -1001, -2001, 'active', NOW(),
+				'rule_disabled', 'Invalid active alert', 'Active with closure reason'
+			)
+		`)
 	})
 }

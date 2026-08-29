@@ -212,6 +212,7 @@ CREATE TABLE app.alert_instances (
             status = 'closed'
             AND resolved_at IS NULL
             AND closed_at IS NOT NULL
+            AND closure_reason IS NOT NULL
             AND closure_reason IN ('rule_disabled', 'rule_scope_changed', 'target_hidden')
         )
     ),
