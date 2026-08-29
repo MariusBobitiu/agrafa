@@ -193,6 +193,25 @@ func TestMapAlertReadRowsAllowsMissingOptionalEntityJoins(t *testing.T) {
 	}
 }
 
+func TestMapAlertReadRowsPreservesAdministrativeClosure(t *testing.T) {
+	t.Parallel()
+
+	closedAt := time.Date(2026, time.August, 29, 14, 32, 0, 0, time.UTC)
+	row := alertReadRow(9, closedAt.Add(-10*time.Minute))
+	row.Status = types.AlertStatusClosed
+	row.ResolvedAt = sql.NullTime{}
+	row.ClosedAt = sql.NullTime{Time: closedAt, Valid: true}
+	row.ClosureReason = sql.NullString{String: types.AlertClosureReasonRuleDisabled, Valid: true}
+
+	alert := mapAlertReadRows([]repositories.AlertReadRow{row})[0]
+	if alert.Status != types.AlertStatusClosed || alert.ResolvedAt != nil || alert.ClosedAt == nil || !alert.ClosedAt.Equal(closedAt) {
+		t.Fatalf("closed alert lifecycle = %#v", alert)
+	}
+	if alert.ClosureReason == nil || *alert.ClosureReason != types.AlertClosureReasonRuleDisabled {
+		t.Fatalf("closure reason = %#v, want rule_disabled", alert.ClosureReason)
+	}
+}
+
 func alertReadRow(id int64, triggeredAt time.Time) repositories.AlertReadRow {
 	return repositories.AlertReadRow{
 		ID: id, AlertRuleID: id + 100, ProjectID: 7,

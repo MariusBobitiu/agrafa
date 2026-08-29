@@ -306,6 +306,8 @@ type AlertDocument struct {
 	Status         string     `json:"status" example:"active"`
 	TriggeredAt    time.Time  `json:"triggered_at" swaggertype:"string" format:"date-time"`
 	ResolvedAt     *time.Time `json:"resolved_at" swaggertype:"string" format:"date-time" extensions:"x-nullable"`
+	ClosedAt       *time.Time `json:"closed_at" swaggertype:"string" format:"date-time" extensions:"x-nullable"`
+	ClosureReason  *string    `json:"closure_reason" example:"rule_disabled" extensions:"x-nullable" enums:"rule_disabled,rule_scope_changed,target_hidden"`
 	Title          string     `json:"title" example:"Public API is unhealthy"`
 	Message        string     `json:"message" example:"Health check returned HTTP 503."`
 	CreatedAt      time.Time  `json:"created_at" swaggertype:"string" format:"date-time"`

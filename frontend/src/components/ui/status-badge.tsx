@@ -9,12 +9,14 @@ type Status =
   | "degraded"
   | "unhealthy"
   | "active"
-  | "resolved";
+  | "resolved"
+  | "closed";
 
 const STATUS_STYLES: Record<Status, string> = {
   online: "bg-primary/10 text-lime-600 dark:text-lime-400 border-primary/20",
   healthy: "bg-primary/10 text-lime-600 dark:text-lime-400 border-primary/20",
   resolved: "bg-primary/10 text-lime-600 dark:text-lime-400 border-primary/20",
+  closed: "bg-muted text-muted-foreground border-muted-foreground/20",
   degraded: "bg-warning/10 text-yellow-600 dark:text-yellow-400 border-warning/20",
   offline: "bg-destructive/10 text-red-600 dark:text-red-400 border-destructive/20",
   unhealthy: "bg-destructive/10 text-red-600 dark:text-red-400 border-destructive/20",

@@ -164,7 +164,7 @@ func (q *Queries) ListEventsByProject(ctx context.Context, arg ListEventsByProje
 const listRecentAlertEvents = `-- name: ListRecentAlertEvents :many
 SELECT id, project_id, node_id, service_id, event_type, severity, title, details, occurred_at, created_at
 FROM app.events
-WHERE event_type IN ('alert_triggered', 'alert_resolved')
+WHERE event_type IN ('alert_triggered', 'alert_resolved', 'alert_closed')
 ORDER BY occurred_at DESC, id DESC
 LIMIT $1
 `
@@ -207,7 +207,7 @@ const listRecentAlertEventsByProject = `-- name: ListRecentAlertEventsByProject 
 SELECT id, project_id, node_id, service_id, event_type, severity, title, details, occurred_at, created_at
 FROM app.events
 WHERE project_id = $1
-  AND event_type IN ('alert_triggered', 'alert_resolved')
+  AND event_type IN ('alert_triggered', 'alert_resolved', 'alert_closed')
 ORDER BY occurred_at DESC, id DESC
 LIMIT $2
 `

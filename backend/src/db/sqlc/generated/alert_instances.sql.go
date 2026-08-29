@@ -11,6 +11,43 @@ import (
 	"time"
 )
 
+const closeAlertInstance = `-- name: CloseAlertInstance :one
+UPDATE app.alert_instances
+SET status = 'closed',
+    closed_at = $2,
+    closure_reason = $3
+WHERE id = $1
+  AND status = 'active'
+RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
+`
+
+type CloseAlertInstanceParams struct {
+	ID            int64          `json:"id"`
+	ClosedAt      sql.NullTime   `json:"closed_at"`
+	ClosureReason sql.NullString `json:"closure_reason"`
+}
+
+func (q *Queries) CloseAlertInstance(ctx context.Context, arg CloseAlertInstanceParams) (AppAlertInstance, error) {
+	row := q.db.QueryRowContext(ctx, closeAlertInstance, arg.ID, arg.ClosedAt, arg.ClosureReason)
+	var i AppAlertInstance
+	err := row.Scan(
+		&i.ID,
+		&i.AlertRuleID,
+		&i.ProjectID,
+		&i.NodeID,
+		&i.ServiceID,
+		&i.Status,
+		&i.TriggeredAt,
+		&i.ResolvedAt,
+		&i.ClosedAt,
+		&i.ClosureReason,
+		&i.Title,
+		&i.Message,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const countActiveAlertInstancesByNodeID = `-- name: CountActiveAlertInstancesByNodeID :one
 SELECT COUNT(*)::bigint
 FROM app.alert_instances
@@ -48,6 +85,8 @@ INSERT INTO app.alert_instances (
     status,
     triggered_at,
     resolved_at,
+    closed_at,
+    closure_reason,
     title,
     message
 ) VALUES (
@@ -59,21 +98,25 @@ INSERT INTO app.alert_instances (
     $6,
     $7,
     $8,
-    $9
+    $9,
+    $10,
+    $11
 )
-RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, title, message, created_at
+RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
 `
 
 type CreateAlertInstanceParams struct {
-	AlertRuleID int64         `json:"alert_rule_id"`
-	ProjectID   int64         `json:"project_id"`
-	NodeID      sql.NullInt64 `json:"node_id"`
-	ServiceID   sql.NullInt64 `json:"service_id"`
-	Status      string        `json:"status"`
-	TriggeredAt time.Time     `json:"triggered_at"`
-	ResolvedAt  sql.NullTime  `json:"resolved_at"`
-	Title       string        `json:"title"`
-	Message     string        `json:"message"`
+	AlertRuleID   int64          `json:"alert_rule_id"`
+	ProjectID     int64          `json:"project_id"`
+	NodeID        sql.NullInt64  `json:"node_id"`
+	ServiceID     sql.NullInt64  `json:"service_id"`
+	Status        string         `json:"status"`
+	TriggeredAt   time.Time      `json:"triggered_at"`
+	ResolvedAt    sql.NullTime   `json:"resolved_at"`
+	ClosedAt      sql.NullTime   `json:"closed_at"`
+	ClosureReason sql.NullString `json:"closure_reason"`
+	Title         string         `json:"title"`
+	Message       string         `json:"message"`
 }
 
 func (q *Queries) CreateAlertInstance(ctx context.Context, arg CreateAlertInstanceParams) (AppAlertInstance, error) {
@@ -85,6 +128,8 @@ func (q *Queries) CreateAlertInstance(ctx context.Context, arg CreateAlertInstan
 		arg.Status,
 		arg.TriggeredAt,
 		arg.ResolvedAt,
+		arg.ClosedAt,
+		arg.ClosureReason,
 		arg.Title,
 		arg.Message,
 	)
@@ -98,6 +143,8 @@ func (q *Queries) CreateAlertInstance(ctx context.Context, arg CreateAlertInstan
 		&i.Status,
 		&i.TriggeredAt,
 		&i.ResolvedAt,
+		&i.ClosedAt,
+		&i.ClosureReason,
 		&i.Title,
 		&i.Message,
 		&i.CreatedAt,
@@ -106,7 +153,7 @@ func (q *Queries) CreateAlertInstance(ctx context.Context, arg CreateAlertInstan
 }
 
 const findActiveAlertInstanceByRuleAndTarget = `-- name: FindActiveAlertInstanceByRuleAndTarget :one
-SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, title, message, created_at
+SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
 FROM app.alert_instances
 WHERE alert_rule_id = $1
   AND node_id IS NOT DISTINCT FROM $2::bigint
@@ -133,6 +180,8 @@ func (q *Queries) FindActiveAlertInstanceByRuleAndTarget(ctx context.Context, ar
 		&i.Status,
 		&i.TriggeredAt,
 		&i.ResolvedAt,
+		&i.ClosedAt,
+		&i.ClosureReason,
 		&i.Title,
 		&i.Message,
 		&i.CreatedAt,
@@ -415,7 +464,7 @@ func (q *Queries) ListActiveAlertDetailsByServiceID(ctx context.Context, service
 }
 
 const listActiveAlertInstancesByRuleID = `-- name: ListActiveAlertInstancesByRuleID :many
-SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, title, message, created_at
+SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
 FROM app.alert_instances
 WHERE alert_rule_id = $1
   AND status = 'active'
@@ -440,6 +489,8 @@ func (q *Queries) ListActiveAlertInstancesByRuleID(ctx context.Context, alertRul
 			&i.Status,
 			&i.TriggeredAt,
 			&i.ResolvedAt,
+			&i.ClosedAt,
+			&i.ClosureReason,
 			&i.Title,
 			&i.Message,
 			&i.CreatedAt,
@@ -472,6 +523,8 @@ SELECT
     ai.status,
     ai.triggered_at,
     ai.resolved_at,
+    ai.closed_at,
+    ai.closure_reason,
     ai.title,
     ai.message,
     ai.created_at
@@ -526,6 +579,8 @@ type ListActiveAlertInstancesForReadRow struct {
 	Status         string         `json:"status"`
 	TriggeredAt    time.Time      `json:"triggered_at"`
 	ResolvedAt     sql.NullTime   `json:"resolved_at"`
+	ClosedAt       sql.NullTime   `json:"closed_at"`
+	ClosureReason  sql.NullString `json:"closure_reason"`
 	Title          string         `json:"title"`
 	Message        string         `json:"message"`
 	CreatedAt      time.Time      `json:"created_at"`
@@ -567,6 +622,8 @@ func (q *Queries) ListActiveAlertInstancesForRead(ctx context.Context, arg ListA
 			&i.Status,
 			&i.TriggeredAt,
 			&i.ResolvedAt,
+			&i.ClosedAt,
+			&i.ClosureReason,
 			&i.Title,
 			&i.Message,
 			&i.CreatedAt,
@@ -599,6 +656,8 @@ SELECT
     ai.status,
     ai.triggered_at,
     ai.resolved_at,
+    ai.closed_at,
+    ai.closure_reason,
     ai.title,
     ai.message,
     ai.created_at
@@ -654,6 +713,8 @@ type ListAlertInstancesRow struct {
 	Status         string         `json:"status"`
 	TriggeredAt    time.Time      `json:"triggered_at"`
 	ResolvedAt     sql.NullTime   `json:"resolved_at"`
+	ClosedAt       sql.NullTime   `json:"closed_at"`
+	ClosureReason  sql.NullString `json:"closure_reason"`
 	Title          string         `json:"title"`
 	Message        string         `json:"message"`
 	CreatedAt      time.Time      `json:"created_at"`
@@ -696,6 +757,8 @@ func (q *Queries) ListAlertInstances(ctx context.Context, arg ListAlertInstances
 			&i.Status,
 			&i.TriggeredAt,
 			&i.ResolvedAt,
+			&i.ClosedAt,
+			&i.ClosureReason,
 			&i.Title,
 			&i.Message,
 			&i.CreatedAt,
@@ -714,7 +777,7 @@ func (q *Queries) ListAlertInstances(ctx context.Context, arg ListAlertInstances
 }
 
 const listAlertInstancesByNodeAndStatus = `-- name: ListAlertInstancesByNodeAndStatus :many
-SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, title, message, created_at
+SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
 FROM app.alert_instances
 WHERE node_id = $1
   AND (NOT $2::boolean OR status = $3)
@@ -752,6 +815,8 @@ func (q *Queries) ListAlertInstancesByNodeAndStatus(ctx context.Context, arg Lis
 			&i.Status,
 			&i.TriggeredAt,
 			&i.ResolvedAt,
+			&i.ClosedAt,
+			&i.ClosureReason,
 			&i.Title,
 			&i.Message,
 			&i.CreatedAt,
@@ -784,6 +849,8 @@ SELECT
     ai.status,
     ai.triggered_at,
     ai.resolved_at,
+    ai.closed_at,
+    ai.closure_reason,
     ai.title,
     ai.message,
     ai.created_at
@@ -791,7 +858,7 @@ FROM app.alert_instances AS ai
 JOIN app.alert_rules AS ar ON ar.id = ai.alert_rule_id
 LEFT JOIN app.nodes AS n ON n.id = ai.node_id
 LEFT JOIN app.services AS s ON s.id = ai.service_id
-WHERE ai.status = 'resolved'
+WHERE ai.status IN ('resolved', 'closed')
   AND (NOT $1::boolean OR ai.project_id = $2)
   AND (NOT $3::boolean OR ai.service_id = $4)
   AND (NOT $5::boolean OR ai.node_id = $6)
@@ -851,6 +918,8 @@ type ListResolvedAlertInstancesForReadRow struct {
 	Status         string         `json:"status"`
 	TriggeredAt    time.Time      `json:"triggered_at"`
 	ResolvedAt     sql.NullTime   `json:"resolved_at"`
+	ClosedAt       sql.NullTime   `json:"closed_at"`
+	ClosureReason  sql.NullString `json:"closure_reason"`
 	Title          string         `json:"title"`
 	Message        string         `json:"message"`
 	CreatedAt      time.Time      `json:"created_at"`
@@ -896,6 +965,8 @@ func (q *Queries) ListResolvedAlertInstancesForRead(ctx context.Context, arg Lis
 			&i.Status,
 			&i.TriggeredAt,
 			&i.ResolvedAt,
+			&i.ClosedAt,
+			&i.ClosureReason,
 			&i.Title,
 			&i.Message,
 			&i.CreatedAt,
@@ -919,7 +990,7 @@ SET status = 'resolved',
     resolved_at = $2
 WHERE id = $1
   AND status = 'active'
-RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, title, message, created_at
+RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
 `
 
 type ResolveAlertInstanceParams struct {
@@ -939,6 +1010,8 @@ func (q *Queries) ResolveAlertInstance(ctx context.Context, arg ResolveAlertInst
 		&i.Status,
 		&i.TriggeredAt,
 		&i.ResolvedAt,
+		&i.ClosedAt,
+		&i.ClosureReason,
 		&i.Title,
 		&i.Message,
 		&i.CreatedAt,

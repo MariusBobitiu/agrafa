@@ -3587,6 +3587,21 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 1
                 },
+                "closed_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "x-nullable": true
+                },
+                "closure_reason": {
+                    "type": "string",
+                    "enum": [
+                        "rule_disabled",
+                        "rule_scope_changed",
+                        "target_hidden"
+                    ],
+                    "x-nullable": true,
+                    "example": "rule_disabled"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"

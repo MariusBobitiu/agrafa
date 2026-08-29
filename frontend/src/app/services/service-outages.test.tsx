@@ -51,6 +51,8 @@ function alert(overrides: Partial<Alert> = {}): Alert {
     status: "resolved",
     triggered_at: "2026-08-28T16:02:00Z",
     resolved_at: "2026-08-28T16:11:14Z",
+    closed_at: null,
+    closure_reason: null,
     ...overrides,
   };
 }
@@ -148,6 +150,13 @@ describe("service outage presentation", () => {
           alert({ id: 4, rule_type: "node_offline" }),
           alert({ id: 5, service_id: 99 }),
           alert({ id: 6, status: "active", resolved_at: null }),
+          alert({
+            id: 7,
+            status: "closed",
+            resolved_at: null,
+            closed_at: "2026-08-28T16:10:00Z",
+            closure_reason: "rule_disabled",
+          }),
         ],
         42,
       ),

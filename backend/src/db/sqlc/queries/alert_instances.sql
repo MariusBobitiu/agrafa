@@ -23,6 +23,8 @@ INSERT INTO app.alert_instances (
     status,
     triggered_at,
     resolved_at,
+    closed_at,
+    closure_reason,
     title,
     message
 ) VALUES (
@@ -34,7 +36,9 @@ INSERT INTO app.alert_instances (
     $6,
     $7,
     $8,
-    $9
+    $9,
+    $10,
+    $11
 )
 RETURNING *;
 
@@ -42,6 +46,15 @@ RETURNING *;
 UPDATE app.alert_instances
 SET status = 'resolved',
     resolved_at = $2
+WHERE id = $1
+  AND status = 'active'
+RETURNING *;
+
+-- name: CloseAlertInstance :one
+UPDATE app.alert_instances
+SET status = 'closed',
+    closed_at = $2,
+    closure_reason = $3
 WHERE id = $1
   AND status = 'active'
 RETURNING *;
@@ -61,6 +74,8 @@ SELECT
     ai.status,
     ai.triggered_at,
     ai.resolved_at,
+    ai.closed_at,
+    ai.closure_reason,
     ai.title,
     ai.message,
     ai.created_at
@@ -100,6 +115,8 @@ SELECT
     ai.status,
     ai.triggered_at,
     ai.resolved_at,
+    ai.closed_at,
+    ai.closure_reason,
     ai.title,
     ai.message,
     ai.created_at
@@ -139,6 +156,8 @@ SELECT
     ai.status,
     ai.triggered_at,
     ai.resolved_at,
+    ai.closed_at,
+    ai.closure_reason,
     ai.title,
     ai.message,
     ai.created_at
@@ -146,7 +165,7 @@ FROM app.alert_instances AS ai
 JOIN app.alert_rules AS ar ON ar.id = ai.alert_rule_id
 LEFT JOIN app.nodes AS n ON n.id = ai.node_id
 LEFT JOIN app.services AS s ON s.id = ai.service_id
-WHERE ai.status = 'resolved'
+WHERE ai.status IN ('resolved', 'closed')
   AND (NOT sqlc.arg(has_project_id)::boolean OR ai.project_id = sqlc.arg(project_id))
   AND (NOT sqlc.arg(has_service_id)::boolean OR ai.service_id = sqlc.arg(service_id))
   AND (NOT sqlc.arg(has_node_id)::boolean OR ai.node_id = sqlc.arg(node_id))

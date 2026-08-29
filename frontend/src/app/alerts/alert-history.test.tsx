@@ -57,6 +57,8 @@ function alert(overrides: Partial<Alert> = {}): Alert {
     status: "active",
     triggered_at: "2026-08-23T10:00:00Z",
     resolved_at: null,
+    closed_at: null,
+    closure_reason: null,
     ...overrides,
   };
 }
@@ -134,6 +136,21 @@ describe("alert presentation", () => {
     expect(formatAlertDuration("2026-08-23T10:00:00Z", "2026-08-23T10:00:42Z")).toBe("42s");
     expect(formatAlertDuration("2026-08-23T10:00:00Z", "2026-08-23T10:03:18Z")).toBe("3m 18s");
     expect(formatAlertDuration("2026-08-23T10:00:00Z", "2026-08-23T11:12:00Z")).toBe("1h 12m");
+  });
+
+  it("renders administrative closure without recovery wording", () => {
+    const closed = alert({
+      status: "closed",
+      resolved_at: null,
+      closed_at: "2026-08-23T10:12:00Z",
+      closure_reason: "rule_disabled",
+    });
+
+    const markup = renderToStaticMarkup(<AlertHistoryTable alerts={[closed]} />);
+
+    expect(markup).toContain("Rule disabled");
+    expect(markup).toContain(">closed<");
+    expect(markup).not.toContain("Recovered");
   });
 
   it("renders loading, empty, and retryable error states", () => {

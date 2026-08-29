@@ -54,6 +54,23 @@ function severityLabel(severity: Severity) {
   return severity.charAt(0).toUpperCase() + severity.slice(1);
 }
 
+function closureReasonLabel(alert: Alert) {
+  switch (alert.closure_reason) {
+    case "rule_disabled":
+      return "Rule disabled";
+    case "rule_scope_changed":
+      return "Rule scope changed";
+    case "target_hidden":
+      return "Target hidden";
+    default:
+      return "Monitoring stopped";
+  }
+}
+
+function alertEndedAt(alert: Alert) {
+  return alert.resolved_at ?? alert.closed_at;
+}
+
 export function ActiveAlertRow({ alert }: { alert: Alert }) {
   return (
     <div className="flex items-stretch" data-alert-id={alert.id}>
@@ -115,8 +132,8 @@ export function AlertHistoryTable({ alerts }: { alerts: Alert[] }) {
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground/70 sm:hidden">
             Triggered {formatRelativeTime(row.original.triggered_at)} ·{" "}
-            {row.original.resolved_at
-              ? formatAlertDuration(row.original.triggered_at, row.original.resolved_at)
+            {alertEndedAt(row.original)
+              ? formatAlertDuration(row.original.triggered_at, alertEndedAt(row.original)!)
               : "Ongoing"}
           </p>
         </>
@@ -153,9 +170,12 @@ export function AlertHistoryTable({ alerts }: { alerts: Alert[] }) {
       cell: ({ row }) => (
         <div>
           <p>{formatRelativeTime(row.original.triggered_at)}</p>
-          {row.original.resolved_at ? (
+          {alertEndedAt(row.original) ? (
             <p className="mt-0.5 text-[11px] text-muted-foreground/60">
-              Recovered {formatRelativeTime(row.original.resolved_at)}
+              {row.original.status === "closed"
+                ? `${closureReasonLabel(row.original)} `
+                : "Recovered "}
+              {formatRelativeTime(alertEndedAt(row.original)!)}
             </p>
           ) : null}
         </div>
@@ -170,8 +190,8 @@ export function AlertHistoryTable({ alerts }: { alerts: Alert[] }) {
         cellClassName: "hidden px-4 py-3 text-xs text-muted-foreground tabular-nums sm:table-cell",
       },
       cell: ({ row }) =>
-        row.original.resolved_at
-          ? formatAlertDuration(row.original.triggered_at, row.original.resolved_at)
+        alertEndedAt(row.original)
+          ? formatAlertDuration(row.original.triggered_at, alertEndedAt(row.original)!)
           : "—",
     },
     {
@@ -450,7 +470,7 @@ export function AlertsPageContent({ activeProjectId }: { activeProjectId: number
 
   useMeta({
     title: "Alerts",
-    description: "View active alerts and resolved alert history for your project",
+    description: "View active alerts and alert history for your project",
   });
 
   const hasDefaultFilters = category === "all" && severity === "all" && resource === "all";
@@ -466,7 +486,7 @@ export function AlertsPageContent({ activeProjectId }: { activeProjectId: number
   if (!hasValidProject) {
     return (
       <div className="mx-auto max-w-6xl space-y-8 p-6">
-        <PageHeader title="Alerts" description="Active alerts and resolved history" />
+        <PageHeader title="Alerts" description="Active alerts and history" />
         <EmptyState message="Select a project to view alerts." />
       </div>
     );
@@ -476,7 +496,7 @@ export function AlertsPageContent({ activeProjectId }: { activeProjectId: number
     <div className="mx-auto max-w-6xl space-y-8 p-6">
       <PageHeader
         title="Alerts"
-        description="Active alerts and resolved history"
+        description="Active alerts and history"
         actions={
           <Button asChild variant="outline" size="sm">
             <Link to="/settings?tab=alert-rules">
@@ -564,7 +584,7 @@ export function AlertsPageContent({ activeProjectId }: { activeProjectId: number
                 onRetry={() => void historyQuery.refetch()}
               />
             ) : historyAlerts.length === 0 ? (
-              <EmptyState message="No resolved alerts match these filters." />
+              <EmptyState message="No alert history matches these filters." />
             ) : (
               <>
                 <AlertHistoryTable alerts={historyAlerts} />

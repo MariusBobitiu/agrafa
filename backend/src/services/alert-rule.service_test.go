@@ -937,7 +937,7 @@ func TestAlertRuleServiceUpdateSpecificToAllEvaluatesNewTargets(t *testing.T) {
 	}
 }
 
-func TestAlertRuleServiceUpdateAllToSpecificResolvesOutOfScopeTargets(t *testing.T) {
+func TestAlertRuleServiceUpdateAllToSpecificClosesOutOfScopeTargets(t *testing.T) {
 	t.Parallel()
 
 	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{rule: generated.AlertRule{
@@ -953,7 +953,9 @@ func TestAlertRuleServiceUpdateAllToSpecificResolvesOutOfScopeTargets(t *testing
 		7: {ID: 7, ProjectID: 1, CurrentState: types.ServiceStateUnhealthy},
 		8: {ID: 8, ProjectID: 1, CurrentState: types.ServiceStateUnhealthy},
 	}}
-	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, &fakeAlertEventRecorder{}, nil)
+	events := &fakeAlertEventRecorder{}
+	notifications := &fakeAlertNotificationService{}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, events, notifications)
 	service := &AlertRuleService{
 		alertRuleRepo: ruleRepo, projectRepo: &fakeAlertRuleServiceProjectRepo{},
 		nodeRepo: &fakeAlertRuleServiceNodeRepo{}, serviceRepo: serviceRepo, evaluator: evaluator,
@@ -971,14 +973,20 @@ func TestAlertRuleServiceUpdateAllToSpecificResolvesOutOfScopeTargets(t *testing
 		t.Fatalf("service 7 active alert should remain: %v", err)
 	}
 	if _, err := instanceRepo.FindActiveByRuleAndTarget(context.Background(), 11, sql.NullInt64{}, sql.NullInt64{Int64: 8, Valid: true}); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatalf("service 8 alert should be resolved, got %v", err)
+		t.Fatalf("service 8 alert should be closed, got %v", err)
 	}
-	if instanceRepo.resolveCalls != 1 {
-		t.Fatalf("resolve calls = %d, want 1", instanceRepo.resolveCalls)
+	if instanceRepo.closeCalls != 1 || instanceRepo.resolveCalls != 0 {
+		t.Fatalf("close/resolve calls = %d/%d, want 1/0", instanceRepo.closeCalls, instanceRepo.resolveCalls)
+	}
+	if instanceRepo.instances[1].ClosureReason.String != types.AlertClosureReasonRuleScopeChanged {
+		t.Fatalf("closure reason = %q, want rule_scope_changed", instanceRepo.instances[1].ClosureReason.String)
+	}
+	if len(events.resolved) != 0 || len(notifications.resolvedCalls) != 0 {
+		t.Fatalf("recovery events/notifications = %d/%d, want 0/0", len(events.resolved), len(notifications.resolvedCalls))
 	}
 }
 
-func TestAlertRuleServiceDisableResolvesEveryActiveTarget(t *testing.T) {
+func TestAlertRuleServiceDisableClosesEveryActiveTarget(t *testing.T) {
 	t.Parallel()
 
 	ruleRepo := &fakeAlertRuleServiceAlertRuleRepo{rule: generated.AlertRule{
@@ -1002,7 +1010,12 @@ func TestAlertRuleServiceDisableResolvesEveryActiveTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
-	if instanceRepo.resolveCalls != 2 {
-		t.Fatalf("resolve calls = %d, want 2", instanceRepo.resolveCalls)
+	if instanceRepo.closeCalls != 2 || instanceRepo.resolveCalls != 0 {
+		t.Fatalf("close/resolve calls = %d/%d, want 2/0", instanceRepo.closeCalls, instanceRepo.resolveCalls)
+	}
+	for _, instance := range instanceRepo.instances {
+		if instance.Status != types.AlertStatusClosed || instance.ClosureReason.String != types.AlertClosureReasonRuleDisabled {
+			t.Fatalf("disabled rule instance = %#v, want rule-disabled closure", instance)
+		}
 	}
 }
