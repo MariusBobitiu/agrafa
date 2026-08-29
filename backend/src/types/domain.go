@@ -39,6 +39,7 @@ const (
 	EventTypeServiceRecovered = "service_recovered"
 	EventTypeAlertTriggered   = "alert_triggered"
 	EventTypeAlertResolved    = "alert_resolved"
+	EventTypeAlertClosed      = "alert_closed"
 )
 
 const (
@@ -54,6 +55,13 @@ const (
 const (
 	AlertStatusActive   = "active"
 	AlertStatusResolved = "resolved"
+	AlertStatusClosed   = "closed"
+)
+
+const (
+	AlertClosureReasonRuleDisabled     = "rule_disabled"
+	AlertClosureReasonRuleScopeChanged = "rule_scope_changed"
+	AlertClosureReasonTargetHidden     = "target_hidden"
 )
 
 const (
@@ -557,6 +565,8 @@ type AlertReadData struct {
 	Status         string     `json:"status"`
 	TriggeredAt    time.Time  `json:"triggered_at"`
 	ResolvedAt     *time.Time `json:"resolved_at"`
+	ClosedAt       *time.Time `json:"closed_at"`
+	ClosureReason  *string    `json:"closure_reason"`
 	Title          string     `json:"title"`
 	Message        string     `json:"message"`
 	CreatedAt      time.Time  `json:"created_at"`

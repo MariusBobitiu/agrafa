@@ -23,6 +23,7 @@ type alertInstanceLifecycleRepository interface {
 	ListActiveByRuleID(ctx context.Context, ruleID int64) ([]generated.AlertInstance, error)
 	Create(ctx context.Context, params generated.CreateAlertInstanceParams) (generated.AlertInstance, error)
 	Resolve(ctx context.Context, id int64, resolvedAt time.Time) (generated.AlertInstance, error)
+	Close(ctx context.Context, id int64, closedAt time.Time, reason string) (generated.AlertInstance, error)
 }
 
 type alertEvaluatorNodeRepository interface {
@@ -36,6 +37,7 @@ type alertMetricRepository interface {
 type alertEventService interface {
 	CreateAlertTriggered(ctx context.Context, rule generated.AlertRule, alert generated.AlertInstance, occurredAt time.Time) error
 	CreateAlertResolved(ctx context.Context, rule generated.AlertRule, alert generated.AlertInstance, occurredAt time.Time) error
+	CreateAlertClosed(ctx context.Context, rule generated.AlertRule, alert generated.AlertInstance, occurredAt time.Time) error
 }
 
 type alertNotificationService interface {
@@ -81,7 +83,7 @@ func (s *AlertEvaluatorService) EvaluateNodeRules(ctx context.Context, node gene
 	for _, rule := range rules {
 		target := alertTarget{NodeID: node.ID}
 		if !node.IsVisible && !rule.NodeID.Valid {
-			if err := s.resolveActiveAlertForTarget(ctx, rule, target, occurredAt); err != nil {
+			if err := s.closeActiveAlertForTarget(ctx, rule, target, occurredAt, types.AlertClosureReasonTargetHidden); err != nil {
 				return err
 			}
 			continue
@@ -139,7 +141,7 @@ func (s *AlertEvaluatorService) EvaluateMetricRules(ctx context.Context, nodeID 
 	for _, rule := range rules {
 		target := alertTarget{NodeID: nodeID}
 		if !node.IsVisible && !rule.NodeID.Valid {
-			if err := s.resolveActiveAlertForTarget(ctx, rule, target, occurredAt); err != nil {
+			if err := s.closeActiveAlertForTarget(ctx, rule, target, occurredAt, types.AlertClosureReasonTargetHidden); err != nil {
 				return err
 			}
 			continue
@@ -189,15 +191,17 @@ func (s *AlertEvaluatorService) applyRuleCondition(
 	case conditionMet:
 		title, message := buildAlertCopy(rule, target, metricValue)
 		alert, createErr := s.alertInstanceRepo.Create(ctx, generated.CreateAlertInstanceParams{
-			AlertRuleID: rule.ID,
-			ProjectID:   rule.ProjectID,
-			NodeID:      nodeID,
-			ServiceID:   serviceID,
-			Status:      types.AlertStatusActive,
-			TriggeredAt: occurredAt,
-			ResolvedAt:  sql.NullTime{},
-			Title:       title,
-			Message:     message,
+			AlertRuleID:   rule.ID,
+			ProjectID:     rule.ProjectID,
+			NodeID:        nodeID,
+			ServiceID:     serviceID,
+			Status:        types.AlertStatusActive,
+			TriggeredAt:   occurredAt,
+			ResolvedAt:    sql.NullTime{},
+			ClosedAt:      sql.NullTime{},
+			ClosureReason: sql.NullString{},
+			Title:         title,
+			Message:       message,
 		})
 		if createErr != nil {
 			if isUniqueViolation(createErr) {
@@ -237,7 +241,11 @@ func (s *AlertEvaluatorService) ReconcileRule(ctx context.Context, rule generate
 		if rule.IsEnabled && ruleAppliesToAlert(rule, alert) {
 			continue
 		}
-		if err := s.resolveActiveAlert(ctx, rule, alert, occurredAt); err != nil {
+		reason := types.AlertClosureReasonRuleScopeChanged
+		if !rule.IsEnabled {
+			reason = types.AlertClosureReasonRuleDisabled
+		}
+		if err := s.closeActiveAlert(ctx, rule, alert, occurredAt, reason); err != nil {
 			return err
 		}
 	}
@@ -245,11 +253,12 @@ func (s *AlertEvaluatorService) ReconcileRule(ctx context.Context, rule generate
 	return nil
 }
 
-func (s *AlertEvaluatorService) resolveActiveAlertForTarget(
+func (s *AlertEvaluatorService) closeActiveAlertForTarget(
 	ctx context.Context,
 	rule generated.AlertRule,
 	target alertTarget,
 	occurredAt time.Time,
+	reason string,
 ) error {
 	activeAlert, hasActiveAlert, err := s.findActiveAlertForTarget(ctx, rule, target)
 	if err != nil {
@@ -259,7 +268,31 @@ func (s *AlertEvaluatorService) resolveActiveAlertForTarget(
 		return nil
 	}
 
-	return s.resolveActiveAlert(ctx, rule, activeAlert, occurredAt)
+	return s.closeActiveAlert(ctx, rule, activeAlert, occurredAt, reason)
+}
+
+func (s *AlertEvaluatorService) closeActiveAlert(
+	ctx context.Context,
+	rule generated.AlertRule,
+	activeAlert generated.AlertInstance,
+	occurredAt time.Time,
+	reason string,
+) error {
+	closedAlert, err := s.alertInstanceRepo.Close(ctx, activeAlert.ID, occurredAt, reason)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("close alert instance: %w", err)
+	}
+
+	if s.eventService != nil {
+		if err := s.eventService.CreateAlertClosed(ctx, rule, closedAlert, occurredAt); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *AlertEvaluatorService) findActiveAlertForTarget(

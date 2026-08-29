@@ -198,3 +198,33 @@ func (s *EventService) CreateAlertResolved(ctx context.Context, rule generated.A
 
 	return nil
 }
+
+func (s *EventService) CreateAlertClosed(ctx context.Context, rule generated.AlertRule, alert generated.AlertInstance, occurredAt time.Time) error {
+	details, err := json.Marshal(map[string]any{
+		"alert_rule_id":     rule.ID,
+		"alert_instance_id": alert.ID,
+		"rule_type":         rule.RuleType,
+		"status":            alert.Status,
+		"closed_at":         nullTimePtr(alert.ClosedAt),
+		"closure_reason":    nullStringPtr(alert.ClosureReason),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal alert close details: %w", err)
+	}
+
+	_, err = s.eventRepo.Create(ctx, generated.CreateEventParams{
+		ProjectID:  alert.ProjectID,
+		NodeID:     alert.NodeID,
+		ServiceID:  alert.ServiceID,
+		EventType:  types.EventTypeAlertClosed,
+		Severity:   types.AlertSeverityInfo,
+		Title:      "Alert closed: " + alert.Title,
+		Details:    details,
+		OccurredAt: occurredAt,
+	})
+	if err != nil {
+		return fmt.Errorf("create alert close event: %w", err)
+	}
+
+	return nil
+}

@@ -197,15 +197,24 @@ CREATE TABLE app.alert_instances (
     project_id BIGINT NOT NULL REFERENCES app.projects(id) ON DELETE CASCADE,
     node_id BIGINT REFERENCES app.nodes(id) ON DELETE CASCADE,
     service_id BIGINT REFERENCES app.services(id) ON DELETE CASCADE,
-    status TEXT NOT NULL CHECK (status IN ('active', 'resolved')),
+    status TEXT NOT NULL CHECK (status IN ('active', 'resolved', 'closed')),
     triggered_at TIMESTAMPTZ NOT NULL,
     resolved_at TIMESTAMPTZ,
+    closed_at TIMESTAMPTZ,
+    closure_reason TEXT,
     title TEXT NOT NULL,
     message TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (
-        (status = 'active' AND resolved_at IS NULL)
-        OR (status = 'resolved' AND resolved_at IS NOT NULL)
+        (status = 'active' AND resolved_at IS NULL AND closed_at IS NULL AND closure_reason IS NULL)
+        OR (status = 'resolved' AND resolved_at IS NOT NULL AND closed_at IS NULL AND closure_reason IS NULL)
+        OR (
+            status = 'closed'
+            AND resolved_at IS NULL
+            AND closed_at IS NOT NULL
+            AND closure_reason IS NOT NULL
+            AND closure_reason IN ('rule_disabled', 'rule_scope_changed', 'target_hidden')
+        )
     ),
     CHECK (num_nonnulls(node_id, service_id) = 1)
 );

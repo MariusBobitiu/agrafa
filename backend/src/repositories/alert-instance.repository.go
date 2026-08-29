@@ -28,6 +28,8 @@ type AlertReadRow struct {
 	Status         string
 	TriggeredAt    time.Time
 	ResolvedAt     sql.NullTime
+	ClosedAt       sql.NullTime
+	ClosureReason  sql.NullString
 	Title          string
 	Message        string
 	CreatedAt      time.Time
@@ -76,6 +78,16 @@ func (r *AlertInstanceRepository) Resolve(ctx context.Context, id int64, resolve
 	})
 }
 
+func (r *AlertInstanceRepository) Close(ctx context.Context, id int64, closedAt time.Time, reason string) (generated.AlertInstance, error) {
+	return withRLSQueries(ctx, r.db, r.queries, func(queries *generated.Queries) (generated.AlertInstance, error) {
+		return queries.CloseAlertInstance(ctx, generated.CloseAlertInstanceParams{
+			ID:            id,
+			ClosedAt:      sql.NullTime{Time: closedAt, Valid: true},
+			ClosureReason: sql.NullString{String: reason, Valid: true},
+		})
+	})
+}
+
 func (r *AlertInstanceRepository) ListForRead(ctx context.Context, filters types.AlertListFilters) ([]AlertReadRow, error) {
 	params := generated.ListAlertInstancesParams{
 		HasProjectID: filters.ProjectID != nil,
@@ -108,6 +120,7 @@ func (r *AlertInstanceRepository) ListForRead(ctx context.Context, filters types
 			ServiceID: row.ServiceID, ServiceName: row.ServiceName,
 			RuleType: row.RuleType, Severity: row.Severity, Status: row.Status,
 			TriggeredAt: row.TriggeredAt, ResolvedAt: row.ResolvedAt,
+			ClosedAt: row.ClosedAt, ClosureReason: row.ClosureReason,
 			Title: row.Title, Message: row.Message, CreatedAt: row.CreatedAt,
 		})
 	}
@@ -145,6 +158,7 @@ func (r *AlertInstanceRepository) ListActiveForRead(ctx context.Context, filters
 			ServiceID: row.ServiceID, ServiceName: row.ServiceName,
 			RuleType: row.RuleType, Severity: row.Severity, Status: row.Status,
 			TriggeredAt: row.TriggeredAt, ResolvedAt: row.ResolvedAt,
+			ClosedAt: row.ClosedAt, ClosureReason: row.ClosureReason,
 			Title: row.Title, Message: row.Message, CreatedAt: row.CreatedAt,
 		})
 	}
@@ -188,6 +202,7 @@ func (r *AlertInstanceRepository) ListResolvedForRead(ctx context.Context, filte
 			ServiceID: row.ServiceID, ServiceName: row.ServiceName,
 			RuleType: row.RuleType, Severity: row.Severity, Status: row.Status,
 			TriggeredAt: row.TriggeredAt, ResolvedAt: row.ResolvedAt,
+			ClosedAt: row.ClosedAt, ClosureReason: row.ClosureReason,
 			Title: row.Title, Message: row.Message, CreatedAt: row.CreatedAt,
 		})
 	}

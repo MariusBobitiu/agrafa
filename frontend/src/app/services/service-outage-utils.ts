@@ -35,11 +35,11 @@ export function otherServiceAlerts(alerts: readonly ServiceAlert[]) {
 }
 
 /**
- * Finds resolved outage alerts for a specific service.
+ * Finds genuinely recovered outage alerts for a specific service.
  *
  * @param alerts - The alerts to search
  * @param serviceId - The service identifier to match
- * @returns The deduplicated resolved service outage alerts for the service
+ * @returns The deduplicated genuinely resolved service outage alerts for the service
  */
 export function resolvedServiceOutages(alerts: readonly Alert[], serviceId: number) {
   return deduplicateAlerts([...alerts]).filter(

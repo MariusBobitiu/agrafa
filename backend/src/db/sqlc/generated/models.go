@@ -22,17 +22,19 @@ type AgrafaMetaInstanceSetting struct {
 }
 
 type AppAlertInstance struct {
-	ID          int64         `json:"id"`
-	AlertRuleID int64         `json:"alert_rule_id"`
-	ProjectID   int64         `json:"project_id"`
-	NodeID      sql.NullInt64 `json:"node_id"`
-	ServiceID   sql.NullInt64 `json:"service_id"`
-	Status      string        `json:"status"`
-	TriggeredAt time.Time     `json:"triggered_at"`
-	ResolvedAt  sql.NullTime  `json:"resolved_at"`
-	Title       string        `json:"title"`
-	Message     string        `json:"message"`
-	CreatedAt   time.Time     `json:"created_at"`
+	ID            int64          `json:"id"`
+	AlertRuleID   int64          `json:"alert_rule_id"`
+	ProjectID     int64          `json:"project_id"`
+	NodeID        sql.NullInt64  `json:"node_id"`
+	ServiceID     sql.NullInt64  `json:"service_id"`
+	Status        string         `json:"status"`
+	TriggeredAt   time.Time      `json:"triggered_at"`
+	ResolvedAt    sql.NullTime   `json:"resolved_at"`
+	ClosedAt      sql.NullTime   `json:"closed_at"`
+	ClosureReason sql.NullString `json:"closure_reason"`
+	Title         string         `json:"title"`
+	Message       string         `json:"message"`
+	CreatedAt     time.Time      `json:"created_at"`
 }
 
 type AppAlertRule struct {

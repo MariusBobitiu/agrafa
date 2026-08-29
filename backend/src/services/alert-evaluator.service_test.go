@@ -48,6 +48,7 @@ type fakeAlertInstanceRepo struct {
 	instances    []generated.AlertInstance
 	createCalls  int
 	resolveCalls int
+	closeCalls   int
 }
 
 func (r *fakeAlertInstanceRepo) FindActiveByRuleAndTarget(_ context.Context, ruleID int64, nodeID sql.NullInt64, serviceID sql.NullInt64) (generated.AlertInstance, error) {
@@ -89,21 +90,37 @@ func (r *fakeAlertInstanceRepo) Create(_ context.Context, params generated.Creat
 	r.nextID++
 
 	instance := generated.AlertInstance{
-		ID:          r.nextID,
-		AlertRuleID: params.AlertRuleID,
-		ProjectID:   params.ProjectID,
-		NodeID:      params.NodeID,
-		ServiceID:   params.ServiceID,
-		Status:      params.Status,
-		TriggeredAt: params.TriggeredAt,
-		ResolvedAt:  params.ResolvedAt,
-		Title:       params.Title,
-		Message:     params.Message,
-		CreatedAt:   params.TriggeredAt,
+		ID:            r.nextID,
+		AlertRuleID:   params.AlertRuleID,
+		ProjectID:     params.ProjectID,
+		NodeID:        params.NodeID,
+		ServiceID:     params.ServiceID,
+		Status:        params.Status,
+		TriggeredAt:   params.TriggeredAt,
+		ResolvedAt:    params.ResolvedAt,
+		ClosedAt:      params.ClosedAt,
+		ClosureReason: params.ClosureReason,
+		Title:         params.Title,
+		Message:       params.Message,
+		CreatedAt:     params.TriggeredAt,
 	}
 
 	r.instances = append(r.instances, instance)
 	return instance, nil
+}
+
+func (r *fakeAlertInstanceRepo) Close(_ context.Context, id int64, closedAt time.Time, reason string) (generated.AlertInstance, error) {
+	for index := range r.instances {
+		if r.instances[index].ID == id && r.instances[index].Status == types.AlertStatusActive {
+			r.closeCalls++
+			r.instances[index].Status = types.AlertStatusClosed
+			r.instances[index].ClosedAt = sql.NullTime{Time: closedAt, Valid: true}
+			r.instances[index].ClosureReason = sql.NullString{String: reason, Valid: true}
+			return r.instances[index], nil
+		}
+	}
+
+	return generated.AlertInstance{}, sql.ErrNoRows
 }
 
 func (r *fakeAlertInstanceRepo) Resolve(_ context.Context, id int64, resolvedAt time.Time) (generated.AlertInstance, error) {
@@ -147,6 +164,7 @@ func (r *fakeAlertMetricRepo) GetLatestNodeMetricByName(_ context.Context, nodeI
 type fakeAlertEventRecorder struct {
 	triggered []generated.AlertInstance
 	resolved  []generated.AlertInstance
+	closed    []generated.AlertInstance
 }
 
 func (r *fakeAlertEventRecorder) CreateAlertTriggered(_ context.Context, _ generated.AlertRule, alert generated.AlertInstance, _ time.Time) error {
@@ -156,6 +174,11 @@ func (r *fakeAlertEventRecorder) CreateAlertTriggered(_ context.Context, _ gener
 
 func (r *fakeAlertEventRecorder) CreateAlertResolved(_ context.Context, _ generated.AlertRule, alert generated.AlertInstance, _ time.Time) error {
 	r.resolved = append(r.resolved, alert)
+	return nil
+}
+
+func (r *fakeAlertEventRecorder) CreateAlertClosed(_ context.Context, _ generated.AlertRule, alert generated.AlertInstance, _ time.Time) error {
+	r.closed = append(r.closed, alert)
 	return nil
 }
 
@@ -239,11 +262,13 @@ func TestEvaluateNodeRulesResolvesOnRecovery(t *testing.T) {
 
 	instanceRepo := &fakeAlertInstanceRepo{}
 	events := &fakeAlertEventRecorder{}
+	notifications := &fakeAlertNotificationService{}
 	service := &AlertEvaluatorService{
-		alertRuleRepo:     &fakeAlertRuleRepo{rules: []generated.AlertRule{rule}},
-		alertInstanceRepo: instanceRepo,
-		metricRepo:        &fakeAlertMetricRepo{},
-		eventService:      events,
+		alertRuleRepo:       &fakeAlertRuleRepo{rules: []generated.AlertRule{rule}},
+		alertInstanceRepo:   instanceRepo,
+		metricRepo:          &fakeAlertMetricRepo{},
+		eventService:        events,
+		notificationService: notifications,
 	}
 
 	if err := service.EvaluateNodeRules(context.Background(), generated.Node{ID: 11, ProjectID: 1, CurrentState: types.NodeStateOffline}, occurredAt); err != nil {
@@ -261,9 +286,130 @@ func TestEvaluateNodeRulesResolvesOnRecovery(t *testing.T) {
 	if len(events.resolved) != 1 {
 		t.Fatalf("expected 1 resolved event, got %d", len(events.resolved))
 	}
+	if len(notifications.resolvedCalls) != 1 {
+		t.Fatalf("expected 1 resolved notification, got %d", len(notifications.resolvedCalls))
+	}
 
 	if _, err := instanceRepo.FindActiveByRuleID(context.Background(), rule.ID); err == nil {
 		t.Fatal("expected no active alert after recovery")
+	}
+}
+
+func TestDisableAndReenableClosesWithoutRecoveryThenRetriggers(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Date(2026, time.August, 29, 20, 2, 0, 0, time.UTC)
+	rule := generated.AlertRule{
+		ID: 200, ProjectID: 1, NodeID: sql.NullInt64{Int64: 10, Valid: true},
+		RuleType: types.AlertRuleTypeNodeOffline, IsEnabled: true,
+	}
+	ruleRepo := &fakeAlertRuleRepo{rules: []generated.AlertRule{rule}}
+	instanceRepo := &fakeAlertInstanceRepo{}
+	events := &fakeAlertEventRecorder{}
+	notifications := &fakeAlertNotificationService{}
+	evaluator := NewAlertEvaluatorService(ruleRepo, instanceRepo, &fakeAlertMetricRepo{}, nil, events, notifications)
+	node := generated.Node{ID: 10, ProjectID: 1, CurrentState: types.NodeStateOffline}
+
+	if err := evaluator.EvaluateNodeRules(context.Background(), node, startedAt); err != nil {
+		t.Fatalf("trigger alert: %v", err)
+	}
+	rule.IsEnabled = false
+	ruleRepo.rules[0] = rule
+	if err := evaluator.ReconcileRule(context.Background(), rule, startedAt.Add(12*time.Minute)); err != nil {
+		t.Fatalf("disable reconciliation: %v", err)
+	}
+
+	if instanceRepo.closeCalls != 1 || instanceRepo.resolveCalls != 0 {
+		t.Fatalf("close/resolve calls = %d/%d, want 1/0", instanceRepo.closeCalls, instanceRepo.resolveCalls)
+	}
+	if len(events.closed) != 1 || len(events.resolved) != 0 {
+		t.Fatalf("closed/resolved events = %d/%d, want 1/0", len(events.closed), len(events.resolved))
+	}
+	if len(notifications.resolvedCalls) != 0 {
+		t.Fatalf("resolved notifications = %d, want 0", len(notifications.resolvedCalls))
+	}
+	if instanceRepo.instances[0].ClosureReason.String != types.AlertClosureReasonRuleDisabled {
+		t.Fatalf("closure reason = %q, want rule_disabled", instanceRepo.instances[0].ClosureReason.String)
+	}
+
+	rule.IsEnabled = true
+	ruleRepo.rules[0] = rule
+	if err := evaluator.EvaluateNodeRules(context.Background(), node, startedAt.Add(18*time.Minute)); err != nil {
+		t.Fatalf("evaluate after re-enable: %v", err)
+	}
+	if instanceRepo.createCalls != 2 || len(notifications.triggeredCalls) != 2 {
+		t.Fatalf("creates/trigger notifications = %d/%d, want 2/2", instanceRepo.createCalls, len(notifications.triggeredCalls))
+	}
+	if instanceRepo.instances[0].Status != types.AlertStatusClosed || instanceRepo.instances[1].Status != types.AlertStatusActive {
+		t.Fatalf("instances = %#v, want closed history then new active alert", instanceRepo.instances)
+	}
+}
+
+func TestRuleDisableClosesServiceAndMetricAlertsAdministratively(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name  string
+		rule  generated.AlertRule
+		alert generated.AlertInstance
+	}{
+		{
+			name:  "service unhealthy",
+			rule:  generated.AlertRule{ID: 201, ProjectID: 1, RuleType: types.AlertRuleTypeServiceUnhealthy},
+			alert: generated.AlertInstance{ID: 1, AlertRuleID: 201, ProjectID: 1, ServiceID: sql.NullInt64{Int64: 21, Valid: true}, Status: types.AlertStatusActive},
+		},
+		{
+			name:  "metric threshold",
+			rule:  generated.AlertRule{ID: 202, ProjectID: 1, RuleType: types.AlertRuleTypeCPUAboveThreshold},
+			alert: generated.AlertInstance{ID: 1, AlertRuleID: 202, ProjectID: 1, NodeID: sql.NullInt64{Int64: 22, Valid: true}, Status: types.AlertStatusActive},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			repo := &fakeAlertInstanceRepo{instances: []generated.AlertInstance{testCase.alert}}
+			events := &fakeAlertEventRecorder{}
+			notifications := &fakeAlertNotificationService{}
+			evaluator := NewAlertEvaluatorService(&fakeAlertRuleRepo{}, repo, &fakeAlertMetricRepo{}, nil, events, notifications)
+
+			if err := evaluator.ReconcileRule(context.Background(), testCase.rule, time.Now().UTC()); err != nil {
+				t.Fatalf("ReconcileRule() error = %v", err)
+			}
+			if repo.instances[0].Status != types.AlertStatusClosed || repo.instances[0].ClosureReason.String != types.AlertClosureReasonRuleDisabled {
+				t.Fatalf("closed alert = %#v", repo.instances[0])
+			}
+			if len(events.resolved) != 0 || len(notifications.resolvedCalls) != 0 {
+				t.Fatalf("recovery event/notification = %d/%d, want 0/0", len(events.resolved), len(notifications.resolvedCalls))
+			}
+		})
+	}
+}
+
+func TestScopeChangeClosesOnlyOutOfScopeNodeWithoutRecovery(t *testing.T) {
+	t.Parallel()
+
+	rule := generated.AlertRule{
+		ID: 203, ProjectID: 1, NodeID: sql.NullInt64{Int64: 31, Valid: true},
+		RuleType: types.AlertRuleTypeNodeOffline, IsEnabled: true,
+	}
+	repo := &fakeAlertInstanceRepo{instances: []generated.AlertInstance{
+		{ID: 1, AlertRuleID: rule.ID, ProjectID: 1, NodeID: sql.NullInt64{Int64: 31, Valid: true}, Status: types.AlertStatusActive},
+		{ID: 2, AlertRuleID: rule.ID, ProjectID: 1, NodeID: sql.NullInt64{Int64: 32, Valid: true}, Status: types.AlertStatusActive},
+	}}
+	events := &fakeAlertEventRecorder{}
+	notifications := &fakeAlertNotificationService{}
+	evaluator := NewAlertEvaluatorService(&fakeAlertRuleRepo{}, repo, &fakeAlertMetricRepo{}, nil, events, notifications)
+
+	if err := evaluator.ReconcileRule(context.Background(), rule, time.Now().UTC()); err != nil {
+		t.Fatalf("ReconcileRule() error = %v", err)
+	}
+	if repo.instances[0].Status != types.AlertStatusActive {
+		t.Fatalf("in-scope node status = %q, want active", repo.instances[0].Status)
+	}
+	if repo.instances[1].Status != types.AlertStatusClosed || repo.instances[1].ClosureReason.String != types.AlertClosureReasonRuleScopeChanged {
+		t.Fatalf("out-of-scope node alert = %#v", repo.instances[1])
+	}
+	if len(events.closed) != 1 || len(events.resolved) != 0 || len(notifications.resolvedCalls) != 0 {
+		t.Fatalf("closed/resolved events and recovery notifications = %d/%d/%d, want 1/0/0", len(events.closed), len(events.resolved), len(notifications.resolvedCalls))
 	}
 }
 
@@ -707,21 +853,24 @@ func TestGlobalMetricRuleCoversMultipleNodes(t *testing.T) {
 	}
 }
 
-func TestHiddenNodeResolvesActiveGlobalNodeAlert(t *testing.T) {
+func TestHiddenNodeClosesActiveGlobalNodeAlert(t *testing.T) {
 	t.Parallel()
 
 	rule := generated.AlertRule{
 		ID: 110, ProjectID: 1, RuleType: types.AlertRuleTypeNodeOffline, IsEnabled: true,
 	}
 	instanceRepo := &fakeAlertInstanceRepo{}
+	events := &fakeAlertEventRecorder{}
+	notifications := &fakeAlertNotificationService{}
 	evaluator := &AlertEvaluatorService{
-		alertRuleRepo:     &fakeAlertRuleRepo{rules: []generated.AlertRule{rule}},
-		alertInstanceRepo: instanceRepo,
-		metricRepo:        &fakeAlertMetricRepo{},
-		eventService:      &fakeAlertEventRecorder{},
+		alertRuleRepo:       &fakeAlertRuleRepo{rules: []generated.AlertRule{rule}},
+		alertInstanceRepo:   instanceRepo,
+		metricRepo:          &fakeAlertMetricRepo{},
+		eventService:        events,
+		notificationService: notifications,
 	}
 	triggeredAt := time.Date(2026, time.August, 28, 10, 0, 0, 0, time.UTC)
-	resolvedAt := triggeredAt.Add(time.Minute)
+	closedAt := triggeredAt.Add(time.Minute)
 	node := generated.Node{
 		ID: 61, ProjectID: 1, IsVisible: true, CurrentState: types.NodeStateOffline,
 	}
@@ -730,24 +879,28 @@ func TestHiddenNodeResolvesActiveGlobalNodeAlert(t *testing.T) {
 		t.Fatalf("evaluate visible offline node: %v", err)
 	}
 	node.IsVisible = false
-	if err := evaluator.EvaluateNodeRules(context.Background(), node, resolvedAt); err != nil {
+	if err := evaluator.EvaluateNodeRules(context.Background(), node, closedAt); err != nil {
 		t.Fatalf("evaluate hidden node: %v", err)
 	}
 
 	if instanceRepo.createCalls != 1 {
 		t.Fatalf("create calls = %d, want 1", instanceRepo.createCalls)
 	}
-	if instanceRepo.resolveCalls != 1 {
-		t.Fatalf("resolve calls = %d, want 1", instanceRepo.resolveCalls)
+	if instanceRepo.closeCalls != 1 || instanceRepo.resolveCalls != 0 {
+		t.Fatalf("close/resolve calls = %d/%d, want 1/0", instanceRepo.closeCalls, instanceRepo.resolveCalls)
 	}
-	if instanceRepo.instances[0].Status != types.AlertStatusResolved ||
-		!instanceRepo.instances[0].ResolvedAt.Valid ||
-		!instanceRepo.instances[0].ResolvedAt.Time.Equal(resolvedAt) {
-		t.Fatalf("resolved instance = %#v, want resolution at %v", instanceRepo.instances[0], resolvedAt)
+	if instanceRepo.instances[0].Status != types.AlertStatusClosed ||
+		!instanceRepo.instances[0].ClosedAt.Valid ||
+		!instanceRepo.instances[0].ClosedAt.Time.Equal(closedAt) ||
+		instanceRepo.instances[0].ClosureReason.String != types.AlertClosureReasonTargetHidden {
+		t.Fatalf("closed instance = %#v, want target-hidden closure at %v", instanceRepo.instances[0], closedAt)
+	}
+	if len(events.closed) != 1 || len(events.resolved) != 0 || len(notifications.resolvedCalls) != 0 {
+		t.Fatalf("closed/resolved events and recovery notifications = %d/%d/%d, want 1/0/0", len(events.closed), len(events.resolved), len(notifications.resolvedCalls))
 	}
 }
 
-func TestHiddenNodeResolvesActiveGlobalMetricAlert(t *testing.T) {
+func TestHiddenNodeClosesActiveGlobalMetricAlert(t *testing.T) {
 	t.Parallel()
 
 	rule := generated.AlertRule{
@@ -756,7 +909,7 @@ func TestHiddenNodeResolvesActiveGlobalMetricAlert(t *testing.T) {
 		ThresholdValue: sql.NullFloat64{Float64: 80, Valid: true}, IsEnabled: true,
 	}
 	observedAt := time.Date(2026, time.August, 28, 10, 0, 0, 0, time.UTC)
-	resolvedAt := observedAt.Add(time.Minute)
+	closedAt := observedAt.Add(time.Minute)
 	metricRepo := &fakeAlertMetricRepo{samples: map[string]generated.MetricSample{
 		metricKey(71, types.MetricNameCPUUsage): {
 			NodeID: 71, MetricName: types.MetricNameCPUUsage, MetricValue: 95, ObservedAt: observedAt,
@@ -780,20 +933,21 @@ func TestHiddenNodeResolvesActiveGlobalMetricAlert(t *testing.T) {
 	node := nodes[71]
 	node.IsVisible = false
 	nodes[71] = node
-	if err := evaluator.EvaluateMetricRules(context.Background(), 71, types.MetricNameCPUUsage, resolvedAt); err != nil {
+	if err := evaluator.EvaluateMetricRules(context.Background(), 71, types.MetricNameCPUUsage, closedAt); err != nil {
 		t.Fatalf("evaluate hidden node metric: %v", err)
 	}
 
 	if instanceRepo.createCalls != 1 {
 		t.Fatalf("create calls = %d, want 1", instanceRepo.createCalls)
 	}
-	if instanceRepo.resolveCalls != 1 {
-		t.Fatalf("resolve calls = %d, want 1", instanceRepo.resolveCalls)
+	if instanceRepo.closeCalls != 1 || instanceRepo.resolveCalls != 0 {
+		t.Fatalf("close/resolve calls = %d/%d, want 1/0", instanceRepo.closeCalls, instanceRepo.resolveCalls)
 	}
-	if instanceRepo.instances[0].Status != types.AlertStatusResolved ||
-		!instanceRepo.instances[0].ResolvedAt.Valid ||
-		!instanceRepo.instances[0].ResolvedAt.Time.Equal(resolvedAt) {
-		t.Fatalf("resolved instance = %#v, want resolution at %v", instanceRepo.instances[0], resolvedAt)
+	if instanceRepo.instances[0].Status != types.AlertStatusClosed ||
+		!instanceRepo.instances[0].ClosedAt.Valid ||
+		!instanceRepo.instances[0].ClosedAt.Time.Equal(closedAt) ||
+		instanceRepo.instances[0].ClosureReason.String != types.AlertClosureReasonTargetHidden {
+		t.Fatalf("closed instance = %#v, want target-hidden closure at %v", instanceRepo.instances[0], closedAt)
 	}
 }
 
@@ -817,12 +971,12 @@ func TestHiddenGlobalTargetWithoutActiveAlertIsNoOp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EvaluateNodeRules() error = %v", err)
 	}
-	if instanceRepo.createCalls != 0 || instanceRepo.resolveCalls != 0 {
-		t.Fatalf("lifecycle calls = create %d resolve %d, want no-op", instanceRepo.createCalls, instanceRepo.resolveCalls)
+	if instanceRepo.createCalls != 0 || instanceRepo.resolveCalls != 0 || instanceRepo.closeCalls != 0 {
+		t.Fatalf("lifecycle calls = create %d resolve %d close %d, want no-op", instanceRepo.createCalls, instanceRepo.resolveCalls, instanceRepo.closeCalls)
 	}
 }
 
-func TestHiddenNodeResolutionIsTargetSpecific(t *testing.T) {
+func TestHiddenNodeClosureIsTargetSpecific(t *testing.T) {
 	t.Parallel()
 
 	rule := generated.AlertRule{
@@ -861,8 +1015,8 @@ func TestHiddenNodeResolutionIsTargetSpecific(t *testing.T) {
 	); err != nil {
 		t.Fatalf("node 92 should remain active: %v", err)
 	}
-	if instanceRepo.resolveCalls != 1 {
-		t.Fatalf("resolve calls = %d, want 1", instanceRepo.resolveCalls)
+	if instanceRepo.closeCalls != 1 || instanceRepo.resolveCalls != 0 {
+		t.Fatalf("close/resolve calls = %d/%d, want 1/0", instanceRepo.closeCalls, instanceRepo.resolveCalls)
 	}
 }
 

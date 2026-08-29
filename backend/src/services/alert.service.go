@@ -122,6 +122,8 @@ func mapAlertReadRows(rows []repositories.AlertReadRow) []types.AlertReadData {
 			Status:         row.Status,
 			TriggeredAt:    row.TriggeredAt,
 			ResolvedAt:     nullTimePtr(row.ResolvedAt),
+			ClosedAt:       nullTimePtr(row.ClosedAt),
+			ClosureReason:  nullStringPtr(row.ClosureReason),
 			Title:          row.Title,
 			Message:        row.Message,
 			CreatedAt:      row.CreatedAt,

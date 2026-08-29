@@ -1,4 +1,6 @@
-export type AlertStatus = "active" | "resolved";
+export type AlertStatus = "active" | "resolved" | "closed";
+
+export type AlertClosureReason = "rule_disabled" | "rule_scope_changed" | "target_hidden";
 
 export type AlertCategory = "node" | "service" | "metric";
 
@@ -43,6 +45,8 @@ export type Alert = {
   status: AlertStatus;
   triggered_at: string;
   resolved_at: string | null;
+  closed_at: string | null;
+  closure_reason: AlertClosureReason | null;
 };
 
 export type AlertHistoryFilters = {

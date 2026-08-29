@@ -186,17 +186,19 @@ func mapAlerts(rows []generated.AlertInstance) []types.AlertReadData {
 
 func mapAlert(row generated.AlertInstance) types.AlertReadData {
 	return types.AlertReadData{
-		ID:          row.ID,
-		AlertRuleID: row.AlertRuleID,
-		ProjectID:   row.ProjectID,
-		NodeID:      nullInt64Ptr(row.NodeID),
-		ServiceID:   nullInt64Ptr(row.ServiceID),
-		Status:      row.Status,
-		TriggeredAt: row.TriggeredAt,
-		ResolvedAt:  nullTimePtr(row.ResolvedAt),
-		Title:       row.Title,
-		Message:     row.Message,
-		CreatedAt:   row.CreatedAt,
+		ID:            row.ID,
+		AlertRuleID:   row.AlertRuleID,
+		ProjectID:     row.ProjectID,
+		NodeID:        nullInt64Ptr(row.NodeID),
+		ServiceID:     nullInt64Ptr(row.ServiceID),
+		Status:        row.Status,
+		TriggeredAt:   row.TriggeredAt,
+		ResolvedAt:    nullTimePtr(row.ResolvedAt),
+		ClosedAt:      nullTimePtr(row.ClosedAt),
+		ClosureReason: nullStringPtr(row.ClosureReason),
+		Title:         row.Title,
+		Message:       row.Message,
+		CreatedAt:     row.CreatedAt,
 	}
 }
 

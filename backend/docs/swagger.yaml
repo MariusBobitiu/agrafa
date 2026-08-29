@@ -61,6 +61,18 @@ definitions:
       alert_rule_id:
         example: 1
         type: integer
+      closed_at:
+        format: date-time
+        type: string
+        x-nullable: true
+      closure_reason:
+        enum:
+        - rule_disabled
+        - rule_scope_changed
+        - target_hidden
+        example: rule_disabled
+        type: string
+        x-nullable: true
       created_at:
         format: date-time
         type: string

@@ -36,7 +36,7 @@ LIMIT $2;
 -- name: ListRecentAlertEvents :many
 SELECT *
 FROM app.events
-WHERE event_type IN ('alert_triggered', 'alert_resolved')
+WHERE event_type IN ('alert_triggered', 'alert_resolved', 'alert_closed')
 ORDER BY occurred_at DESC, id DESC
 LIMIT $1;
 
@@ -44,6 +44,6 @@ LIMIT $1;
 SELECT *
 FROM app.events
 WHERE project_id = $1
-  AND event_type IN ('alert_triggered', 'alert_resolved')
+  AND event_type IN ('alert_triggered', 'alert_resolved', 'alert_closed')
 ORDER BY occurred_at DESC, id DESC
 LIMIT $2;
