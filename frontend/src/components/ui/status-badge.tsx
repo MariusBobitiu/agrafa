@@ -28,7 +28,11 @@ export function StatusBadge({ status }: { status: Status }) {
   return (
     <Badge
       variant="outline"
-      className={cn("capitalize text-xs font-medium", STATUS_STYLES[status])}
+      className={cn(
+        "capitalize text-xs font-medium",
+        (status === "resolved" || status === "closed") && "min-w-18 justify-center",
+        STATUS_STYLES[status],
+      )}
     >
       {status}
     </Badge>

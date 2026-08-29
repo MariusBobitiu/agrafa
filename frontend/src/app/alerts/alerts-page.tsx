@@ -3,6 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { AlertTriangleIcon, BellPlusIcon, ClockIcon, SirenIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { SectionHeading } from "@/components/section-heading.tsx";
+import { RelativeTime } from "@/components/relative-time.tsx";
 import {
   alertResourceLabel,
   alertResourceForProject,
@@ -35,7 +36,7 @@ import { useNodes } from "@/hooks/use-nodes.ts";
 import { useServices } from "@/hooks/use-services.ts";
 import { useCanWrite } from "@/hooks/use-project-role.ts";
 import { formatAlertDuration } from "@/lib/alert-duration.ts";
-import { cn, formatRelativeTime } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils.ts";
 import { useUIStore } from "@/stores/ui-store.ts";
 import type { Alert, AlertCategory, Severity } from "@/types/alert.ts";
 
@@ -89,7 +90,7 @@ export function ActiveAlertRow({ alert }: { alert: Alert }) {
               <p className="mt-0.5 truncate text-xs text-muted-foreground/70">{alert.message}</p>
             ) : null}
             <p className="mt-1 text-xs text-muted-foreground/60">
-              Triggered {formatRelativeTime(alert.triggered_at)}
+              <RelativeTime value={alert.triggered_at} prefix="Triggered" />
             </p>
           </div>
         </div>
@@ -131,7 +132,7 @@ export function AlertHistoryTable({ alerts }: { alerts: Alert[] }) {
             {ruleTypeLabel(row.original.rule_type)} · {alertResourceLabel(row.original)}
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground/70 sm:hidden">
-            Triggered {formatRelativeTime(row.original.triggered_at)} ·{" "}
+            <RelativeTime value={row.original.triggered_at} prefix="Triggered" /> ·{" "}
             {alertEndedAt(row.original)
               ? formatAlertDuration(row.original.triggered_at, alertEndedAt(row.original)!)
               : "Ongoing"}
@@ -169,13 +170,17 @@ export function AlertHistoryTable({ alerts }: { alerts: Alert[] }) {
       },
       cell: ({ row }) => (
         <div>
-          <p>{formatRelativeTime(row.original.triggered_at)}</p>
+          <p>
+            <RelativeTime value={row.original.triggered_at} />
+          </p>
           {alertEndedAt(row.original) ? (
             <p className="mt-0.5 text-[11px] text-muted-foreground/60">
-              {row.original.status === "closed"
-                ? `${closureReasonLabel(row.original)} `
-                : "Recovered "}
-              {formatRelativeTime(alertEndedAt(row.original)!)}
+              <RelativeTime
+                value={alertEndedAt(row.original)}
+                prefix={
+                  row.original.status === "closed" ? closureReasonLabel(row.original) : "Recovered"
+                }
+              />
             </p>
           ) : null}
         </div>
