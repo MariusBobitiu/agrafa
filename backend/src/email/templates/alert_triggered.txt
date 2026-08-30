@@ -1,11 +1,34 @@
-AGRAFA ALERTS
+{{upper .Severity}} — {{plainTitle .AlertTitle}}
 
-Alert active: {{ .AlertTitle }}
-{{ if .ProjectName }}Project: {{ .ProjectName }}{{ else }}Project ID: {{ .ProjectID }}{{ end }}
-Rule: {{ .RuleType }}
-Status: {{ .Status }}
-{{ if .NodeID }}Node ID: {{ .NodeID }}
-{{ end }}{{ if .ServiceID }}Service ID: {{ .ServiceID }}
-{{ end }}Triggered at: {{ formatTime .TriggeredAt }}
+{{.AlertMessage}}
 
-{{ .AlertMessage }}
+Project: {{if .ProjectName}}{{.ProjectName}}{{else}}Agrafa{{end}}
+{{if eq .ResourceType "service"}}Check type: {{.ServiceCheckType}}
+{{else}}Resource: Node
+{{end}}Severity: {{titleCase .Severity}}
+
+{{if eq .RuleType "service_unhealthy"}}{{if .ServiceTarget}}Target: {{.ServiceTarget}}
+{{end}}{{if .StatusCode}}Status code: {{.StatusCode}}
+{{end}}{{if .ResponseTimeMs}}Response time: {{.ResponseTimeMs}} ms
+{{end}}{{if .FailureReason}}Failure reason: {{.FailureReason}}
+{{end}}{{else if eq .RuleType "node_offline"}}{{if .NodeName}}Resource: {{.NodeName}}
+{{end}}{{if and .NodeIdentifier (ne .NodeIdentifier .NodeName)}}Identifier: {{.NodeIdentifier}}
+{{end}}{{if .LastSeenAt}}Last seen: {{formatTime .LastSeenAt}}
+{{end}}{{else}}{{if .NodeName}}Node: {{.NodeName}}
+{{end}}{{if .MetricValue}}Current value: {{formatPercent .MetricValue}}
+{{end}}{{if .ThresholdValue}}Threshold: {{formatPercent .ThresholdValue}}
+{{end}}{{end}}Started at: {{formatTime .TriggeredAt}}
+Rule: {{.RuleLabel}}
+{{if .ResourceURL}}
+View {{.ResourceType}}:
+{{.ResourceURL}}
+{{end}}{{if .AlertsURL}}
+Open alerts:
+{{.AlertsURL}}
+{{end}}
+You're receiving this email because you're subscribed to alerts for project {{if .ProjectName}}{{.ProjectName}}{{else}}Agrafa{{end}}.
+{{if .NotificationsURL}}
+Manage your notifications in Agrafa:
+{{.NotificationsURL}}
+{{end}}
+Agrafa — Infrastructure monitoring

@@ -23,13 +23,10 @@ func TestSendAlertTriggeredEmailRendersHTMLTemplate(t *testing.T) {
 	service := NewService(NewRenderer(), sender, "Agrafa Alerts <alerts@example.com>")
 
 	err := service.SendAlertTriggeredEmail(context.Background(), "ops@example.com", AlertTemplateData{
-		ProjectID:    1,
-		ProjectName:  "Agrafa",
-		AlertTitle:   "Node 5 is offline",
-		AlertMessage: "Node 5 is currently offline.",
-		RuleType:     "node_offline",
-		Status:       "active",
-		TriggeredAt:  time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
+		ProjectID: 1, ProjectName: "Agrafa", AlertTitle: "⚠ web-01 is offline",
+		AlertMessage: "Agrafa stopped receiving heartbeats from this node.", RuleType: "node_offline", RuleLabel: "Node offline",
+		Severity: "critical", Status: "active", ResourceType: "node", NodeName: "web-01",
+		TriggeredAt: time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC), ResourceURL: "https://app.agrafa.test/nodes/5", AlertsURL: "https://app.agrafa.test/alerts",
 	})
 	if err != nil {
 		t.Fatalf("SendAlertTriggeredEmail returned error: %v", err)
@@ -40,19 +37,19 @@ func TestSendAlertTriggeredEmailRendersHTMLTemplate(t *testing.T) {
 	}
 
 	message := sender.messages[0]
-	if !strings.Contains(message.HTML, "Agrafa Alert Active") || !strings.Contains(message.HTML, "Active") {
+	if !strings.Contains(message.HTML, "CRITICAL") || !strings.Contains(message.HTML, `data-title-icon="triggered"`) || !strings.Contains(message.HTML, "web-01 is offline") {
 		t.Fatalf("expected rendered HTML to contain heading, got %q", message.HTML)
 	}
 
-	if !strings.Contains(message.Text, "AGRAFA ALERTS") || !strings.Contains(message.Text, "Alert active:") {
+	if !strings.Contains(message.Text, "CRITICAL — web-01 is offline") || !strings.Contains(message.Text, "Open alerts:") {
 		t.Fatalf("expected rendered text to contain heading, got %q", message.Text)
 	}
 
-	if !strings.Contains(message.HTML, "Node 5 is offline") {
+	if !strings.Contains(message.HTML, "web-01 is offline") {
 		t.Fatalf("expected rendered HTML to contain alert title, got %q", message.HTML)
 	}
 
-	if !strings.Contains(message.Text, "Node 5 is offline") {
+	if !strings.Contains(message.Text, "web-01 is offline") {
 		t.Fatalf("expected rendered text to contain alert title, got %q", message.Text)
 	}
 }
@@ -65,14 +62,10 @@ func TestSendAlertResolvedEmailRendersHTMLTemplate(t *testing.T) {
 	resolvedAt := time.Date(2026, time.April, 5, 12, 5, 0, 0, time.UTC)
 
 	err := service.SendAlertResolvedEmail(context.Background(), "ops@example.com", AlertTemplateData{
-		ProjectID:    1,
-		ProjectName:  "Agrafa",
-		AlertTitle:   "Service 9 is unhealthy",
-		AlertMessage: "Service 9 is currently unhealthy.",
-		RuleType:     "service_unhealthy",
-		Status:       "resolved",
-		TriggeredAt:  time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
-		ResolvedAt:   &resolvedAt,
+		ProjectID: 1, ProjectName: "Agrafa", AlertTitle: "✓ Landing has recovered",
+		AlertMessage: "HTTP health checks are passing again. The service is responding normally.", RuleType: "service_unhealthy", RuleLabel: "Service unhealthy",
+		Severity: "critical", Status: "resolved", ResourceType: "service", ServiceName: "Landing", Duration: "5m",
+		TriggeredAt: time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC), ResolvedAt: &resolvedAt, ResourceURL: "https://app.agrafa.test/services/9",
 	})
 	if err != nil {
 		t.Fatalf("SendAlertResolvedEmail returned error: %v", err)
@@ -83,19 +76,19 @@ func TestSendAlertResolvedEmailRendersHTMLTemplate(t *testing.T) {
 	}
 
 	message := sender.messages[0]
-	if !strings.Contains(message.HTML, "Agrafa Alert Resolved") || !strings.Contains(message.HTML, "Resolved") {
+	if !strings.Contains(message.HTML, "RESOLVED") || !strings.Contains(message.HTML, `data-title-icon="resolved"`) || !strings.Contains(message.HTML, "Landing has recovered") {
 		t.Fatalf("expected rendered HTML to contain heading, got %q", message.HTML)
 	}
 
-	if !strings.Contains(message.Text, "AGRAFA ALERTS") || !strings.Contains(message.Text, "Alert resolved:") {
+	if !strings.Contains(message.Text, "RESOLVED — Landing has recovered") || !strings.Contains(message.Text, "Downtime: 5m") {
 		t.Fatalf("expected rendered text to contain heading, got %q", message.Text)
 	}
 
-	if !strings.Contains(message.HTML, "Service 9 is unhealthy") {
+	if !strings.Contains(message.HTML, "Landing has recovered") {
 		t.Fatalf("expected rendered HTML to contain alert title, got %q", message.HTML)
 	}
 
-	if !strings.Contains(message.Text, "Service 9 is unhealthy") {
+	if !strings.Contains(message.Text, "Landing has recovered") {
 		t.Fatalf("expected rendered text to contain alert title, got %q", message.Text)
 	}
 }
@@ -105,19 +98,15 @@ func TestRendererRenderTextTriggeredTemplate(t *testing.T) {
 
 	renderer := NewRenderer()
 	output, err := renderer.RenderText("alert_triggered.txt", AlertTemplateData{
-		ProjectID:    1,
-		ProjectName:  "Agrafa",
-		AlertTitle:   "Node 5 is offline",
-		AlertMessage: "Node 5 is currently offline.",
-		RuleType:     "node_offline",
-		Status:       "active",
-		TriggeredAt:  time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
+		ProjectID: 1, ProjectName: "Agrafa", AlertTitle: "⚠ web-01 is offline", AlertMessage: "Agrafa stopped receiving heartbeats from this node.",
+		RuleType: "node_offline", RuleLabel: "Node offline", Severity: "critical", Status: "active", ResourceType: "node", NodeName: "web-01",
+		TriggeredAt: time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("RenderText returned error: %v", err)
 	}
 
-	if !strings.Contains(output, "AGRAFA ALERTS") || !strings.Contains(output, "Alert active:") || !strings.Contains(output, "Project: Agrafa") {
+	if !strings.Contains(output, "CRITICAL — web-01 is offline") || !strings.Contains(output, "Rule: Node offline") || !strings.Contains(output, "Project: Agrafa") {
 		t.Fatalf("unexpected rendered text output: %q", output)
 	}
 }
@@ -128,20 +117,15 @@ func TestRendererRenderTextResolvedTemplate(t *testing.T) {
 	renderer := NewRenderer()
 	resolvedAt := time.Date(2026, time.April, 5, 12, 5, 0, 0, time.UTC)
 	output, err := renderer.RenderText("alert_resolved.txt", AlertTemplateData{
-		ProjectID:    1,
-		ProjectName:  "Agrafa",
-		AlertTitle:   "Service 9 is unhealthy",
-		AlertMessage: "Service 9 is currently unhealthy.",
-		RuleType:     "service_unhealthy",
-		Status:       "resolved",
-		TriggeredAt:  time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC),
-		ResolvedAt:   &resolvedAt,
+		ProjectID: 1, ProjectName: "Agrafa", AlertTitle: "✓ Landing has recovered", AlertMessage: "HTTP health checks are passing again.",
+		RuleType: "service_unhealthy", RuleLabel: "Service unhealthy", Severity: "critical", Status: "resolved", ResourceType: "service", ServiceName: "Landing", Duration: "5m",
+		TriggeredAt: time.Date(2026, time.April, 5, 12, 0, 0, 0, time.UTC), ResolvedAt: &resolvedAt,
 	})
 	if err != nil {
 		t.Fatalf("RenderText returned error: %v", err)
 	}
 
-	if !strings.Contains(output, "AGRAFA ALERTS") || !strings.Contains(output, "Alert resolved:") || !strings.Contains(output, "Resolved at:") {
+	if !strings.Contains(output, "RESOLVED — Landing has recovered") || !strings.Contains(output, "Recovered at:") || !strings.Contains(output, "Downtime: 5m") {
 		t.Fatalf("unexpected rendered text output: %q", output)
 	}
 }
@@ -273,10 +257,10 @@ func TestSendNotificationRecipientTestEmailRendersTemplate(t *testing.T) {
 	if !strings.Contains(message.Subject, "Agrafa Team") {
 		t.Fatalf("subject = %q", message.Subject)
 	}
-	if !strings.Contains(message.HTML, "Notification test") || !strings.Contains(message.HTML, "ops@example.com") {
+	if !strings.Contains(message.HTML, "Alert email delivery is working") || !strings.Contains(message.HTML, "ops@example.com") {
 		t.Fatalf("unexpected rendered HTML: %q", message.HTML)
 	}
-	if !strings.Contains(message.Text, "AGRAFA NOTIFICATIONS") || !strings.Contains(message.Text, "Project: Agrafa Team") {
+	if !strings.Contains(message.Text, "AGRAFA — NOTIFICATION TEST") || !strings.Contains(message.Text, "Project: Agrafa Team") {
 		t.Fatalf("unexpected rendered text: %q", message.Text)
 	}
 }

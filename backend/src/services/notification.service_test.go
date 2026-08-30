@@ -43,6 +43,8 @@ func (r *fakeNotificationProjectLookupRepo) GetByID(_ context.Context, id int64)
 type fakeAlertEmailService struct {
 	triggeredRecipients []string
 	resolvedRecipients  []string
+	triggeredData       []emailpkg.AlertTemplateData
+	resolvedData        []emailpkg.AlertTemplateData
 	failFor             map[string]error
 }
 
@@ -55,8 +57,9 @@ func (r *fakeNotificationDeliveryRecorder) Record(_ context.Context, input types
 	return nil
 }
 
-func (s *fakeAlertEmailService) SendAlertTriggeredEmail(_ context.Context, to string, _ emailpkg.AlertTemplateData) error {
+func (s *fakeAlertEmailService) SendAlertTriggeredEmail(_ context.Context, to string, data emailpkg.AlertTemplateData) error {
 	s.triggeredRecipients = append(s.triggeredRecipients, to)
+	s.triggeredData = append(s.triggeredData, data)
 	if err, ok := s.failFor[to]; ok {
 		return err
 	}
@@ -64,8 +67,9 @@ func (s *fakeAlertEmailService) SendAlertTriggeredEmail(_ context.Context, to st
 	return nil
 }
 
-func (s *fakeAlertEmailService) SendAlertResolvedEmail(_ context.Context, to string, _ emailpkg.AlertTemplateData) error {
+func (s *fakeAlertEmailService) SendAlertResolvedEmail(_ context.Context, to string, data emailpkg.AlertTemplateData) error {
 	s.resolvedRecipients = append(s.resolvedRecipients, to)
+	s.resolvedData = append(s.resolvedData, data)
 	if err, ok := s.failFor[to]; ok {
 		return err
 	}

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/MariusBobitiu/agrafa-backend/src/db/sqlc/generated"
@@ -20,6 +22,22 @@ type notificationDispatchRecipientRepository interface {
 
 type notificationDispatchProjectRepository interface {
 	GetByID(ctx context.Context, id int64) (generated.Project, error)
+}
+
+type notificationDispatchNodeRepository interface {
+	GetByID(ctx context.Context, id int64) (generated.Node, error)
+}
+
+type notificationDispatchServiceRepository interface {
+	GetByID(ctx context.Context, id int64) (generated.Service, error)
+}
+
+type notificationDispatchHealthCheckRepository interface {
+	GetLatestByServiceID(ctx context.Context, serviceID int64) (generated.HealthCheckResult, error)
+}
+
+type notificationDispatchMetricRepository interface {
+	GetLatestNodeMetricByName(ctx context.Context, nodeID int64, metricName string) (generated.MetricSample, error)
 }
 
 type notificationDeliveryRecorder interface {
@@ -41,6 +59,11 @@ type NotificationService struct {
 	notificationDeliverySvc   notificationDeliveryRecorder
 	emailService              alertEmailService
 	emailProvider             alertEmailProvider
+	nodeRepo                  notificationDispatchNodeRepository
+	serviceRepo               notificationDispatchServiceRepository
+	healthCheckRepo           notificationDispatchHealthCheckRepository
+	metricRepo                notificationDispatchMetricRepository
+	appBaseURL                string
 }
 
 func NewNotificationService(
@@ -59,6 +82,20 @@ func NewNotificationService(
 
 func (s *NotificationService) WithEmailProvider(emailProvider alertEmailProvider) {
 	s.emailProvider = emailProvider
+}
+
+func (s *NotificationService) WithAlertPresentation(
+	nodeRepo notificationDispatchNodeRepository,
+	serviceRepo notificationDispatchServiceRepository,
+	healthCheckRepo notificationDispatchHealthCheckRepository,
+	metricRepo notificationDispatchMetricRepository,
+	appBaseURL string,
+) {
+	s.nodeRepo = nodeRepo
+	s.serviceRepo = serviceRepo
+	s.healthCheckRepo = healthCheckRepo
+	s.metricRepo = metricRepo
+	s.appBaseURL = strings.TrimRight(strings.TrimSpace(appBaseURL), "/")
 }
 
 func (s *NotificationService) NotifyAlertTriggered(ctx context.Context, rule generated.AlertRule, alert generated.AlertInstance) error {
@@ -169,15 +206,18 @@ func (s *NotificationService) resolveEmailService(ctx context.Context) (alertEma
 
 func (s *NotificationService) buildAlertTemplateData(ctx context.Context, rule generated.AlertRule, alert generated.AlertInstance) emailpkg.AlertTemplateData {
 	data := emailpkg.AlertTemplateData{
-		ProjectID:    alert.ProjectID,
-		AlertTitle:   alert.Title,
-		AlertMessage: alert.Message,
-		RuleType:     rule.RuleType,
-		Status:       alert.Status,
-		NodeID:       nullInt64Ptr(alert.NodeID),
-		ServiceID:    nullInt64Ptr(alert.ServiceID),
-		TriggeredAt:  alert.TriggeredAt,
-		ResolvedAt:   nullTimePtr(alert.ResolvedAt),
+		ProjectID:        alert.ProjectID,
+		RuleType:         rule.RuleType,
+		RuleLabel:        alertRuleLabel(rule.RuleType),
+		Severity:         rule.Severity,
+		Status:           alert.Status,
+		TriggeredAt:      alert.TriggeredAt,
+		ResolvedAt:       nullTimePtr(alert.ResolvedAt),
+		AlertsURL:        joinAppURL(s.appBaseURL, "/alerts"),
+		NotificationsURL: joinAppURL(s.appBaseURL, "/settings?tab=notifications"),
+	}
+	if data.ResolvedAt != nil {
+		data.Duration = formatAlertDuration(data.ResolvedAt.Sub(data.TriggeredAt))
 	}
 
 	project, err := s.projectRepo.GetByID(ctx, alert.ProjectID)
@@ -186,9 +226,234 @@ func (s *NotificationService) buildAlertTemplateData(ctx context.Context, rule g
 			log.Printf("lookup project for alert email failed\n  project_id: %d\n  error: %v", alert.ProjectID, err)
 		}
 
-		return data
+	} else {
+		data.ProjectName = project.Name
 	}
 
-	data.ProjectName = project.Name
+	s.enrichAlertResource(ctx, rule, alert, &data)
+	buildAlertPresentation(&data)
 	return data
+}
+
+func (s *NotificationService) enrichAlertResource(ctx context.Context, rule generated.AlertRule, alert generated.AlertInstance, data *emailpkg.AlertTemplateData) {
+	switch rule.RuleType {
+	case types.AlertRuleTypeServiceUnhealthy:
+		data.ResourceType = types.AlertCategoryService
+		data.ResourceID = nullInt64Ptr(alert.ServiceID)
+		if alert.ServiceID.Valid {
+			data.ResourceURL = joinAppURL(s.appBaseURL, fmt.Sprintf("/services/%d", alert.ServiceID.Int64))
+		}
+		if !alert.ServiceID.Valid || s.serviceRepo == nil {
+			return
+		}
+		service, err := s.serviceRepo.GetByID(ctx, alert.ServiceID.Int64)
+		if err != nil {
+			logAlertEnrichmentError("service", alert.ServiceID.Int64, err)
+			return
+		}
+		data.ServiceName = service.Name
+		data.ServiceCheckType = strings.ToUpper(service.CheckType)
+		data.ServiceTarget = service.CheckTarget
+		data.ServiceState = service.CurrentState
+		data.ResourceName = service.Name
+
+		if s.healthCheckRepo == nil {
+			return
+		}
+		check, err := s.healthCheckRepo.GetLatestByServiceID(ctx, service.ID)
+		if err != nil {
+			logAlertEnrichmentError("health check for service", service.ID, err)
+			return
+		}
+		if check.StatusCode.Valid {
+			statusCode := int(check.StatusCode.Int32)
+			data.StatusCode = &statusCode
+			data.FailureReason = http.StatusText(statusCode)
+		}
+		if check.ResponseTimeMs.Valid {
+			responseTime := int64(check.ResponseTimeMs.Int32)
+			data.ResponseTimeMs = &responseTime
+		}
+		if data.FailureReason == "" {
+			data.FailureReason = strings.TrimSpace(check.Message)
+		}
+
+	case types.AlertRuleTypeNodeOffline, types.AlertRuleTypeCPUAboveThreshold, types.AlertRuleTypeMemoryAboveThreshold, types.AlertRuleTypeDiskAboveThreshold:
+		data.ResourceType = types.AlertCategoryNode
+		data.ResourceID = nullInt64Ptr(alert.NodeID)
+		if alert.NodeID.Valid {
+			data.ResourceURL = joinAppURL(s.appBaseURL, fmt.Sprintf("/nodes/%d", alert.NodeID.Int64))
+		}
+		if !alert.NodeID.Valid || s.nodeRepo == nil {
+			return
+		}
+		node, err := s.nodeRepo.GetByID(ctx, alert.NodeID.Int64)
+		if err != nil {
+			logAlertEnrichmentError("node", alert.NodeID.Int64, err)
+			return
+		}
+		data.NodeName = node.Name
+		data.NodeIdentifier = node.Identifier
+		data.NodeState = node.CurrentState
+		data.LastSeenAt = nullTimePtr(node.LastHeartbeatAt)
+		data.ResourceName = node.Name
+
+		if rule.RuleType == types.AlertRuleTypeNodeOffline {
+			return
+		}
+		data.MetricName = rule.MetricName.String
+		data.MetricLabel = alertMetricLabel(rule.RuleType)
+		data.ThresholdValue = notificationNullFloat64Ptr(rule.ThresholdValue)
+		if s.metricRepo == nil || !rule.MetricName.Valid {
+			return
+		}
+		metric, err := s.metricRepo.GetLatestNodeMetricByName(ctx, node.ID, rule.MetricName.String)
+		if err != nil {
+			logAlertEnrichmentError("metric for node", node.ID, err)
+			return
+		}
+		metricValue := metric.MetricValue
+		data.MetricValue = &metricValue
+	}
+}
+
+func buildAlertPresentation(data *emailpkg.AlertTemplateData) {
+	resolved := data.Status == types.AlertStatusResolved
+	switch data.RuleType {
+	case types.AlertRuleTypeNodeOffline:
+		name := fallbackAlertName(data.NodeName, "Node")
+		if resolved {
+			data.AlertTitle = "✓ " + name + " is back online"
+			data.AlertMessage = "Heartbeat and health checks have recovered. The node is responding normally again."
+		} else {
+			data.AlertTitle = "⚠ " + name + " is offline"
+			data.AlertMessage = "Agrafa stopped receiving heartbeats from this node."
+		}
+	case types.AlertRuleTypeServiceUnhealthy:
+		name := fallbackAlertName(data.ServiceName, "Service")
+		if resolved {
+			data.AlertTitle = "✓ " + name + " has recovered"
+			data.AlertMessage = fallbackAlertName(data.ServiceCheckType, "Service") + " health checks are passing again. The service is responding normally."
+			return
+		}
+		data.AlertTitle = "⚠ " + name + " is unhealthy"
+		if data.ServiceCheckType == "TCP" {
+			data.AlertMessage = "TCP connection to " + fallbackAlertName(data.ServiceTarget, "the service") + " failed."
+		} else if data.StatusCode != nil {
+			data.AlertMessage = fmt.Sprintf("HTTP check to %s returned %d", fallbackAlertName(data.ServiceTarget, "the service"), *data.StatusCode)
+			if data.FailureReason != "" {
+				data.AlertMessage += " " + data.FailureReason
+			}
+			data.AlertMessage += "."
+		} else {
+			data.AlertMessage = "HTTP check to " + fallbackAlertName(data.ServiceTarget, "the service") + " failed."
+		}
+	default:
+		metric := fallbackAlertName(data.MetricLabel, "Metric")
+		node := fallbackAlertName(data.NodeName, "node")
+		if resolved {
+			data.AlertTitle = "✓ " + metric + " is back within threshold on " + node
+			if data.ThresholdValue != nil {
+				data.AlertMessage = fmt.Sprintf("%s returned below the configured %g%% threshold.", metric, *data.ThresholdValue)
+			} else {
+				data.AlertMessage = metric + " returned within the configured threshold."
+			}
+		} else {
+			data.AlertTitle = "⚠ " + metric + " is high on " + node
+			if data.MetricValue != nil && data.ThresholdValue != nil {
+				data.AlertMessage = fmt.Sprintf("%s reached %g%%, above the configured threshold of %g%%.", metric, *data.MetricValue, *data.ThresholdValue)
+			} else {
+				data.AlertMessage = metric + " exceeded the configured threshold."
+			}
+		}
+	}
+}
+
+func alertRuleLabel(ruleType string) string {
+	switch ruleType {
+	case types.AlertRuleTypeServiceUnhealthy:
+		return "Service unhealthy"
+	case types.AlertRuleTypeNodeOffline:
+		return "Node offline"
+	case types.AlertRuleTypeCPUAboveThreshold:
+		return "CPU above threshold"
+	case types.AlertRuleTypeMemoryAboveThreshold:
+		return "Memory above threshold"
+	case types.AlertRuleTypeDiskAboveThreshold:
+		return "Disk above threshold"
+	default:
+		return "Alert rule"
+	}
+}
+
+func alertMetricLabel(ruleType string) string {
+	switch ruleType {
+	case types.AlertRuleTypeCPUAboveThreshold:
+		return "CPU usage"
+	case types.AlertRuleTypeMemoryAboveThreshold:
+		return "Memory usage"
+	case types.AlertRuleTypeDiskAboveThreshold:
+		return "Disk usage"
+	default:
+		return "Metric"
+	}
+}
+
+func formatAlertDuration(duration time.Duration) string {
+	if duration < 0 {
+		return ""
+	}
+	duration = duration.Truncate(time.Second)
+	if duration < time.Minute {
+		return fmt.Sprintf("%ds", int64(duration/time.Second))
+	}
+	if duration < time.Hour {
+		minutes := int64(duration / time.Minute)
+		seconds := int64(duration%time.Minute) / int64(time.Second)
+		if seconds == 0 {
+			return fmt.Sprintf("%dm", minutes)
+		}
+		return fmt.Sprintf("%dm %ds", minutes, seconds)
+	}
+	if duration < 24*time.Hour {
+		hours := int64(duration / time.Hour)
+		minutes := int64(duration%time.Hour) / int64(time.Minute)
+		if minutes == 0 {
+			return fmt.Sprintf("%dh", hours)
+		}
+		return fmt.Sprintf("%dh %dm", hours, minutes)
+	}
+	days := int64(duration / (24 * time.Hour))
+	hours := int64(duration%(24*time.Hour)) / int64(time.Hour)
+	if hours == 0 {
+		return fmt.Sprintf("%dd", days)
+	}
+	return fmt.Sprintf("%dd %dh", days, hours)
+}
+
+func joinAppURL(baseURL, path string) string {
+	if strings.TrimSpace(baseURL) == "" {
+		return ""
+	}
+	return strings.TrimRight(baseURL, "/") + path
+}
+
+func fallbackAlertName(value, fallback string) string {
+	if value = strings.TrimSpace(value); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func logAlertEnrichmentError(resource string, id int64, err error) {
+	if !errors.Is(err, sql.ErrNoRows) {
+		log.Printf("lookup %s for alert email failed\n  resource_id: %d\n  error: %v", resource, id, err)
+	}
+}
+
+func notificationNullFloat64Ptr(value sql.NullFloat64) *float64 {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Float64
 }

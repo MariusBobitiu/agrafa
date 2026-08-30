@@ -1,12 +1,21 @@
-AGRAFA ALERTS
+RESOLVED — {{plainTitle .AlertTitle}}
 
-Alert resolved: {{ .AlertTitle }}
-{{ if .ProjectName }}Project: {{ .ProjectName }}{{ else }}Project ID: {{ .ProjectID }}{{ end }}
-Rule: {{ .RuleType }}
-Status: {{ .Status }}
-{{ if .NodeID }}Node ID: {{ .NodeID }}
-{{ end }}{{ if .ServiceID }}Service ID: {{ .ServiceID }}
-{{ end }}Triggered at: {{ formatTime .TriggeredAt }}
-Resolved at: {{ formatTime .ResolvedAt }}
+{{.AlertMessage}}
 
-{{ .AlertMessage }}
+Project: {{if .ProjectName}}{{.ProjectName}}{{else}}Agrafa{{end}}
+Resource: {{if eq .ResourceType "service"}}Service{{else}}Node{{end}}
+Severity: {{titleCase .Severity}}
+Started at: {{formatTime .TriggeredAt}}
+{{if .ResolvedAt}}Recovered at: {{formatTime .ResolvedAt}}
+{{end}}{{if .Duration}}Downtime: {{.Duration}}
+{{end}}Rule: {{.RuleLabel}}
+{{if .ResourceURL}}
+View {{.ResourceType}}:
+{{.ResourceURL}}
+{{end}}
+You're receiving this email because you're subscribed to alerts for project {{if .ProjectName}}{{.ProjectName}}{{else}}Agrafa{{end}}.
+{{if .NotificationsURL}}
+Manage your notifications in Agrafa:
+{{.NotificationsURL}}
+{{end}}
+Agrafa — Infrastructure monitoring

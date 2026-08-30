@@ -1,9 +1,9 @@
-AGRAFA NOTIFICATIONS
+AGRAFA — NOTIFICATION TEST
 
-This is a test notification from Agrafa.
+Alert email delivery is working.
+This address is ready to receive operational alerts from Agrafa.
 {{if .ProjectName}}Project: {{.ProjectName}}
-{{end}}{{if .ProjectID}}Project ID: {{.ProjectID}}
 {{end}}Recipient: {{.Recipient}}
 Sent at: {{formatTime .SentAt}}
 
-If you received this message, email delivery for notifications is working.
+Agrafa — Infrastructure monitoring
