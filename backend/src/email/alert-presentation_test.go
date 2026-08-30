@@ -102,6 +102,42 @@ func TestTriggeredHTTPHTMLAndTextContainOperationalContextAndCTAs(t *testing.T) 
 	}
 }
 
+func TestTriggeredHTMLRendersCTAsIndependently(t *testing.T) {
+	tests := []struct {
+		name                     string
+		resourceURL, alertsURL   string
+		wantResource, wantAlerts bool
+	}{
+		{"both", "https://app.agrafa.test/services/13?project_id=7", "https://app.agrafa.test/alerts?project_id=7", true, true},
+		{"resource only", "https://app.agrafa.test/services/13?project_id=7", "", true, false},
+		{"alerts only", "", "https://app.agrafa.test/alerts?project_id=7", false, true},
+		{"neither", "", "", false, false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			data := baseAlertData()
+			data.ResourceURL = test.resourceURL
+			data.AlertsURL = test.alertsURL
+			output, err := NewRenderer().RenderHTML("alert_triggered.html", data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Contains(output, `data-cta="primary"`); got != test.wantResource {
+				t.Errorf("primary CTA rendered = %v, want %v", got, test.wantResource)
+			}
+			if got := strings.Contains(output, `data-cta="secondary"`); got != test.wantAlerts {
+				t.Errorf("Open Alerts CTA rendered = %v, want %v", got, test.wantAlerts)
+			}
+			if test.wantResource && (!strings.Contains(output, test.resourceURL) || !strings.Contains(output, "View service in Agrafa")) {
+				t.Error("resource CTA lost its URL or copy")
+			}
+			if test.wantAlerts && (!strings.Contains(output, test.alertsURL) || !strings.Contains(output, "Open Alerts")) {
+				t.Error("Open Alerts CTA lost its URL or copy")
+			}
+		})
+	}
+}
+
 func TestTriggeredTCPAndEmptyOptionalsOmitHTTPRows(t *testing.T) {
 	data := baseAlertData()
 	data.ServiceName = "Database"

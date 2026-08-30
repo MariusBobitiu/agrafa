@@ -214,3 +214,29 @@ func TestAlertRuleTargetingMigrationPreservesSpecificRulesAndAddsPerTargetIdenti
 		t.Fatalf("targeting migration must not rewrite existing specific rule targets:\n%s", sql)
 	}
 }
+
+func TestAlertTriggerSnapshotMigrationAddsNullableJSONContext(t *testing.T) {
+	t.Parallel()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+
+	migrationDir := filepath.Join(filepath.Dir(currentFile), "migrations", "app")
+	up, err := os.ReadFile(filepath.Join(migrationDir, "000018_alert_trigger_snapshot.up.sql"))
+	if err != nil {
+		t.Fatalf("read up migration: %v", err)
+	}
+	down, err := os.ReadFile(filepath.Join(migrationDir, "000018_alert_trigger_snapshot.down.sql"))
+	if err != nil {
+		t.Fatalf("read down migration: %v", err)
+	}
+
+	if !strings.Contains(strings.ToUpper(string(up)), "ADD COLUMN TRIGGER_SNAPSHOT JSONB") {
+		t.Fatalf("up migration does not add the JSON snapshot column:\n%s", up)
+	}
+	if !strings.Contains(strings.ToUpper(string(down)), "DROP COLUMN TRIGGER_SNAPSHOT") {
+		t.Fatalf("down migration does not remove the snapshot column:\n%s", down)
+	}
+}

@@ -113,7 +113,7 @@ func main() {
 	notificationRecipientService.WithEmailProvider(runtimeEmailProvider)
 
 	notificationService := services.NewNotificationService(notificationRecipientRepo, projectRepo, notificationDeliveryService, nil)
-	notificationService.WithAlertPresentation(nodeRepo, serviceRepo, healthCheckRepo, metricRepo, cfg.AppBaseURL)
+	notificationService.WithAlertPresentation(nodeRepo, serviceRepo, healthCheckRepo, cfg.AppBaseURL)
 	notificationService.WithEmailProvider(runtimeEmailProvider)
 	alertEvaluatorService := services.NewAlertEvaluatorService(alertRuleRepo, alertInstanceRepo, metricRepo, nodeRepo, eventService, notificationService)
 	alertRuleService := services.NewAlertRuleService(alertRuleRepo, projectRepo, nodeRepo, serviceRepo, alertEvaluatorService)

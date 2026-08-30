@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"database/sql"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -41,21 +40,6 @@ func (r *fakeNotificationHealthRepo) GetLatestByServiceID(_ context.Context, id 
 	return generated.HealthCheckResult{}, sql.ErrNoRows
 }
 
-type fakeNotificationMetricRepo struct {
-	metrics map[string]generated.MetricSample
-}
-
-func (r *fakeNotificationMetricRepo) GetLatestNodeMetricByName(_ context.Context, nodeID int64, metricName string) (generated.MetricSample, error) {
-	if metric, ok := r.metrics[notificationMetricKey(nodeID, metricName)]; ok {
-		return metric, nil
-	}
-	return generated.MetricSample{}, sql.ErrNoRows
-}
-
-func notificationMetricKey(nodeID int64, metricName string) string {
-	return strings.Join([]string{strconv.FormatInt(nodeID, 10), metricName}, ":")
-}
-
 func presentationService() *NotificationService {
 	service := &NotificationService{
 		projectRepo: &fakeNotificationProjectLookupRepo{projects: map[int64]generated.Project{7: {ID: 7, Name: "Test"}}},
@@ -72,12 +56,21 @@ func presentationService() *NotificationService {
 			13: {ServiceID: 13, CheckType: "http", StatusCode: sql.NullInt32{Int32: 503, Valid: true}, ResponseTimeMs: sql.NullInt32{Int32: 412, Valid: true}, Message: "503 Service Unavailable"},
 			14: {ServiceID: 14, CheckType: "tcp", Message: "Connection refused"},
 		}},
-		&fakeNotificationMetricRepo{metrics: map[string]generated.MetricSample{
-			notificationMetricKey(31, types.MetricNameCPUUsage): {NodeID: 31, MetricName: types.MetricNameCPUUsage, MetricValue: 91},
-		}},
 		"https://app.agrafa.test/",
 	)
 	return service
+}
+
+func testMetricTriggerSnapshot(t *testing.T, metricName string, metricValue, threshold float64) generated.AlertInstance {
+	t.Helper()
+	snapshot, err := buildMetricAlertTriggerSnapshot(generated.AlertRule{
+		MetricName:     sql.NullString{String: metricName, Valid: true},
+		ThresholdValue: sql.NullFloat64{Float64: threshold, Valid: true},
+	}, &metricValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return generated.AlertInstance{TriggerSnapshot: snapshot}
 }
 
 func TestBuildAlertTemplateDataEnrichesHTTPService(t *testing.T) {
@@ -97,7 +90,7 @@ func TestBuildAlertTemplateDataEnrichesHTTPService(t *testing.T) {
 	if data.StatusCode == nil || *data.StatusCode != 503 || data.ResponseTimeMs == nil || *data.ResponseTimeMs != 412 || data.FailureReason != "Service Unavailable" {
 		t.Fatalf("unexpected HTTP context: %#v", data)
 	}
-	if data.RuleLabel != "Service unhealthy" || data.ResourceURL != "https://app.agrafa.test/services/13" || data.AlertsURL != "https://app.agrafa.test/alerts" {
+	if data.RuleLabel != "Service unhealthy" || data.ResourceURL != "https://app.agrafa.test/services/13?project_id=7" || data.AlertsURL != "https://app.agrafa.test/alerts?project_id=7" || data.NotificationsURL != "https://app.agrafa.test/settings?tab=notifications&project_id=7" {
 		t.Fatalf("unexpected labels or URLs: %#v", data)
 	}
 }
@@ -121,7 +114,7 @@ func TestBuildAlertTemplateDataNodeTriggeredAndResolvedCopy(t *testing.T) {
 	resolved := time.Date(2026, 8, 29, 8, 9, 57, 0, time.UTC)
 	rule := generated.AlertRule{RuleType: types.AlertRuleTypeNodeOffline, Severity: types.AlertSeverityCritical}
 	triggered := service.buildAlertTemplateData(context.Background(), rule, generated.AlertInstance{ProjectID: 7, NodeID: sql.NullInt64{Int64: 31, Valid: true}, Status: types.AlertStatusActive, TriggeredAt: started})
-	if triggered.AlertTitle != "⚠ web-01 is offline" || triggered.AlertMessage != "Agrafa stopped receiving heartbeats from this node." || triggered.NodeIdentifier != "web-01.internal" {
+	if triggered.AlertTitle != "⚠ web-01 is offline" || triggered.AlertMessage != "Agrafa stopped receiving heartbeats from this node." || triggered.NodeIdentifier != "web-01.internal" || triggered.ResourceURL != "https://app.agrafa.test/nodes/31?project_id=7" || triggered.AlertsURL != "https://app.agrafa.test/alerts?project_id=7" {
 		t.Fatalf("unexpected node triggered presentation: %#v", triggered)
 	}
 
@@ -139,19 +132,107 @@ func TestBuildAlertTemplateDataServiceAndMetricRecoveryCopy(t *testing.T) {
 		t.Fatalf("unexpected service recovery: %#v", serviceData)
 	}
 
-	metricData := service.buildAlertTemplateData(context.Background(), generated.AlertRule{RuleType: types.AlertRuleTypeCPUAboveThreshold, Severity: types.AlertSeverityWarning, MetricName: sql.NullString{String: types.MetricNameCPUUsage, Valid: true}, ThresholdValue: sql.NullFloat64{Float64: 80, Valid: true}}, generated.AlertInstance{ProjectID: 7, NodeID: sql.NullInt64{Int64: 31, Valid: true}, Status: types.AlertStatusResolved, TriggeredAt: resolved.Time.Add(-time.Minute), ResolvedAt: resolved})
+	metricAlert := testMetricTriggerSnapshot(t, types.MetricNameCPUUsage, 91, 80)
+	metricAlert.ProjectID = 7
+	metricAlert.NodeID = sql.NullInt64{Int64: 31, Valid: true}
+	metricAlert.Status = types.AlertStatusResolved
+	metricAlert.TriggeredAt = resolved.Time.Add(-time.Minute)
+	metricAlert.ResolvedAt = resolved
+	metricData := service.buildAlertTemplateData(context.Background(), generated.AlertRule{RuleType: types.AlertRuleTypeCPUAboveThreshold, Severity: types.AlertSeverityWarning, MetricName: sql.NullString{String: types.MetricNameCPUUsage, Valid: true}, ThresholdValue: sql.NullFloat64{Float64: 95, Valid: true}}, metricAlert)
 	if metricData.AlertTitle != "✓ CPU usage is back within threshold on web-01" || metricData.AlertMessage != "CPU usage returned below the configured 80% threshold." || metricData.MetricValue == nil || *metricData.MetricValue != 91 {
 		t.Fatalf("unexpected metric recovery: %#v", metricData)
 	}
 }
 
 func TestBuildAlertTemplateDataMetricTriggeredIncludesObservedAndThreshold(t *testing.T) {
-	data := presentationService().buildAlertTemplateData(context.Background(), generated.AlertRule{RuleType: types.AlertRuleTypeCPUAboveThreshold, Severity: types.AlertSeverityWarning, MetricName: sql.NullString{String: types.MetricNameCPUUsage, Valid: true}, ThresholdValue: sql.NullFloat64{Float64: 80, Valid: true}}, generated.AlertInstance{ProjectID: 7, NodeID: sql.NullInt64{Int64: 31, Valid: true}, Status: types.AlertStatusActive, TriggeredAt: time.Now()})
+	alert := testMetricTriggerSnapshot(t, types.MetricNameCPUUsage, 91, 80)
+	alert.ProjectID = 7
+	alert.NodeID = sql.NullInt64{Int64: 31, Valid: true}
+	alert.Status = types.AlertStatusActive
+	alert.TriggeredAt = time.Now()
+	data := presentationService().buildAlertTemplateData(context.Background(), generated.AlertRule{RuleType: types.AlertRuleTypeCPUAboveThreshold, Severity: types.AlertSeverityWarning, MetricName: sql.NullString{String: types.MetricNameCPUUsage, Valid: true}, ThresholdValue: sql.NullFloat64{Float64: 95, Valid: true}}, alert)
 	if data.AlertTitle != "⚠ CPU usage is high on web-01" || data.AlertMessage != "CPU usage reached 91%, above the configured threshold of 80%." || data.MetricValue == nil || *data.MetricValue != 91 || data.ThresholdValue == nil || *data.ThresholdValue != 80 {
 		t.Fatalf("unexpected metric presentation: %#v", data)
 	}
 	if strings.Contains(data.AlertTitle+data.AlertMessage+data.RuleLabel, types.AlertRuleTypeCPUAboveThreshold) {
 		t.Fatalf("raw rule type leaked into presentation: %#v", data)
+	}
+}
+
+func TestBuildAlertTemplateDataMetricRulesUseTriggerSnapshot(t *testing.T) {
+	tests := []struct {
+		ruleType, metricName, metricLabel string
+	}{
+		{types.AlertRuleTypeCPUAboveThreshold, types.MetricNameCPUUsage, "CPU usage"},
+		{types.AlertRuleTypeMemoryAboveThreshold, types.MetricNameMemoryUsage, "Memory usage"},
+		{types.AlertRuleTypeDiskAboveThreshold, types.MetricNameDiskUsage, "Disk usage"},
+	}
+	for _, test := range tests {
+		t.Run(test.metricName, func(t *testing.T) {
+			alert := testMetricTriggerSnapshot(t, test.metricName, 91, 80)
+			alert.ProjectID = 7
+			alert.NodeID = sql.NullInt64{Int64: 31, Valid: true}
+			alert.Status = types.AlertStatusActive
+			alert.TriggeredAt = time.Now()
+			data := presentationService().buildAlertTemplateData(context.Background(), generated.AlertRule{
+				RuleType: test.ruleType, Severity: types.AlertSeverityWarning,
+				MetricName:     sql.NullString{String: test.metricName, Valid: true},
+				ThresholdValue: sql.NullFloat64{Float64: 95, Valid: true},
+			}, alert)
+			if data.MetricName != test.metricName || data.MetricLabel != test.metricLabel || data.MetricValue == nil || *data.MetricValue != 91 || data.ThresholdValue == nil || *data.ThresholdValue != 80 {
+				t.Fatalf("snapshot was not authoritative: %#v", data)
+			}
+		})
+	}
+}
+
+func TestBuildAlertTemplateDataLegacyMetricAlertOmitsExactValues(t *testing.T) {
+	data := presentationService().buildAlertTemplateData(context.Background(), generated.AlertRule{
+		RuleType: types.AlertRuleTypeCPUAboveThreshold, Severity: types.AlertSeverityWarning,
+		MetricName:     sql.NullString{String: types.MetricNameCPUUsage, Valid: true},
+		ThresholdValue: sql.NullFloat64{Float64: 80, Valid: true},
+	}, generated.AlertInstance{
+		ProjectID: 7, NodeID: sql.NullInt64{Int64: 31, Valid: true}, Status: types.AlertStatusActive, TriggeredAt: time.Now(),
+	})
+	if data.MetricValue != nil || data.ThresholdValue != nil {
+		t.Fatalf("legacy alert fabricated exact metric values: %#v", data)
+	}
+	if data.AlertMessage != "CPU usage exceeded the configured threshold." {
+		t.Fatalf("legacy alert did not use neutral fallback copy: %q", data.AlertMessage)
+	}
+}
+
+func TestBuildAlertTemplateDataKeepsMetricSnapshotWhenNodeEnrichmentFails(t *testing.T) {
+	service := presentationService()
+	service.nodeRepo = &fakeNotificationNodeRepo{nodes: map[int64]generated.Node{}}
+	alert := testMetricTriggerSnapshot(t, types.MetricNameCPUUsage, 91, 80)
+	alert.ProjectID = 7
+	alert.NodeID = sql.NullInt64{Int64: 404, Valid: true}
+	alert.Status = types.AlertStatusActive
+	alert.TriggeredAt = time.Now()
+
+	data := service.buildAlertTemplateData(context.Background(), generated.AlertRule{
+		RuleType: types.AlertRuleTypeCPUAboveThreshold, Severity: types.AlertSeverityWarning,
+	}, alert)
+	if data.MetricValue == nil || *data.MetricValue != 91 || data.ThresholdValue == nil || *data.ThresholdValue != 80 {
+		t.Fatalf("optional node lookup discarded trigger snapshot: %#v", data)
+	}
+	if data.ResourceURL != "https://app.agrafa.test/nodes/404?project_id=7" {
+		t.Fatalf("resource URL should remain available without enrichment: %q", data.ResourceURL)
+	}
+}
+
+func TestResolvedMetricEmailDoesNotMutateTriggerSnapshot(t *testing.T) {
+	alert := testMetricTriggerSnapshot(t, types.MetricNameCPUUsage, 91, 80)
+	original := string(alert.TriggerSnapshot.RawMessage)
+	alert.ProjectID = 7
+	alert.NodeID = sql.NullInt64{Int64: 31, Valid: true}
+	alert.Status = types.AlertStatusResolved
+	alert.TriggeredAt = time.Now().Add(-time.Minute)
+	alert.ResolvedAt = sql.NullTime{Time: time.Now(), Valid: true}
+	_ = presentationService().buildAlertTemplateData(context.Background(), generated.AlertRule{RuleType: types.AlertRuleTypeCPUAboveThreshold, Severity: types.AlertSeverityWarning}, alert)
+	if string(alert.TriggerSnapshot.RawMessage) != original {
+		t.Fatal("resolved notification mutated the trigger snapshot")
 	}
 }
 

@@ -90,19 +90,20 @@ func (r *fakeAlertInstanceRepo) Create(_ context.Context, params generated.Creat
 	r.nextID++
 
 	instance := generated.AlertInstance{
-		ID:            r.nextID,
-		AlertRuleID:   params.AlertRuleID,
-		ProjectID:     params.ProjectID,
-		NodeID:        params.NodeID,
-		ServiceID:     params.ServiceID,
-		Status:        params.Status,
-		TriggeredAt:   params.TriggeredAt,
-		ResolvedAt:    params.ResolvedAt,
-		ClosedAt:      params.ClosedAt,
-		ClosureReason: params.ClosureReason,
-		Title:         params.Title,
-		Message:       params.Message,
-		CreatedAt:     params.TriggeredAt,
+		ID:              r.nextID,
+		AlertRuleID:     params.AlertRuleID,
+		ProjectID:       params.ProjectID,
+		NodeID:          params.NodeID,
+		ServiceID:       params.ServiceID,
+		Status:          params.Status,
+		TriggeredAt:     params.TriggeredAt,
+		ResolvedAt:      params.ResolvedAt,
+		ClosedAt:        params.ClosedAt,
+		ClosureReason:   params.ClosureReason,
+		Title:           params.Title,
+		Message:         params.Message,
+		TriggerSnapshot: params.TriggerSnapshot,
+		CreatedAt:       params.TriggeredAt,
 	}
 
 	r.instances = append(r.instances, instance)
@@ -586,11 +587,20 @@ func TestEvaluateMetricRulesActivatesAndResolvesThresholdAlert(t *testing.T) {
 	if active.Title != "Node 31 CPU usage is above 80" {
 		t.Fatalf("unexpected alert title %q", active.Title)
 	}
+	snapshot, ok := parseMetricAlertTriggerSnapshot(active.TriggerSnapshot)
+	if !ok || snapshot.MetricName != types.MetricNameCPUUsage || snapshot.MetricValue == nil || *snapshot.MetricValue != 91 || snapshot.ThresholdValue == nil || *snapshot.ThresholdValue != 80 {
+		t.Fatalf("unexpected trigger snapshot: %#v", snapshot)
+	}
+	originalSnapshot := string(active.TriggerSnapshot.RawMessage)
 
 	metricRepo.samples[metricKey(31, types.MetricNameCPUUsage)] = generated.MetricSample{
 		NodeID:      31,
 		MetricName:  types.MetricNameCPUUsage,
-		MetricValue: 75,
+		MetricValue: 40,
+	}
+	notificationData := presentationService().buildAlertTemplateData(context.Background(), rule, active)
+	if notificationData.MetricValue == nil || *notificationData.MetricValue != 91 || notificationData.AlertMessage != "CPU usage reached 91%, above the configured threshold of 80%." {
+		t.Fatalf("notification used a post-trigger metric instead of the trigger snapshot: %#v", notificationData)
 	}
 
 	if err := service.EvaluateMetricRules(context.Background(), 31, types.MetricNameCPUUsage, occurredAt.Add(time.Minute)); err != nil {
@@ -599,6 +609,9 @@ func TestEvaluateMetricRulesActivatesAndResolvesThresholdAlert(t *testing.T) {
 
 	if instanceRepo.resolveCalls != 1 {
 		t.Fatalf("expected 1 threshold alert resolution, got %d", instanceRepo.resolveCalls)
+	}
+	if string(instanceRepo.instances[0].TriggerSnapshot.RawMessage) != originalSnapshot {
+		t.Fatal("resolution replaced the original trigger snapshot")
 	}
 }
 

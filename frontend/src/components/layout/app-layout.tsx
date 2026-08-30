@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Outlet, useLocation } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip.tsx";
+import { ProjectNavigationBoundary } from "@/components/project/project-navigation-boundary.tsx";
 import { Sidebar } from "./sidebar.tsx";
 import { Topbar } from "./topbar.tsx";
 
@@ -23,7 +24,9 @@ export function AppLayout() {
                 transition={{ duration: 0.15 }}
                 className="h-full"
               >
-                <Outlet />
+                <ProjectNavigationBoundary>
+                  <Outlet />
+                </ProjectNavigationBoundary>
               </motion.div>
             </AnimatePresence>
           </main>

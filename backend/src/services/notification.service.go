@@ -36,10 +36,6 @@ type notificationDispatchHealthCheckRepository interface {
 	GetLatestByServiceID(ctx context.Context, serviceID int64) (generated.HealthCheckResult, error)
 }
 
-type notificationDispatchMetricRepository interface {
-	GetLatestNodeMetricByName(ctx context.Context, nodeID int64, metricName string) (generated.MetricSample, error)
-}
-
 type notificationDeliveryRecorder interface {
 	Record(ctx context.Context, input types.CreateNotificationDeliveryInput) error
 }
@@ -62,7 +58,6 @@ type NotificationService struct {
 	nodeRepo                  notificationDispatchNodeRepository
 	serviceRepo               notificationDispatchServiceRepository
 	healthCheckRepo           notificationDispatchHealthCheckRepository
-	metricRepo                notificationDispatchMetricRepository
 	appBaseURL                string
 }
 
@@ -88,13 +83,11 @@ func (s *NotificationService) WithAlertPresentation(
 	nodeRepo notificationDispatchNodeRepository,
 	serviceRepo notificationDispatchServiceRepository,
 	healthCheckRepo notificationDispatchHealthCheckRepository,
-	metricRepo notificationDispatchMetricRepository,
 	appBaseURL string,
 ) {
 	s.nodeRepo = nodeRepo
 	s.serviceRepo = serviceRepo
 	s.healthCheckRepo = healthCheckRepo
-	s.metricRepo = metricRepo
 	s.appBaseURL = strings.TrimRight(strings.TrimSpace(appBaseURL), "/")
 }
 
@@ -213,8 +206,8 @@ func (s *NotificationService) buildAlertTemplateData(ctx context.Context, rule g
 		Status:           alert.Status,
 		TriggeredAt:      alert.TriggeredAt,
 		ResolvedAt:       nullTimePtr(alert.ResolvedAt),
-		AlertsURL:        joinAppURL(s.appBaseURL, "/alerts"),
-		NotificationsURL: joinAppURL(s.appBaseURL, "/settings?tab=notifications"),
+		AlertsURL:        joinAppURL(s.appBaseURL, fmt.Sprintf("/alerts?project_id=%d", alert.ProjectID)),
+		NotificationsURL: joinAppURL(s.appBaseURL, fmt.Sprintf("/settings?tab=notifications&project_id=%d", alert.ProjectID)),
 	}
 	if data.ResolvedAt != nil {
 		data.Duration = formatAlertDuration(data.ResolvedAt.Sub(data.TriggeredAt))
@@ -241,7 +234,7 @@ func (s *NotificationService) enrichAlertResource(ctx context.Context, rule gene
 		data.ResourceType = types.AlertCategoryService
 		data.ResourceID = nullInt64Ptr(alert.ServiceID)
 		if alert.ServiceID.Valid {
-			data.ResourceURL = joinAppURL(s.appBaseURL, fmt.Sprintf("/services/%d", alert.ServiceID.Int64))
+			data.ResourceURL = joinAppURL(s.appBaseURL, fmt.Sprintf("/services/%d?project_id=%d", alert.ServiceID.Int64, alert.ProjectID))
 		}
 		if !alert.ServiceID.Valid || s.serviceRepo == nil {
 			return
@@ -281,8 +274,16 @@ func (s *NotificationService) enrichAlertResource(ctx context.Context, rule gene
 	case types.AlertRuleTypeNodeOffline, types.AlertRuleTypeCPUAboveThreshold, types.AlertRuleTypeMemoryAboveThreshold, types.AlertRuleTypeDiskAboveThreshold:
 		data.ResourceType = types.AlertCategoryNode
 		data.ResourceID = nullInt64Ptr(alert.NodeID)
+		if rule.RuleType != types.AlertRuleTypeNodeOffline {
+			data.MetricLabel = alertMetricLabel(rule.RuleType)
+			if snapshot, ok := parseMetricAlertTriggerSnapshot(alert.TriggerSnapshot); ok {
+				data.MetricName = snapshot.MetricName
+				data.MetricValue = snapshot.MetricValue
+				data.ThresholdValue = snapshot.ThresholdValue
+			}
+		}
 		if alert.NodeID.Valid {
-			data.ResourceURL = joinAppURL(s.appBaseURL, fmt.Sprintf("/nodes/%d", alert.NodeID.Int64))
+			data.ResourceURL = joinAppURL(s.appBaseURL, fmt.Sprintf("/nodes/%d?project_id=%d", alert.NodeID.Int64, alert.ProjectID))
 		}
 		if !alert.NodeID.Valid || s.nodeRepo == nil {
 			return
@@ -297,23 +298,6 @@ func (s *NotificationService) enrichAlertResource(ctx context.Context, rule gene
 		data.NodeState = node.CurrentState
 		data.LastSeenAt = nullTimePtr(node.LastHeartbeatAt)
 		data.ResourceName = node.Name
-
-		if rule.RuleType == types.AlertRuleTypeNodeOffline {
-			return
-		}
-		data.MetricName = rule.MetricName.String
-		data.MetricLabel = alertMetricLabel(rule.RuleType)
-		data.ThresholdValue = notificationNullFloat64Ptr(rule.ThresholdValue)
-		if s.metricRepo == nil || !rule.MetricName.Valid {
-			return
-		}
-		metric, err := s.metricRepo.GetLatestNodeMetricByName(ctx, node.ID, rule.MetricName.String)
-		if err != nil {
-			logAlertEnrichmentError("metric for node", node.ID, err)
-			return
-		}
-		metricValue := metric.MetricValue
-		data.MetricValue = &metricValue
 	}
 }
 
@@ -449,11 +433,4 @@ func logAlertEnrichmentError(resource string, id int64, err error) {
 	if !errors.Is(err, sql.ErrNoRows) {
 		log.Printf("lookup %s for alert email failed\n  resource_id: %d\n  error: %v", resource, id, err)
 	}
-}
-
-func notificationNullFloat64Ptr(value sql.NullFloat64) *float64 {
-	if !value.Valid {
-		return nil
-	}
-	return &value.Float64
 }

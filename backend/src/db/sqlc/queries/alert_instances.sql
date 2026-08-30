@@ -26,7 +26,8 @@ INSERT INTO app.alert_instances (
     closed_at,
     closure_reason,
     title,
-    message
+    message,
+    trigger_snapshot
 ) VALUES (
     $1,
     $2,
@@ -38,7 +39,8 @@ INSERT INTO app.alert_instances (
     $8,
     $9,
     $10,
-    $11
+    $11,
+    $12
 )
 RETURNING *;
 
