@@ -22,7 +22,11 @@ func TestAlertTriggerSnapshotMigrationDatabaseSemantics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close postgres: %v", err)
+		}
+	}()
 
 	withSeededRLSTx(t, ctx, db, func(tx *sql.Tx) {
 		setRLSContext(t, ctx, tx, "", nil, nil, true)
