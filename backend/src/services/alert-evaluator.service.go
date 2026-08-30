@@ -190,18 +190,23 @@ func (s *AlertEvaluatorService) applyRuleCondition(
 		return nil
 	case conditionMet:
 		title, message := buildAlertCopy(rule, target, metricValue)
+		triggerSnapshot, snapshotErr := buildMetricAlertTriggerSnapshot(rule, metricValue)
+		if snapshotErr != nil {
+			return fmt.Errorf("build alert trigger snapshot: %w", snapshotErr)
+		}
 		alert, createErr := s.alertInstanceRepo.Create(ctx, generated.CreateAlertInstanceParams{
-			AlertRuleID:   rule.ID,
-			ProjectID:     rule.ProjectID,
-			NodeID:        nodeID,
-			ServiceID:     serviceID,
-			Status:        types.AlertStatusActive,
-			TriggeredAt:   occurredAt,
-			ResolvedAt:    sql.NullTime{},
-			ClosedAt:      sql.NullTime{},
-			ClosureReason: sql.NullString{},
-			Title:         title,
-			Message:       message,
+			AlertRuleID:     rule.ID,
+			ProjectID:       rule.ProjectID,
+			NodeID:          nodeID,
+			ServiceID:       serviceID,
+			Status:          types.AlertStatusActive,
+			TriggeredAt:     occurredAt,
+			ResolvedAt:      sql.NullTime{},
+			ClosedAt:        sql.NullTime{},
+			ClosureReason:   sql.NullString{},
+			Title:           title,
+			Message:         message,
+			TriggerSnapshot: triggerSnapshot,
 		})
 		if createErr != nil {
 			if isUniqueViolation(createErr) {

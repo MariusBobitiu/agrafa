@@ -9,6 +9,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/sqlc-dev/pqtype"
 )
 
 const closeAlertInstance = `-- name: CloseAlertInstance :one
@@ -18,7 +20,7 @@ SET status = 'closed',
     closure_reason = $3
 WHERE id = $1
   AND status = 'active'
-RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
+RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, trigger_snapshot, created_at
 `
 
 type CloseAlertInstanceParams struct {
@@ -43,6 +45,7 @@ func (q *Queries) CloseAlertInstance(ctx context.Context, arg CloseAlertInstance
 		&i.ClosureReason,
 		&i.Title,
 		&i.Message,
+		&i.TriggerSnapshot,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -88,7 +91,8 @@ INSERT INTO app.alert_instances (
     closed_at,
     closure_reason,
     title,
-    message
+    message,
+    trigger_snapshot
 ) VALUES (
     $1,
     $2,
@@ -100,23 +104,25 @@ INSERT INTO app.alert_instances (
     $8,
     $9,
     $10,
-    $11
+    $11,
+    $12
 )
-RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
+RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, trigger_snapshot, created_at
 `
 
 type CreateAlertInstanceParams struct {
-	AlertRuleID   int64          `json:"alert_rule_id"`
-	ProjectID     int64          `json:"project_id"`
-	NodeID        sql.NullInt64  `json:"node_id"`
-	ServiceID     sql.NullInt64  `json:"service_id"`
-	Status        string         `json:"status"`
-	TriggeredAt   time.Time      `json:"triggered_at"`
-	ResolvedAt    sql.NullTime   `json:"resolved_at"`
-	ClosedAt      sql.NullTime   `json:"closed_at"`
-	ClosureReason sql.NullString `json:"closure_reason"`
-	Title         string         `json:"title"`
-	Message       string         `json:"message"`
+	AlertRuleID     int64                 `json:"alert_rule_id"`
+	ProjectID       int64                 `json:"project_id"`
+	NodeID          sql.NullInt64         `json:"node_id"`
+	ServiceID       sql.NullInt64         `json:"service_id"`
+	Status          string                `json:"status"`
+	TriggeredAt     time.Time             `json:"triggered_at"`
+	ResolvedAt      sql.NullTime          `json:"resolved_at"`
+	ClosedAt        sql.NullTime          `json:"closed_at"`
+	ClosureReason   sql.NullString        `json:"closure_reason"`
+	Title           string                `json:"title"`
+	Message         string                `json:"message"`
+	TriggerSnapshot pqtype.NullRawMessage `json:"trigger_snapshot"`
 }
 
 func (q *Queries) CreateAlertInstance(ctx context.Context, arg CreateAlertInstanceParams) (AppAlertInstance, error) {
@@ -132,6 +138,7 @@ func (q *Queries) CreateAlertInstance(ctx context.Context, arg CreateAlertInstan
 		arg.ClosureReason,
 		arg.Title,
 		arg.Message,
+		arg.TriggerSnapshot,
 	)
 	var i AppAlertInstance
 	err := row.Scan(
@@ -147,13 +154,14 @@ func (q *Queries) CreateAlertInstance(ctx context.Context, arg CreateAlertInstan
 		&i.ClosureReason,
 		&i.Title,
 		&i.Message,
+		&i.TriggerSnapshot,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const findActiveAlertInstanceByRuleAndTarget = `-- name: FindActiveAlertInstanceByRuleAndTarget :one
-SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
+SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, trigger_snapshot, created_at
 FROM app.alert_instances
 WHERE alert_rule_id = $1
   AND node_id IS NOT DISTINCT FROM $2::bigint
@@ -184,6 +192,7 @@ func (q *Queries) FindActiveAlertInstanceByRuleAndTarget(ctx context.Context, ar
 		&i.ClosureReason,
 		&i.Title,
 		&i.Message,
+		&i.TriggerSnapshot,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -464,7 +473,7 @@ func (q *Queries) ListActiveAlertDetailsByServiceID(ctx context.Context, service
 }
 
 const listActiveAlertInstancesByRuleID = `-- name: ListActiveAlertInstancesByRuleID :many
-SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
+SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, trigger_snapshot, created_at
 FROM app.alert_instances
 WHERE alert_rule_id = $1
   AND status = 'active'
@@ -493,6 +502,7 @@ func (q *Queries) ListActiveAlertInstancesByRuleID(ctx context.Context, alertRul
 			&i.ClosureReason,
 			&i.Title,
 			&i.Message,
+			&i.TriggerSnapshot,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -777,7 +787,7 @@ func (q *Queries) ListAlertInstances(ctx context.Context, arg ListAlertInstances
 }
 
 const listAlertInstancesByNodeAndStatus = `-- name: ListAlertInstancesByNodeAndStatus :many
-SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
+SELECT id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, trigger_snapshot, created_at
 FROM app.alert_instances
 WHERE node_id = $1
   AND (NOT $2::boolean OR status = $3)
@@ -819,6 +829,7 @@ func (q *Queries) ListAlertInstancesByNodeAndStatus(ctx context.Context, arg Lis
 			&i.ClosureReason,
 			&i.Title,
 			&i.Message,
+			&i.TriggerSnapshot,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -990,7 +1001,7 @@ SET status = 'resolved',
     resolved_at = $2
 WHERE id = $1
   AND status = 'active'
-RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, created_at
+RETURNING id, alert_rule_id, project_id, node_id, service_id, status, triggered_at, resolved_at, closed_at, closure_reason, title, message, trigger_snapshot, created_at
 `
 
 type ResolveAlertInstanceParams struct {
@@ -1014,6 +1025,7 @@ func (q *Queries) ResolveAlertInstance(ctx context.Context, arg ResolveAlertInst
 		&i.ClosureReason,
 		&i.Title,
 		&i.Message,
+		&i.TriggerSnapshot,
 		&i.CreatedAt,
 	)
 	return i, err

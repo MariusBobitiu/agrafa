@@ -1,85 +1,22 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agrafa Notification Test</title>
-</head>
-<body style="margin:0; padding:24px; background:#141414; color:#f4f4f4; font-family:'Public Sans', Arial, Helvetica, sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" style="max-width:600px;">
-
-          <!-- Header: logo + wordmark -->
-          <tr>
-            <td style="padding:0 0 20px;">
-              <table role="presentation" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td style="vertical-align:middle; padding-right:8px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 48 46" fill="none"><path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/></svg>
-                  </td>
-                  <td style="vertical-align:middle; font-size:15px; font-weight:700; letter-spacing:0.01em; color:#f4f4f4;">Agrafa</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Card -->
-          <tr>
-            <td style="background:#1f1f1f; border-radius:10px; border:1px solid rgba(255,255,255,0.08); overflow:hidden;">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td style="padding:28px 28px 20px;">
-                    <div style="font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:#777777; margin-bottom:14px;">Notifications</div>
-                    <h1 style="margin:0 0 8px; font-size:22px; line-height:1.25; font-weight:700; color:#f4f4f4;">Notification test</h1>
-                    <p style="margin:0; font-size:14px; line-height:1.6; color:#888888;">
-                      This is a test notification. If you received it, email delivery for notifications is working correctly.
-                    </p>
-                  </td>
-                </tr>
-
-                <!-- Divider -->
-                <tr><td style="height:1px; background:rgba(255,255,255,0.07); font-size:0; line-height:0;"></td></tr>
-
-                <!-- Detail rows -->
-                <tr>
-                  <td style="padding:4px 28px 20px;">
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                      {{if .ProjectName}}<tr>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); width:140px; font-size:13px; color:#666666;">Project</td>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{.ProjectName}}</td>
-                      </tr>{{end}}
-                      {{if .ProjectID}}<tr>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; color:#666666;">Project ID</td>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{.ProjectID}}</td>
-                      </tr>{{end}}
-                      <tr>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; color:#666666;">Recipient</td>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{.Recipient}}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:12px 0; font-size:13px; color:#666666;">Sent at</td>
-                        <td style="padding:12px 0; font-size:13px; font-weight:600; color:#e0e0e0;">{{formatTime .SentAt}}</td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-
-              </table>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="padding:20px 4px 0; font-size:12px; color:#444444; text-align:center;">
-              Agrafa &mdash; Infrastructure monitoring
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><title>Agrafa notification test</title>
+<style type="text/css">
+:root{color-scheme:light dark;supported-color-schemes:light dark;}
+a[x-apple-data-detectors],u + #body a,#MessageViewBody a{color:inherit!important;text-decoration:inherit!important;text-decoration-color:inherit!important;}
+@media (prefers-color-scheme:dark){.email-body,.email-page{background-color:#111214!important;color:#f2f3f5!important}.email-card{background-color:#1a1c1f!important;border-color:#2a2d31!important}.brand-text,.primary-text,.detail-value{color:#f2f3f5!important}.muted-text,.detail-label{color:#777b82!important}.detail-row{border-bottom-color:#26292d!important}.test-pill{background-color:#222428!important;border-color:#3a3d42!important;color:#b9bcc1!important}.footer-text{color:#555960!important}}
+</style></head>
+<body id="body" class="email-body" style="margin:0;padding:0;background-color:#f5f4f1;color:#202124;font-family:Arial,Helvetica,sans-serif;">
+<table class="email-page" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background-color:#f5f4f1;"><tr><td align="center" style="padding:28px 16px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;">
+<tr><td class="brand-text" style="padding:0 2px 18px;font-size:16px;line-height:22px;font-weight:700;color:#202124;">Agrafa</td></tr>
+<tr><td class="email-card" style="background-color:#ffffff;border:1px solid #dedfe1;border-radius:10px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+<tr><td style="padding:26px 28px 22px;"><span class="test-pill" style="display:inline-block;padding:4px 9px;border:1px solid #cfd1d4;border-radius:999px;background-color:#f1f2f3;color:#565a60;font-size:11px;line-height:14px;font-weight:700;letter-spacing:.08em;">TEST</span><h1 class="primary-text" style="margin:15px 0 8px;font-size:23px;line-height:30px;font-weight:700;color:#202124;">Alert email delivery is working</h1><p class="muted-text" style="margin:0;font-size:14px;line-height:22px;color:#5f6368;">This address is ready to receive operational alerts from Agrafa.</p></td></tr>
+<tr><td style="padding:0 28px 24px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-top:1px solid #e1e2e4;">
+{{if .ProjectName}}<tr><td class="detail-label detail-row" width="138" valign="top" style="padding:10px 12px 10px 0;border-bottom:1px solid #e5e6e7;font-size:12px;line-height:18px;color:#73767b;">Project</td><td class="detail-value detail-row" valign="top" style="padding:10px 0;border-bottom:1px solid #e5e6e7;font-size:13px;line-height:18px;color:#2d2f31;">{{.ProjectName}}</td></tr>{{end}}
+<tr><td class="detail-label detail-row" width="138" valign="top" style="padding:10px 12px 10px 0;border-bottom:1px solid #e5e6e7;font-size:12px;line-height:18px;color:#73767b;">Recipient</td><td class="detail-value detail-row" valign="top" style="padding:10px 0;border-bottom:1px solid #e5e6e7;font-size:13px;line-height:18px;color:#2d2f31;word-break:break-word;">{{.Recipient}}</td></tr>
+<tr><td class="detail-label" width="138" valign="top" style="padding:10px 12px 10px 0;font-size:12px;line-height:18px;color:#73767b;">Sent at</td><td class="detail-value" valign="top" style="padding:10px 0;font-size:13px;line-height:18px;color:#2d2f31;">{{formatTime .SentAt}}</td></tr>
+</table></td></tr></table></td></tr>
+<tr><td class="footer-text" align="center" style="padding:22px 20px 0;font-size:12px;line-height:19px;color:#999ca1;">Agrafa &mdash; Infrastructure monitoring</td></tr>
+</table></td></tr></table>
+</body></html>

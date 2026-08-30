@@ -204,6 +204,7 @@ CREATE TABLE app.alert_instances (
     closure_reason TEXT,
     title TEXT NOT NULL,
     message TEXT NOT NULL,
+    trigger_snapshot JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (
         (status = 'active' AND resolved_at IS NULL AND closed_at IS NULL AND closure_reason IS NULL)

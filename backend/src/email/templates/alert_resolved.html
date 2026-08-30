@@ -1,128 +1,45 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agrafa Alert Resolved</title>
-</head>
-<body style="margin:0; padding:24px; background:#141414; color:#f4f4f4; font-family:'Public Sans', Arial, Helvetica, sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" style="max-width:600px;">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><title>Agrafa alert resolved</title>
+<style type="text/css">
+:root{color-scheme:light dark;supported-color-schemes:light dark;}
+a[x-apple-data-detectors],u + #body a,#MessageViewBody a{color:inherit!important;text-decoration:inherit!important;text-decoration-color:inherit!important;}
+@media (prefers-color-scheme:dark){
+.email-body,.email-page{background-color:#111214!important;color:#f2f3f5!important}.email-card{background-color:#1a1c1f!important;border-color:#2a2d31!important}.brand-text,.primary-text,.metadata-value,.detail-value,.section-title{color:#f2f3f5!important}.muted-text,.metadata-label,.detail-label{color:#747880!important}.metadata-strip{border-color:#2d3034!important}.metadata-cell-separated{border-left-color:#292c30!important}.detail-row{border-bottom-color:#272a2e!important}.resolved-pill{background-color:#1c2a21!important;border-color:#31553c!important;color:#72cf8b!important}.resolved-semantic{color:#72cf8b!important}.downtime-panel{background-color:#1d1d1b!important;border-color:#4b4330!important}.downtime-semantic{color:#e7b24c!important}.downtime-recovery{color:#858990!important}.downtime-recovery-value{color:#c1c3c7!important}.explanation-panel{background-color:#19221c!important;border-color:#2d4935!important;border-left-color:#4c9c62!important}.explanation-label{color:#72cf8b!important}.explanation-text{color:#bfc1c5!important}.resolved-primary-cell{background-color:#3f9859!important;border-color:#58b471!important}.footer-text{color:#6f7379!important}.agrafa-footer-link{color:#8d9198!important;text-decoration-color:#555960!important}.footer-brand{color:#555960!important}
+}
+</style></head>
+<body id="body" class="email-body" style="margin:0;padding:0;background-color:#f5f4f1;color:#202124;font-family:Arial,Helvetica,sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">{{.AlertMessage}}</div>
+<table class="email-page" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background-color:#f5f4f1;"><tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;">
+<tr><td class="brand-text" style="padding:0 2px 20px;font-size:16px;line-height:22px;font-weight:700;color:#202124;">Agrafa</td></tr>
+<tr><td class="email-card" style="background-color:#ffffff;border:1px solid #dedfe1;border-radius:10px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+<tr><td style="padding:30px 30px 26px;"><span class="resolved-pill" style="display:inline-block;padding:4px 9px;border:1px solid #9bcbaa;border-radius:999px;background-color:#eaf6ed;color:#217a3c;font-size:11px;line-height:14px;font-weight:700;letter-spacing:.08em;">RESOLVED</span><h1 class="primary-text" style="margin:17px 0 10px;font-size:25px;line-height:32px;font-weight:700;color:#202124;"><span class="resolved-semantic" data-title-icon="resolved" style="color:#217a3c;">✓</span>&nbsp;{{plainTitle .AlertTitle}}</h1><p class="muted-text" style="margin:0;font-size:14px;line-height:23px;color:#5f6368;">{{.AlertMessage}}</p></td></tr>
 
-          <!-- Header: logo + wordmark -->
-          <tr>
-            <td style="padding:0 0 20px;">
-              <table role="presentation" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td style="vertical-align:middle; padding-right:8px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 48 46" fill="none"><path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/></svg>
-                  </td>
-                  <td style="vertical-align:middle; font-size:15px; font-weight:700; letter-spacing:0.01em; color:#f4f4f4;">Agrafa</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+<tr><td style="padding:0 30px 28px;"><table class="metadata-strip" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-top:1px solid #e1e2e4;border-bottom:1px solid #e1e2e4;table-layout:fixed;"><tr>
+<td width="33.33%" valign="top" style="padding:18px 14px 18px 0;"><div class="metadata-label" style="font-size:10px;line-height:15px;letter-spacing:.05em;text-transform:uppercase;color:#75787d;">Project</div><div class="metadata-value" style="margin-top:5px;font-size:14px;line-height:20px;font-weight:700;color:#242527;">{{if .ProjectName}}{{.ProjectName}}{{else}}Agrafa{{end}}</div></td>
+<td class="metadata-cell-separated" width="33.33%" valign="top" style="padding:18px 14px;border-left:1px solid #e5e5e5;"><div class="metadata-label" style="font-size:10px;line-height:15px;letter-spacing:.05em;text-transform:uppercase;color:#75787d;">{{if and (eq .ResourceType "service") .ServiceCheckType}}Check type{{else}}Resource{{end}}</div><div class="metadata-value" style="margin-top:5px;font-size:14px;line-height:20px;font-weight:700;color:#242527;">{{if and (eq .ResourceType "service") .ServiceCheckType}}{{.ServiceCheckType}}{{else if eq .ResourceType "service"}}Service{{else}}Node{{end}}</div></td>
+<td class="metadata-cell-separated" width="33.33%" valign="top" style="padding:18px 0 18px 14px;border-left:1px solid #e5e5e5;"><div class="metadata-label" style="font-size:10px;line-height:15px;letter-spacing:.05em;text-transform:uppercase;color:#75787d;">Severity</div><div class="resolved-semantic" style="margin-top:5px;font-size:14px;line-height:20px;font-weight:700;color:#217a3c;"><span style="color:inherit;">●</span>&nbsp;{{titleCase .Severity}}</div></td>
+</tr></table></td></tr>
 
-          <!-- Card -->
-          <tr>
-            <td style="background:#1f1f1f; border-radius:0 0 10px 10px; overflow:hidden;">
+{{if .Duration}}<tr><td style="padding:0 30px 28px;"><table class="downtime-panel" data-downtime-callout="amber" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background-color:#fff8e8;border:1px solid #e4c981;border-radius:7px;"><tr>
+<td class="downtime-semantic" width="44" valign="top" style="padding:18px 0 18px 18px;font-size:22px;line-height:26px;color:#a86600;">◷</td>
+<td valign="top" style="padding:17px 18px 17px 10px;"><div class="downtime-semantic" style="font-size:11px;line-height:16px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#a86600;">Downtime</div><div class="downtime-semantic" data-duration-color="amber" style="margin-top:3px;font-size:30px;line-height:37px;font-weight:700;color:#a86600;">{{.Duration}}</div>{{if .ResolvedAt}}<div class="downtime-recovery" style="margin-top:9px;font-size:12px;line-height:19px;color:#6d7075;">Recovered at <span class="downtime-recovery-value" style="color:#343638;">{{formatTime .ResolvedAt}}</span></div>{{end}}</td>
+</tr></table></td></tr>{{end}}
 
-              <!-- Alert type accent bar -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td style="height:3px; background:#79c244; font-size:0; line-height:0;">&nbsp;</td>
-                </tr>
-              </table>
+<tr><td class="section-title" style="padding:0 30px 10px;font-size:13px;line-height:19px;font-weight:700;color:#27282a;">Recovery details</td></tr>
+<tr><td style="padding:0 30px 28px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+<tr><td class="detail-label detail-row" width="138" valign="top" style="padding:11px 14px 11px 0;border-bottom:1px solid #e5e6e7;font-size:12px;line-height:19px;color:#73767b;">Started at</td><td class="detail-value detail-row" valign="top" style="padding:11px 0;border-bottom:1px solid #e5e6e7;font-size:13px;line-height:19px;font-weight:600;color:#2d2f31;">{{formatTime .TriggeredAt}}</td></tr>
+{{if .ResolvedAt}}<tr><td class="detail-label detail-row" width="138" valign="top" style="padding:11px 14px 11px 0;border-bottom:1px solid #e5e6e7;font-size:12px;line-height:19px;color:#73767b;">Recovered at</td><td class="resolved-semantic detail-row" valign="top" style="padding:11px 0;border-bottom:1px solid #e5e6e7;font-size:13px;line-height:19px;font-weight:600;color:#217a3c;">{{formatTime .ResolvedAt}}</td></tr>{{end}}
+{{if .Duration}}<tr><td class="detail-label detail-row" width="138" valign="top" style="padding:11px 14px 11px 0;border-bottom:1px solid #e5e6e7;font-size:12px;line-height:19px;color:#73767b;">Downtime</td><td class="downtime-semantic detail-row" valign="top" style="padding:11px 0;border-bottom:1px solid #e5e6e7;font-size:13px;line-height:19px;font-weight:700;color:#a86600;">{{.Duration}}</td></tr>{{end}}
+<tr><td class="detail-label" width="138" valign="top" style="padding:11px 14px 11px 0;font-size:12px;line-height:19px;color:#73767b;">Rule</td><td class="detail-value" valign="top" style="padding:11px 0;font-size:13px;line-height:19px;font-weight:600;color:#2d2f31;">{{.RuleLabel}}</td></tr>
+</table></td></tr>
 
-              <!-- Card body -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td style="padding:24px 28px 20px;">
+<tr><td style="padding:0 30px 28px;"><table class="explanation-panel" data-explanation="resolved" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background-color:#f0f8f2;border:1px solid #b9d9c2;border-left:3px solid #2f8a4b;border-radius:6px;"><tr><td style="padding:15px 17px;"><div class="explanation-label" style="font-size:11px;line-height:16px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#217a3c;">What happened</div><p class="explanation-text" style="margin:5px 0 0;font-size:13px;line-height:20px;color:#343638;">{{if eq .RuleType "node_offline"}}The node resumed sending heartbeats and is communicating normally again.{{else if eq .RuleType "service_unhealthy"}}The configured health check is passing again and the service is responding normally.{{else}}{{.MetricLabel}} returned within the configured alert threshold.{{end}}</p></td></tr></table></td></tr>
 
-                    <!-- Section label -->
-                    <div style="font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:#777777; margin-bottom:12px;">Alert</div>
+{{if .ResourceURL}}<tr><td style="padding:0 30px 30px;"><table data-cta="primary" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;"><tr><td class="resolved-primary-cell" bgcolor="#2f8a4b" style="background-color:#2f8a4b;border:1px solid #287840;border-radius:6px;"><a class="agrafa-primary-link" href="{{.ResourceURL}}" style="display:block;width:100%;box-sizing:border-box;padding:15px 17px;color:#ffffff!important;font-size:14px;line-height:20px;font-weight:700;text-decoration:none!important;">View {{.ResourceType}} in Agrafa <span style="float:right;">→</span></a></td></tr></table></td></tr>{{end}}
+</table></td></tr>
 
-                    <!-- Status badge -->
-                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin-bottom:8px;">
-                      <tr>
-                        <td>
-                          <span style="display:inline-block; padding:3px 9px; border-radius:999px; background:rgba(121,194,68,0.15); color:#79c244; font-size:11px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase;">Resolved</span>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <h1 style="margin:0 0 6px; font-size:22px; line-height:1.25; font-weight:700; color:#f4f4f4;">{{ .AlertTitle }}</h1>
-                    <p style="margin:0; font-size:14px; line-height:1.6; color:#888888;">
-                      {{ if .ProjectName }}{{ .ProjectName }}{{ else }}Project #{{ .ProjectID }}{{ end }} &mdash; alert resolved
-                    </p>
-
-                  </td>
-                </tr>
-
-                <!-- Divider -->
-                <tr><td style="height:1px; background:rgba(255,255,255,0.07); font-size:0; line-height:0;"></td></tr>
-
-                <!-- Summary box -->
-                <tr>
-                  <td style="padding:20px 28px;">
-                    <div style="padding:16px 18px; background:rgba(121,194,68,0.07); border:1px solid rgba(121,194,68,0.2); border-radius:8px;">
-                      <div style="font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:#79c244; margin-bottom:8px;">Summary</div>
-                      <p style="margin:0; font-size:14px; line-height:1.7; color:#cccccc;">{{ .AlertMessage }}</p>
-                    </div>
-                  </td>
-                </tr>
-
-                <!-- Divider -->
-                <tr><td style="height:1px; background:rgba(255,255,255,0.07); font-size:0; line-height:0;"></td></tr>
-
-                <!-- Detail rows -->
-                <tr>
-                  <td style="padding:4px 28px 20px;">
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                      <tr>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); width:140px; font-size:13px; color:#666666;">Rule</td>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{ .RuleType }}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; color:#666666;">Status</td>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{ .Status }}</td>
-                      </tr>
-                      {{ if .NodeID }}<tr>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; color:#666666;">Node ID</td>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{ .NodeID }}</td>
-                      </tr>{{ end }}
-                      {{ if .ServiceID }}<tr>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; color:#666666;">Service ID</td>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{ .ServiceID }}</td>
-                      </tr>{{ end }}
-                      <tr>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; color:#666666;">Triggered at</td>
-                        <td style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); font-size:13px; font-weight:600; color:#e0e0e0;">{{ formatTime .TriggeredAt }}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:12px 0; font-size:13px; color:#666666;">Resolved at</td>
-                        <td style="padding:12px 0; font-size:13px; font-weight:600; color:#e0e0e0;">{{ formatTime .ResolvedAt }}</td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-
-              </table>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="padding:20px 4px 0; font-size:12px; color:#444444; text-align:center;">
-              Agrafa &mdash; Infrastructure monitoring
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
+<tr><td class="footer-text" align="center" style="padding:24px 20px 0;font-size:12px;line-height:19px;color:#777b82;">You're receiving this email because you're subscribed to alerts for project {{if .ProjectName}}{{.ProjectName}}{{else}}Agrafa{{end}}.<br><br>{{if .NotificationsURL}}<a class="agrafa-footer-link" href="{{.NotificationsURL}}" style="color:#6b6f75!important;text-decoration:underline!important;text-decoration-color:#a5a7aa!important;">Manage your notifications in Agrafa.</a>{{else}}Manage your notifications in Agrafa.{{end}}<br><br><span class="footer-brand" style="color:#999ca1;">Agrafa &mdash; Infrastructure monitoring</span></td></tr>
+</table></td></tr></table>
+</body></html>

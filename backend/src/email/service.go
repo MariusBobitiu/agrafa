@@ -8,16 +8,46 @@ import (
 )
 
 type AlertTemplateData struct {
-	ProjectID    int64
-	ProjectName  string
+	ProjectID   int64
+	ProjectName string
+
 	AlertTitle   string
 	AlertMessage string
 	RuleType     string
+	RuleLabel    string
+	Severity     string
 	Status       string
-	NodeID       *int64
-	ServiceID    *int64
-	TriggeredAt  time.Time
-	ResolvedAt   *time.Time
+
+	ResourceType string
+	ResourceID   *int64
+	ResourceName string
+
+	NodeName       string
+	NodeIdentifier string
+	NodeState      string
+	LastSeenAt     *time.Time
+
+	ServiceName      string
+	ServiceCheckType string
+	ServiceTarget    string
+	ServiceState     string
+
+	StatusCode     *int
+	ResponseTimeMs *int64
+	FailureReason  string
+
+	MetricName     string
+	MetricLabel    string
+	MetricValue    *float64
+	ThresholdValue *float64
+
+	TriggeredAt time.Time
+	ResolvedAt  *time.Time
+	Duration    string
+
+	ResourceURL      string
+	AlertsURL        string
+	NotificationsURL string
 }
 
 type VerifyEmailTemplateData struct {
@@ -232,7 +262,7 @@ func (s *Service) renderText(templateName string, data any) (string, error) {
 func alertTriggeredEmailDefinition() alertEmailDefinition {
 	return alertEmailDefinition{
 		subject: func(data AlertTemplateData) string {
-			return "[Agrafa] Alert triggered: " + data.AlertTitle
+			return alertTriggeredSubject(data)
 		},
 		htmlTemplate: "alert_triggered.html",
 		textTemplate: "alert_triggered.txt",
@@ -242,9 +272,75 @@ func alertTriggeredEmailDefinition() alertEmailDefinition {
 func alertResolvedEmailDefinition() alertEmailDefinition {
 	return alertEmailDefinition{
 		subject: func(data AlertTemplateData) string {
-			return "[Agrafa] Alert resolved: " + data.AlertTitle
+			return alertResolvedSubject(data)
 		},
 		htmlTemplate: "alert_resolved.html",
 		textTemplate: "alert_resolved.txt",
 	}
+}
+
+func alertTriggeredSubject(data AlertTemplateData) string {
+	severity := titleCase(data.Severity)
+	if severity == "" {
+		severity = "Alert"
+	}
+
+	var description string
+	switch data.RuleType {
+	case "service_unhealthy":
+		description = fallback(data.ServiceName, "Service") + " is unhealthy"
+	case "node_offline":
+		description = fallback(data.NodeName, "Node") + " is offline"
+	case "cpu_above_threshold", "memory_above_threshold", "disk_above_threshold":
+		description = fallback(data.MetricLabel, "Metric") + " above " + formatPercent(data.ThresholdValue) + " on " + fallback(data.NodeName, "node")
+	default:
+		description = strings.TrimPrefix(strings.TrimSpace(data.AlertTitle), "⚠ ")
+	}
+
+	return subjectWithProject("["+severity+"] "+description, data.ProjectName)
+}
+
+func alertResolvedSubject(data AlertTemplateData) string {
+	var description string
+	switch data.RuleType {
+	case "service_unhealthy":
+		description = fallback(data.ServiceName, "Service") + " recovered"
+	case "node_offline":
+		description = fallback(data.NodeName, "Node") + " is back online"
+	case "cpu_above_threshold", "memory_above_threshold", "disk_above_threshold":
+		description = fallback(data.MetricLabel, "Metric") + " back within threshold on " + fallback(data.NodeName, "node")
+	default:
+		description = strings.TrimPrefix(strings.TrimSpace(data.AlertTitle), "✓ ")
+	}
+
+	return subjectWithProject("[Resolved] "+description, data.ProjectName)
+}
+
+func subjectWithProject(subject, projectName string) string {
+	if projectName = strings.TrimSpace(projectName); projectName != "" {
+		return subject + " — " + projectName
+	}
+	return subject
+}
+
+func fallback(value, fallbackValue string) string {
+	if value = strings.TrimSpace(value); value != "" {
+		return value
+	}
+	return fallbackValue
+}
+
+func titleCase(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	return strings.ToUpper(value[:1]) + strings.ToLower(value[1:])
+}
+
+func formatPercent(value *float64) string {
+	if value == nil {
+		return "threshold"
+	}
+	return fmt.Sprintf("%g%%", *value)
 }
